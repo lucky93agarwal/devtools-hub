@@ -1,59 +1,75 @@
-# DevtoolsHub
+# DevTools Hub
 
-This project was generated using [Angular CLI](https://github.com/angular/angular-cli) version 22.2.2.
+[![CI](https://github.com/lucky93agarwal/devtools-hub/actions/workflows/ci.yml/badge.svg)](https://github.com/lucky93agarwal/devtools-hub/actions/workflows/ci.yml)
 
-## Development server
+Free, privacy-first developer tools that run entirely in the browser. Nothing you paste or upload is sent to a server.
 
-To start a local development server, run:
+**Live site:** https://devtools-hub.agarwal-lucky93.workers.dev
+
+## Tools
+
+| Tool | Status |
+|---|---|
+| [JSON Formatter and Validator](https://devtools-hub.agarwal-lucky93.workers.dev/json-formatter) | Live |
+| JSON Compare | Planned |
+| Image Converter | Planned |
+| JWT Decoder and Verifier | Planned |
+| Background Remover | Planned |
+| JSON to Kotlin, Dart and Swift | Planned |
+| App Icon Generator | Planned |
+
+## Deployment
+
+Every push to `main` is tested and deployed automatically.
+
+| What | Where |
+|---|---|
+| Live site | https://devtools-hub.agarwal-lucky93.workers.dev |
+| Deployment dashboard (Cloudflare Workers) | https://dash.cloudflare.com/909829c17e0b4061fb4da72309180706/workers/services/view/devtools-hub/production/deployments |
+| CI runs (tests and build) | https://github.com/lucky93agarwal/devtools-hub/actions |
+
+How it works:
+
+1. GitHub Actions ([ci.yml](.github/workflows/ci.yml)) runs the unit tests and a production build.
+2. Cloudflare Workers Builds runs `npm run build`, then `npx wrangler deploy`.
+3. The site is served as static files from `dist/devtools-hub/browser` (see [wrangler.jsonc](wrangler.jsonc)). Unknown URLs get `404.html` with a 404 status.
+
+The Worker name in the Cloudflare dashboard must stay `devtools-hub`, matching `wrangler.jsonc`, or the build fails.
+
+## Tech stack
+
+- Angular 22 (standalone components, signals), every page prerendered at build time
+- Tailwind CSS 4, self-hosted Poppins, Inter and JetBrains Mono fonts
+- Monaco editor for code input and output
+- Vitest for unit tests
+- Cloudflare Workers static assets for hosting
+
+## Run locally
+
+Requires Node.js 24 (see [.node-version](.node-version)).
 
 ```bash
-ng serve
+npm ci
 ```
-
-Once the server is running, open your browser and navigate to `http://localhost:4200/`. The application will automatically reload whenever you modify any of the source files.
-
-## Code scaffolding
-
-Angular CLI includes powerful code scaffolding tools. To generate a new component, run:
 
 ```bash
-ng generate component component-name
+npm start
 ```
 
-For a complete list of available schematics (such as `components`, `directives`, or `pipes`), run:
+Then open http://localhost:4200.
+
+## Test and build
 
 ```bash
-ng generate --help
+npm test
 ```
-
-## Building
-
-To build the project run:
 
 ```bash
-ng build
+npm run build
 ```
 
-This will compile your project and store the build artifacts in the `dist/` directory. By default, the production build optimizes your application for performance and speed.
-
-## Running unit tests
-
-To execute unit tests with the [Vitest](https://vitest.dev/) test runner, use the following command:
+The build output is in `dist/devtools-hub/browser`. To preview it the way Cloudflare serves it:
 
 ```bash
-ng test
+npx wrangler dev
 ```
-
-## Running end-to-end tests
-
-For end-to-end (e2e) testing, run:
-
-```bash
-ng e2e
-```
-
-Angular CLI does not come with an end-to-end testing framework by default. You can choose one that suits your needs.
-
-## Additional Resources
-
-For more information on using the Angular CLI, including detailed command references, visit the [Angular CLI Overview and Command Reference](https://angular.dev/tools/cli) page.
