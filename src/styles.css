@@ -106,3 +106,45 @@
     background-size: 16px 16px;
   }
 }
+
+/* Code editor (Monaco) error highlight. Monaco renders outside component styles. */
+.code-error-line {
+  background: color-mix(in srgb, var(--danger) 12%, transparent);
+}
+
+.dark .code-error-line {
+  background: color-mix(in srgb, var(--danger) 22%, transparent);
+}
+
+.code-error-gutter {
+  background: var(--danger);
+  width: 3px !important;
+  margin-left: 4px;
+}
+
+/* Pulses the error line after "Go to error" so the eye finds it. */
+.code-error-flash {
+  animation: code-error-flash 1.8s ease-out;
+}
+
+@keyframes code-error-flash {
+  0%,
+  40%,
+  80% {
+    background: color-mix(in srgb, var(--danger) 45%, transparent);
+  }
+  20%,
+  60% {
+    background: color-mix(in srgb, var(--danger) 10%, transparent);
+  }
+  100% {
+    background: transparent;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .code-error-flash {
+    animation: none;
+    background: color-mix(in srgb, var(--danger) 30%, transparent);
+  }
+}

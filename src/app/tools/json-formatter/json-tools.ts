@@ -85,6 +85,9 @@ export function findJsonError(text: string): JsonError | null {
     return `'${ch}'`;
   };
 
+  /** True when a new value starts here, which after a value means a comma is missing. */
+  const startsValue = (at: number): boolean => /^[{["\-0-9tfn]/.test(text[at] ?? '');
+
   const skipWhitespace = () => {
     while (i < text.length && ' \t\n\r'.includes(text[i])) i++;
   };
@@ -134,6 +137,7 @@ export function findJsonError(text: string): JsonError | null {
         return;
       }
       if (i >= text.length) fail('Unexpected end of input. Missing } to close the object.');
+      if (startsValue(i)) fail(`Missing comma. Add ',' before ${describe(i)}.`);
       fail(`Expected ',' or '}' after the value, found ${describe(i)}.`);
     }
   };
@@ -159,6 +163,7 @@ export function findJsonError(text: string): JsonError | null {
         return;
       }
       if (i >= text.length) fail('Unexpected end of input. Missing ] to close the array.');
+      if (startsValue(i)) fail(`Missing comma. Add ',' before ${describe(i)}.`);
       fail(`Expected ',' or ']' after the value, found ${describe(i)}.`);
     }
   };

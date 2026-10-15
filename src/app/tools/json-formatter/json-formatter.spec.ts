@@ -1,15 +1,43 @@
+import { Component, input, model } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
+import { By } from '@angular/platform-browser';
+import { CodeEditor } from '../../shared/code-editor/code-editor';
 import { JsonFormatter } from './json-formatter';
+
+/** Monaco cannot run in jsdom, so tests use a textarea with the same API. */
+@Component({
+  selector: 'app-code-editor',
+  template: `<textarea [value]="value()" [readOnly]="readOnly()" (input)="onInput($event)"></textarea>`,
+})
+class FakeCodeEditor {
+  readonly value = model('');
+  readonly language = input('');
+  readonly readOnly = input(false);
+  readonly placeholder = input('');
+  readonly ariaLabel = input('');
+  readonly invalid = input(false);
+  readonly showError = vi.fn();
+  readonly revealError = vi.fn();
+  readonly clearError = vi.fn();
+
+  onInput(event: Event): void {
+    this.value.set((event.target as HTMLTextAreaElement).value);
+  }
+}
 
 describe('JsonFormatter', () => {
   async function setup() {
+    TestBed.overrideComponent(JsonFormatter, {
+      remove: { imports: [CodeEditor] },
+      add: { imports: [FakeCodeEditor] },
+    });
     const fixture = TestBed.createComponent(JsonFormatter);
     await fixture.whenStable();
     const el = fixture.nativeElement as HTMLElement;
-    const input = el.querySelector<HTMLTextAreaElement>('#json-input')!;
-    const output = el.querySelector<HTMLTextAreaElement>('#json-output')!;
+    const [input, output] = el.querySelectorAll('textarea');
+    const inputEditor = fixture.debugElement.query(By.directive(FakeCodeEditor)).componentInstance as FakeCodeEditor;
     const button = (label: string) =>
-      [...el.querySelectorAll('button')].find((b) => b.textContent?.trim() === label)!;
+      [...el.querySelectorAll('button')].find((b) => b.textContent?.replace(/\s+/g, ' ').includes(label))!;
     const status = () => el.querySelector('#json-status')!.textContent!.replace(/\s+/g, ' ').trim();
 
     const type = async (text: string) => {
@@ -21,7 +49,7 @@ describe('JsonFormatter', () => {
       button(label).click();
       await fixture.whenStable();
     };
-    return { input, output, status, type, click, button };
+    return { input, output, inputEditor, status, type, click };
   }
 
   it('starts in the empty state', async () => {
@@ -45,24 +73,33 @@ describe('JsonFormatter', () => {
     expect(status()).toBe('Valid JSON. Minified, 1 line.');
   });
 
-  it('shows line and column for broken JSON and clears the output', async () => {
-    const { input, output, status, type, click } = await setup();
+  it('marks broken JSON in the editor and clears the output', async () => {
+    const { output, inputEditor, status, type, click } = await setup();
     await type('{"a":1}');
     await click('Format');
     await type('{\n  "a": 1,\n}');
     await click('Format');
     expect(output.value).toBe('');
     expect(status()).toContain('Line 3, column 1: Trailing comma is not allowed before }.');
-    expect(input.getAttribute('aria-invalid')).toBe('true');
+    expect(inputEditor.showError).toHaveBeenLastCalledWith(3, 1, 'Trailing comma is not allowed before }.');
   });
 
-  it('selects the error position on Go to error', async () => {
-    const { input, type, click } = await setup();
-    await type('[1, 2, ]');
+  it('jumps to the error line when the error is clicked', async () => {
+    const { inputEditor, type, click } = await setup();
+    await type('[\n  1,\n  2,\n]');
     await click('Format');
     await click('Go to error');
-    expect(input.selectionStart).toBe(7);
-    expect(input.selectionEnd).toBe(8);
+    expect(inputEditor.revealError).toHaveBeenCalledWith(4, 1);
+  });
+
+  it('removes the error mark when the input changes', async () => {
+    const { inputEditor, status, type, click } = await setup();
+    await type('[1,]');
+    await click('Format');
+    inputEditor.clearError.mockClear();
+    await type('[1]');
+    expect(inputEditor.clearError).toHaveBeenCalled();
+    expect(status()).toContain('Ready');
   });
 
   it('clears everything', async () => {

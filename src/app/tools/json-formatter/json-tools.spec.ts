@@ -55,10 +55,16 @@ describe('error positions', () => {
 
   it('points at a missing comma', () => {
     expect(errorOf('{\n  "a": 1\n  "b": 2\n}')).toMatchObject({
-      message: `Expected ',' or '}' after the value, found '"'.`,
+      message: `Missing comma. Add ',' before '"'.`,
       line: 3,
       column: 3,
     });
+    expect(errorOf('[{}\n{}]')).toMatchObject({ message: `Missing comma. Add ',' before '{'.`, line: 2, column: 1 });
+  });
+
+  it('reports other unexpected characters after a value', () => {
+    expect(errorOf('{"a": 1 ;}').message).toBe(`Expected ',' or '}' after the value, found ';'.`);
+    expect(errorOf('[1 ;]').message).toBe(`Expected ',' or ']' after the value, found ';'.`);
   });
 
   it('explains single quotes', () => {

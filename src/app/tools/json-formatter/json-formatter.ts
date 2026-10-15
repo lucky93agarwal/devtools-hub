@@ -1,5 +1,6 @@
-import { Component, ElementRef, computed, signal, viewChild } from '@angular/core';
+import { Component, computed, signal, viewChild } from '@angular/core';
 import { TOOLS } from '../../core/tools';
+import { CodeEditor } from '../../shared/code-editor/code-editor';
 import { ICONS, Icon } from '../../shared/icon/icon';
 import { JsonError, JsonResult, formatJson, minifyJson } from './json-tools';
 
@@ -7,7 +8,7 @@ type Status = { kind: 'empty' } | { kind: 'ready' } | { kind: 'valid'; action: s
 
 @Component({
   selector: 'app-json-formatter',
-  imports: [Icon],
+  imports: [Icon, CodeEditor],
   templateUrl: './json-formatter.html',
 })
 export class JsonFormatter {
@@ -28,11 +29,14 @@ export class JsonFormatter {
   });
   protected readonly outputLines = computed(() => (this.output() ? this.output().split('\n').length : 0));
 
-  private readonly inputArea = viewChild.required<ElementRef<HTMLTextAreaElement>>('inputArea');
+  private readonly inputEditor = viewChild.required<CodeEditor>('inputEditor');
 
   protected onInput(value: string): void {
+    if (value === this.input()) return;
     this.input.set(value);
     this.status.set(value.trim() ? { kind: 'ready' } : { kind: 'empty' });
+    // The old error position no longer matches the edited text.
+    this.inputEditor().clearError();
   }
 
   protected format(): void {
@@ -47,25 +51,24 @@ export class JsonFormatter {
     this.input.set('');
     this.output.set('');
     this.status.set({ kind: 'empty' });
-    this.inputArea().nativeElement.focus();
+    this.inputEditor().clearError();
   }
 
-  /** Moves the cursor to the problem and selects the character there. */
+  /** Scrolls the input to the problem, puts the cursor there and flashes the line. */
   protected goToError(): void {
     const error = this.error();
-    if (!error) return;
-    const area = this.inputArea().nativeElement;
-    area.focus();
-    area.setSelectionRange(error.offset, Math.min(error.offset + 1, area.value.length));
+    if (error) this.inputEditor().revealError(error.line, error.column);
   }
 
   private apply(result: JsonResult, action: string): void {
     if (result.ok) {
       this.output.set(result.output);
       this.status.set({ kind: 'valid', action });
+      this.inputEditor().clearError();
     } else {
       this.output.set('');
       this.status.set({ kind: 'error', error: result.error });
+      this.inputEditor().showError(result.error.line, result.error.column, result.error.message);
     }
   }
 }

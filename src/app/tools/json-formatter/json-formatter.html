@@ -26,19 +26,20 @@
       }
       @case ('error') {
         @if (error(); as e) {
-          <div
-            class="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-xl border border-danger bg-danger/10 px-4 py-3"
+          <button
+            type="button"
+            class="flex w-full flex-wrap items-center gap-x-3 gap-y-1 rounded-xl border border-danger bg-danger/10 px-4 py-3 text-left hover:bg-danger/15"
+            [disabled]="!input().trim()"
+            (click)="goToError()"
           >
-            <p>
+            <span>
               <span class="font-semibold">Line {{ e.line }}, column {{ e.column }}:</span>
               {{ e.message }}
-            </p>
+            </span>
             @if (input().trim()) {
-              <button type="button" class="font-semibold underline underline-offset-2" (click)="goToError()">
-                Go to error
-              </button>
+              <span class="font-semibold underline underline-offset-2">Go to error</span>
             }
-          </div>
+          </button>
         }
       }
     }
@@ -46,35 +47,29 @@
 
   <div class="mt-4 grid gap-4 lg:grid-cols-2">
     <div class="flex flex-col gap-2">
-      <label for="json-input" class="text-sm leading-5 font-semibold">Input</label>
-      <textarea
-        #inputArea
-        id="json-input"
-        class="h-80 w-full resize-y rounded-xl border bg-surface p-4 font-mono text-sm leading-[22px] focus-visible:outline-2 lg:h-[28rem]"
-        [class]="error() ? 'border-danger' : 'border-line'"
+      <span id="json-input-label" class="text-sm leading-5 font-semibold">Input</span>
+      <app-code-editor
+        #inputEditor
+        class="h-80 lg:h-[28rem]"
+        language="json"
+        ariaLabel="JSON input"
         placeholder='Paste JSON here, for example {"name": "Ada", "admin": true}'
-        spellcheck="false"
-        autocapitalize="off"
-        autocomplete="off"
-        wrap="off"
-        [attr.aria-invalid]="error() ? 'true' : null"
-        aria-describedby="json-status"
+        [invalid]="!!error()"
         [value]="input()"
-        (input)="onInput(inputArea.value)"
-      ></textarea>
+        (valueChange)="onInput($event)"
+      />
     </div>
 
     <div class="flex flex-col gap-2">
-      <label for="json-output" class="text-sm leading-5 font-semibold">Output</label>
-      <textarea
-        id="json-output"
-        class="h-80 w-full resize-y rounded-xl border border-line bg-surface p-4 font-mono text-sm leading-[22px] lg:h-[28rem]"
+      <span id="json-output-label" class="text-sm leading-5 font-semibold">Output</span>
+      <app-code-editor
+        class="h-80 lg:h-[28rem]"
+        language="json"
+        ariaLabel="Formatted JSON output"
         placeholder="The formatted JSON appears here."
-        spellcheck="false"
-        wrap="off"
-        readonly
+        [readOnly]="true"
         [value]="output()"
-      ></textarea>
+      />
     </div>
   </div>
 
