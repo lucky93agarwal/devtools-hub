@@ -1,14 +1,20 @@
+import { Type } from '@angular/core';
 import { Routes } from '@angular/router';
 import { TOOLS } from './core/tools';
 
 const placeholder = () =>
   import('./pages/placeholder/placeholder-page').then((m) => m.PlaceholderPage);
 
+/** Tools that are built. Every other tool path shows the placeholder page. */
+const toolComponents: Record<string, () => Promise<Type<unknown>>> = {
+  'json-formatter': () => import('./tools/json-formatter/json-formatter').then((m) => m.JsonFormatter),
+};
+
 /** Each tool is a lazy-loaded route with its own URL, title and description. */
 const toolRoutes: Routes = TOOLS.map((tool) => ({
   path: tool.path,
   title: tool.name,
-  loadComponent: placeholder,
+  loadComponent: toolComponents[tool.path] ?? placeholder,
   data: { heading: tool.name, description: tool.description, phase: tool.phase },
 }));
 
