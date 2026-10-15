@@ -63,6 +63,80 @@
             }
           </div>
         </div>
+      </div>
+
+      <fieldset class="card mt-4 grid gap-4 p-4 sm:grid-cols-2" [disabled]="converting()">
+        <legend class="sr-only">Conversion settings</legend>
+
+        <div class="flex flex-col gap-2">
+          <label for="quality" class="flex justify-between text-sm leading-5">
+            <span class="font-semibold">Quality</span>
+            <span class="text-muted">{{ lossy() ? quality() + '%' : 'Not used for PNG' }}</span>
+          </label>
+          <input
+            id="quality"
+            type="range"
+            min="10"
+            max="100"
+            step="5"
+            class="accent-brand disabled:opacity-50"
+            [value]="quality()"
+            [disabled]="!lossy() || converting()"
+            [attr.aria-valuetext]="quality() + ' percent'"
+            (input)="setQuality($any($event.target).valueAsNumber)"
+          />
+          <p class="text-sm leading-5 text-muted">
+            @if (lossy()) {
+              Lower quality gives smaller files. 80 to 90% looks the same to most people.
+            } @else {
+              PNG keeps every pixel exactly, so there is no quality setting.
+            }
+          </p>
+        </div>
+
+        <div class="flex flex-col gap-2">
+          <label for="resize" class="text-sm leading-5 font-semibold">Resize</label>
+          <div class="flex flex-wrap items-center gap-2">
+            <select
+              id="resize"
+              class="rounded-xl border border-line bg-page px-3 py-2 text-sm leading-5"
+              [value]="resizeChoice()"
+              (change)="setResize($any($event.target).value)"
+            >
+              @for (choice of resizeChoices; track choice.value) {
+                <option [value]="choice.value">{{ choice.label }}</option>
+              }
+            </select>
+            @if (resizeChoice() === 'width') {
+              <label class="flex items-center gap-2 text-sm leading-5">
+                <input
+                  type="number"
+                  min="1"
+                  max="20000"
+                  class="w-24 rounded-xl border border-line bg-page px-3 py-2"
+                  aria-label="Maximum width in pixels"
+                  [value]="maxWidth()"
+                  (change)="setMaxWidth($any($event.target).valueAsNumber)"
+                />
+                px wide
+              </label>
+            }
+          </div>
+          <p class="text-sm leading-5 text-muted">Keeps the shape of each image. Images are never enlarged.</p>
+        </div>
+
+        <label class="flex cursor-pointer items-center gap-2 text-sm leading-5 sm:col-span-2">
+          <input
+            type="checkbox"
+            class="size-4 accent-brand"
+            [checked]="addSuffix()"
+            (change)="setAddSuffix($any($event.target).checked)"
+          />
+          <span>Add "{{ nameSuffix }}" to file names, for example photo{{ nameSuffix }}.{{ format() }}</span>
+        </label>
+      </fieldset>
+
+      <div class="mt-4 flex flex-wrap items-center gap-x-4 gap-y-3">
         <button type="button" class="btn-primary" [disabled]="converting() || !pending()" (click)="convertAll()">
           @if (converting()) {
             Converting…
@@ -130,7 +204,12 @@
                   }
                   @case ('done') {
                     <span class="text-ink">
-                      → {{ labelOf(format()) }} · {{ formatBytes(item.result!.blob.size) }}
+                      → {{ labelOf(format()) }} ·
+                      @if (item.result!.width !== item.result!.sourceWidth) {
+                        {{ item.result!.sourceWidth }}×{{ item.result!.sourceHeight }} to
+                      }
+                      {{ item.result!.width }}×{{ item.result!.height }} ·
+                      {{ formatBytes(item.result!.blob.size) }}
                       ({{ sizeChange(item.file.size, item.result!.blob.size) }})
                     </span>
                   }

@@ -1,7 +1,7 @@
 import { TestBed } from '@angular/core/testing';
 import { unzipSync } from 'fflate';
 import { ImageConverter } from './image-converter';
-import { ConvertError, ImageEncoder, ImageFormat, outputName } from './image-encoder';
+import { ConvertError, ConvertOptions, ImageEncoder, ImageFormat, outputName, targetSize } from './image-encoder';
 
 const png = (name: string) => new File(['x'], name, { type: 'image/png' });
 
@@ -10,6 +10,30 @@ describe('outputName', () => {
     expect(outputName('holiday.jpeg', 'webp')).toBe('holiday.webp');
     expect(outputName('logo.final.png', 'jpg')).toBe('logo.final.jpg');
     expect(outputName('scan', 'png')).toBe('scan.png');
+  });
+
+  it('adds a suffix before the extension', () => {
+    expect(outputName('holiday.jpeg', 'webp', '-converted')).toBe('holiday-converted.webp');
+  });
+});
+
+describe('targetSize', () => {
+  it('keeps the original size', () => {
+    expect(targetSize(1200, 900, { mode: 'original' })).toEqual({ width: 1200, height: 900 });
+  });
+
+  it('scales by a percentage', () => {
+    expect(targetSize(1200, 900, { mode: 'scale', percent: 50 })).toEqual({ width: 600, height: 450 });
+    expect(targetSize(1001, 333, { mode: 'scale', percent: 25 })).toEqual({ width: 250, height: 83 });
+  });
+
+  it('fits a maximum width and keeps the shape', () => {
+    expect(targetSize(4000, 3000, { mode: 'width', width: 1920 })).toEqual({ width: 1920, height: 1440 });
+  });
+
+  it('never enlarges and never goes below 1 pixel', () => {
+    expect(targetSize(800, 600, { mode: 'width', width: 1920 })).toEqual({ width: 800, height: 600 });
+    expect(targetSize(3, 1, { mode: 'scale', percent: 25 })).toEqual({ width: 1, height: 1 });
   });
 });
 
@@ -22,10 +46,12 @@ describe('ImageConverter', () => {
     revoked = [];
     URL.createObjectURL = vi.fn(() => `blob:${++n}`);
     URL.revokeObjectURL = vi.fn((url: string) => void revoked.push(url));
-    // Pretend encoder: output is half the size, in the requested format.
-    convert = vi.fn(async (file: File, format: ImageFormat) => {
+    // Pretend encoder: a 200x100 image, output half the bytes, scaled like the real resize.
+    convert = vi.fn(async (file: File, format: ImageFormat, options?: ConvertOptions) => {
       if (file.name.startsWith('broken')) throw new ConvertError('This image could not be read. The file may be damaged.');
-      return new Blob(['x'.repeat(Math.max(1, Math.floor(file.size / 2)))], { type: `image/${format}` });
+      const size = targetSize(200, 100, options?.resize ?? { mode: 'original' });
+      const blob = new Blob(['x'.repeat(Math.max(1, Math.floor(file.size / 2)))], { type: `image/${format}` });
+      return { blob, ...size, sourceWidth: 200, sourceHeight: 100 };
     });
     TestBed.configureTestingModule({ providers: [{ provide: ImageEncoder, useValue: { convert } }] });
   });
@@ -120,8 +146,8 @@ describe('ImageConverter', () => {
       await click('Convert 2 images to JPG');
       await settle(fixture);
       expect(convert.mock.calls.map(([file, format]) => `${file.name}:${format}`)).toEqual(['a.png:jpg', 'b.png:jpg']);
-      expect(rows()[0]).toContain('PNG · 1000 B → JPG · 500 B (50% smaller)');
-      expect(rows()[1]).toContain('→ JPG · 200 B (50% smaller)');
+      expect(rows()[0]).toContain('PNG · 1000 B → JPG · 200×100 · 500 B (50% smaller)');
+      expect(rows()[1]).toContain('→ JPG · 200×100 · 200 B (50% smaller)');
     });
 
     it('uses WebP by default', async () => {
@@ -129,7 +155,7 @@ describe('ImageConverter', () => {
       await choose([sized('a.png', 10)]);
       await click('Convert 1 image to WebP');
       await settle(fixture);
-      expect(convert).toHaveBeenCalledWith(expect.any(File), 'webp');
+      expect(convert).toHaveBeenCalledWith(expect.any(File), 'webp', { quality: 0.9, resize: { mode: 'original' } });
     });
 
     it('downloads a converted image with the new extension', async () => {
@@ -181,7 +207,11 @@ describe('ImageConverter', () => {
       const releases: (() => void)[] = [];
       convert.mockImplementation(
         (file: File, format: ImageFormat) =>
-          new Promise<Blob>((resolve) => releases.push(() => resolve(new Blob(['y'], { type: `image/${format}` })))),
+          new Promise((resolve) =>
+            releases.push(() =>
+              resolve({ blob: new Blob(['y'], { type: `image/${format}` }), width: 1, height: 1, sourceWidth: 1, sourceHeight: 1 }),
+            ),
+          ),
       );
       const { fixture, el, choose, rows, click } = await setup();
       await choose([sized('a.png', 4), sized('b.png', 4), sized('c.png', 4)]);
@@ -253,6 +283,101 @@ describe('ImageConverter', () => {
       await choose([sized('a.png', 4)]);
       const zipButton = [...el.querySelectorAll('button')].find((b) => b.textContent?.includes('ZIP'))!;
       expect(zipButton.disabled).toBe(true);
+    });
+  });
+
+  describe('settings', () => {
+    const sized = (name: string, size: number) => new File(['x'.repeat(size)], name, { type: 'image/png' });
+    const settle = async (fixture: { whenStable(): Promise<unknown> }) => {
+      await new Promise((resolve) => setTimeout(resolve));
+      await fixture.whenStable();
+    };
+    const setRange = (el: HTMLElement, value: number) => {
+      const range = el.querySelector<HTMLInputElement>('#quality')!;
+      range.value = String(value);
+      range.dispatchEvent(new Event('input'));
+    };
+    const setSelect = (el: HTMLElement, value: string) => {
+      const select = el.querySelector<HTMLSelectElement>('#resize')!;
+      select.value = value;
+      select.dispatchEvent(new Event('change'));
+    };
+
+    it('passes the chosen quality and resize to the encoder', async () => {
+      const { fixture, el, choose, click, rows } = await setup();
+      await choose([sized('a.png', 10)]);
+      setRange(el, 60);
+      setSelect(el, '50');
+      await fixture.whenStable();
+      await click('Convert 1 image');
+      await settle(fixture);
+      expect(convert).toHaveBeenLastCalledWith(expect.any(File), 'webp', {
+        quality: 0.6,
+        resize: { mode: 'scale', percent: 50 },
+      });
+      expect(rows()[0]).toContain('200×100 to 100×50');
+    });
+
+    it('uses the max width when chosen', async () => {
+      const { fixture, el, choose, click } = await setup();
+      await choose([sized('a.png', 10)]);
+      setSelect(el, 'width');
+      await fixture.whenStable();
+      const width = el.querySelector<HTMLInputElement>('input[aria-label="Maximum width in pixels"]')!;
+      width.value = '150';
+      width.dispatchEvent(new Event('change'));
+      await fixture.whenStable();
+      await click('Convert 1 image');
+      await settle(fixture);
+      expect(convert).toHaveBeenLastCalledWith(expect.any(File), 'webp', expect.objectContaining({ resize: { mode: 'width', width: 150 } }));
+    });
+
+    it('turns the quality slider off for PNG', async () => {
+      const { el, choose, click } = await setup();
+      await choose([sized('a.png', 10)]);
+      expect(el.querySelector<HTMLInputElement>('#quality')!.disabled).toBe(false);
+      await click('PNG');
+      expect(el.querySelector<HTMLInputElement>('#quality')!.disabled).toBe(true);
+      expect(el.textContent).toContain('Not used for PNG');
+    });
+
+    it('marks results out of date when quality or size changes', async () => {
+      const { fixture, el, choose, click, text } = await setup();
+      await choose([sized('a.png', 10)]);
+      await click('Convert 1 image');
+      await settle(fixture);
+      expect(text()).toContain('All images converted');
+
+      setRange(el, 50);
+      await fixture.whenStable();
+      expect(text()).toContain('Convert 1 image to WebP');
+
+      await click('Convert 1 image');
+      await settle(fixture);
+      setSelect(el, '25');
+      await fixture.whenStable();
+      expect(text()).toContain('Convert 1 image to WebP');
+    });
+
+    it('renames finished results when the suffix option changes, without converting again', async () => {
+      const names: string[] = [];
+      vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(function (this: HTMLAnchorElement) {
+        names.push(this.download);
+      });
+      const { fixture, el, choose, click, text } = await setup();
+      await choose([sized('photo.png', 10)]);
+      await click('Convert 1 image');
+      await settle(fixture);
+      convert.mockClear();
+
+      el.querySelector<HTMLInputElement>('fieldset input[type=checkbox]')!.click();
+      await fixture.whenStable();
+      expect(text()).toContain('All images converted');
+      expect(convert).not.toHaveBeenCalled();
+
+      await click('Download photo-converted.webp');
+      expect(names).toEqual(['photo-converted.webp']);
+      vi.restoreAllMocks();
     });
   });
 });

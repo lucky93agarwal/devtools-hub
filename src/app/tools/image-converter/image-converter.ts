@@ -3,7 +3,16 @@ import { TOOLS } from '../../core/tools';
 import { downloadBlob, formatBytes } from '../../shared/file-utils';
 import { ICONS, Icon } from '../../shared/icon/icon';
 import { UploadBox } from '../../shared/upload-box/upload-box';
-import { ConvertError, FORMATS, ImageEncoder, ImageFormat, labelOf, outputName } from './image-encoder';
+import {
+  ConvertError,
+  ConvertResult,
+  FORMATS,
+  ImageEncoder,
+  ImageFormat,
+  Resize,
+  labelOf,
+  outputName,
+} from './image-encoder';
 import { DEFAULT_IMAGE_LIMITS, IMAGE_ACCEPT, describePlan, planAdd } from './image-list';
 import { buildZip } from './zip';
 
@@ -15,9 +24,14 @@ export interface ImageItem {
   previewUrl: string;
   /** waiting: in the current run but not started yet. */
   state: 'ready' | 'waiting' | 'converting' | 'done' | 'error';
-  result?: { blob: Blob; name: string };
+  result?: ConvertResult & { name: string };
   error?: string;
 }
+
+/** Suffix added to file names when the option is on. */
+export const NAME_SUFFIX = '-converted';
+
+export type ResizeChoice = 'original' | '75' | '50' | '25' | 'width';
 
 @Component({
   selector: 'app-image-converter',
@@ -31,6 +45,14 @@ export class ImageConverter {
   protected readonly accept = IMAGE_ACCEPT;
   protected readonly formats = FORMATS;
   protected readonly formatBytes = formatBytes;
+  protected readonly nameSuffix = NAME_SUFFIX;
+  protected readonly resizeChoices: { value: ResizeChoice; label: string }[] = [
+    { value: 'original', label: 'Original size' },
+    { value: '75', label: '75%' },
+    { value: '50', label: '50%' },
+    { value: '25', label: '25%' },
+    { value: 'width', label: 'Max width' },
+  ];
 
   protected readonly items = signal<ImageItem[]>([]);
   /** Notes about files that were not added, from the last time files were chosen. */
@@ -40,6 +62,20 @@ export class ImageConverter {
   protected readonly zipping = signal(false);
   /** Size of the current run, for the overall progress bar. */
   protected readonly runTotal = signal(0);
+
+  /** JPG and WebP quality, 10 to 100. */
+  protected readonly quality = signal(90);
+  protected readonly resizeChoice = signal<ResizeChoice>('original');
+  protected readonly maxWidth = signal(1920);
+  protected readonly addSuffix = signal(false);
+
+  protected readonly lossy = computed(() => FORMATS.find((f) => f.value === this.format())!.lossy);
+  protected readonly resize = computed<Resize>(() => {
+    const choice = this.resizeChoice();
+    if (choice === 'original') return { mode: 'original' };
+    if (choice === 'width') return { mode: 'width', width: this.maxWidth() };
+    return { mode: 'scale', percent: Number(choice) };
+  });
 
   protected readonly count = computed(() => this.items().length);
   protected readonly full = computed(() => this.count() >= this.limits.maxImages);
@@ -78,12 +114,37 @@ export class ImageConverter {
     this.notes.set(describePlan(plan, this.limits));
   }
 
-  /** A new target format makes earlier results out of date. */
   protected setFormat(format: ImageFormat): void {
     if (format === this.format()) return;
     this.format.set(format);
+    this.markOutdated();
+  }
+
+  protected setQuality(value: number): void {
+    this.quality.set(Math.min(100, Math.max(10, Math.round(value))));
+    this.markOutdated();
+  }
+
+  protected setResize(choice: ResizeChoice): void {
+    this.resizeChoice.set(choice);
+    this.markOutdated();
+  }
+
+  protected setMaxWidth(value: number): void {
+    // Ignore empty or silly values while the user is still typing.
+    if (!Number.isFinite(value) || value < 1) return;
+    this.maxWidth.set(Math.min(20000, Math.round(value)));
+    this.markOutdated();
+  }
+
+  /** The suffix only changes names, so finished results stay and are renamed. */
+  protected setAddSuffix(value: boolean): void {
+    this.addSuffix.set(value);
+    const suffix = value ? NAME_SUFFIX : '';
     this.items.update((items) =>
-      items.map((item) => (item.state === 'converting' ? item : { ...item, state: 'ready', result: undefined, error: undefined })),
+      items.map((item) =>
+        item.result ? { ...item, result: { ...item.result, name: outputName(item.file.name, this.format(), suffix) } } : item,
+      ),
     );
   }
 
@@ -95,6 +156,8 @@ export class ImageConverter {
     this.converting.set(true);
     this.runTotal.set(queue.length);
     const format = this.format();
+    const options = { quality: this.quality() / 100, resize: this.resize() };
+    const suffix = this.addSuffix() ? NAME_SUFFIX : '';
     for (const item of queue) this.patch(item.id, { state: 'waiting', error: undefined });
     try {
       for (const item of queue) {
@@ -102,8 +165,8 @@ export class ImageConverter {
         if (!this.items().some((other) => other.id === item.id)) continue;
         this.patch(item.id, { state: 'converting', error: undefined });
         try {
-          const blob = await this.encoder.convert(item.file, format);
-          this.patch(item.id, { state: 'done', result: { blob, name: outputName(item.file.name, format) } });
+          const result = await this.encoder.convert(item.file, format, options);
+          this.patch(item.id, { state: 'done', result: { ...result, name: outputName(item.file.name, format, suffix) } });
         } catch (e) {
           const message = e instanceof ConvertError ? e.message : 'This image could not be converted.';
           this.patch(item.id, { state: 'error', error: message });
@@ -161,6 +224,13 @@ export class ImageConverter {
   }
 
   protected readonly labelOf = labelOf;
+
+  /** Any setting that changes the pixels makes earlier results out of date. */
+  private markOutdated(): void {
+    this.items.update((items) =>
+      items.map((item) => (item.state === 'converting' ? item : { ...item, state: 'ready', result: undefined, error: undefined })),
+    );
+  }
 
   private patch(id: number, changes: Partial<ImageItem>): void {
     this.items.update((items) => items.map((item) => (item.id === id ? { ...item, ...changes } : item)));
