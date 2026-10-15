@@ -11,7 +11,7 @@ Free, privacy-first developer tools that run entirely in the browser. Nothing yo
 | Tool | Status |
 |---|---|
 | [JSON Formatter and Validator](https://devtools-hub.agarwal-lucky93.workers.dev/json-formatter) | Live |
-| JSON Compare | Planned |
+| [JSON Compare](https://devtools-hub.agarwal-lucky93.workers.dev/json-compare) | Live |
 | Image Converter | Planned |
 | JWT Decoder and Verifier | Planned |
 | Background Remover | Planned |
