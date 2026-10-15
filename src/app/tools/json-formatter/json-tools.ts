@@ -27,6 +27,25 @@ export function minifyJson(text: string): JsonResult {
   return transform(text, (value) => JSON.stringify(value));
 }
 
+/** One unit of work, as sent to the JSON Web Worker. */
+export interface JsonJob {
+  op: 'format' | 'minify';
+  text: string;
+  indent: Indent;
+}
+
+export function runJsonJob(job: JsonJob): JsonResult {
+  return job.op === 'format' ? formatJson(job.text, job.indent) : minifyJson(job.text);
+}
+
+/** Counts lines without splitting, so a 10 MB output does not create a huge array. */
+export function countLines(text: string): number {
+  if (!text) return 0;
+  let lines = 1;
+  for (let i = text.indexOf('\n'); i !== -1; i = text.indexOf('\n', i + 1)) lines++;
+  return lines;
+}
+
 function transform(text: string, write: (value: unknown) => string): JsonResult {
   if (text.trim() === '') {
     return { ok: false, error: { message: 'Paste some JSON first.', line: 1, column: 1, offset: 0 } };

@@ -4,7 +4,9 @@ import { TOOLS } from '../../core/tools';
 import { CodeEditor } from '../../shared/code-editor/code-editor';
 import { baseName, copyText, downloadText, formatBytes } from '../../shared/file-utils';
 import { ICONS, Icon } from '../../shared/icon/icon';
-import { Indent, JsonError, JsonResult, formatJson, minifyJson } from './json-tools';
+import { JsonRunner } from './json-runner';
+import { Indent, JsonError, JsonJob, JsonResult, countLines } from './json-tools';
+import { COMMON_ERRORS, FAQ } from './content';
 import { JSON_SAMPLES } from './samples';
 
 type Action = 'Formatted' | 'Minified';
@@ -12,6 +14,7 @@ type Action = 'Formatted' | 'Minified';
 type Status =
   | { kind: 'empty' }
   | { kind: 'ready' }
+  | { kind: 'working'; action: Action }
   | { kind: 'valid'; action: Action }
   | { kind: 'error'; error: JsonError }
   | { kind: 'problem'; message: string };
@@ -33,6 +36,8 @@ export class JsonFormatter {
     { value: '\t', label: 'Tab' },
   ];
   protected readonly accept = '.json,application/json,text/plain';
+  protected readonly commonErrors = COMMON_ERRORS;
+  protected readonly faq = FAQ;
 
   protected readonly input = signal('');
   protected readonly output = signal('');
@@ -54,10 +59,20 @@ export class JsonFormatter {
     const status = this.status();
     return status.kind === 'problem' ? status.message : null;
   });
-  protected readonly outputLines = computed(() => (this.output() ? this.output().split('\n').length : 0));
+  protected readonly working = computed(() => this.status().kind === 'working');
+  protected readonly workingLabel = computed(() => {
+    const status = this.status();
+    if (status.kind !== 'working') return '';
+    const verb = status.action === 'Formatted' ? 'Formatting' : 'Minifying';
+    return `${verb} ${formatBytes(this.input().length)} of JSON…`;
+  });
+  protected readonly outputLines = computed(() => countLines(this.output()));
 
   private readonly inputEditor = viewChild.required<CodeEditor>('inputEditor');
+  private readonly runner = inject(JsonRunner);
   private copyTimer?: ReturnType<typeof setTimeout>;
+  /** Increases with every new job, so a slow result for older text is ignored. */
+  private jobId = 0;
 
   constructor() {
     inject(DestroyRef).onDestroy(() => clearTimeout(this.copyTimer));
@@ -65,30 +80,31 @@ export class JsonFormatter {
 
   protected onInput(value: string): void {
     if (value === this.input()) return;
+    this.jobId++;
     this.input.set(value);
     this.status.set(value.trim() ? { kind: 'ready' } : { kind: 'empty' });
     // The old error position no longer matches the edited text.
     this.inputEditor().clearError();
   }
 
-  protected format(): void {
-    this.apply(formatJson(this.input(), this.indent()), 'Formatted');
+  protected format(): Promise<void> {
+    return this.run({ op: 'format', text: this.input(), indent: this.indent() }, 'Formatted');
   }
 
-  protected minify(): void {
-    this.apply(minifyJson(this.input()), 'Minified');
+  protected minify(): Promise<void> {
+    return this.run({ op: 'minify', text: this.input(), indent: this.indent() }, 'Minified');
   }
 
   /** Changing the indent re-formats right away if the output is formatted. */
   protected setIndent(indent: Indent): void {
     this.indent.set(indent);
-    if (this.action() === 'Formatted') this.format();
+    if (this.action() === 'Formatted') void this.format();
   }
 
   protected loadSample(kind: keyof typeof JSON_SAMPLES): void {
     this.fileName.set(null);
     this.setInput(JSON_SAMPLES[kind]);
-    this.format();
+    void this.format();
   }
 
   protected async onFileChosen(element: HTMLInputElement): Promise<void> {
@@ -108,7 +124,7 @@ export class JsonFormatter {
       const text = await file.text();
       this.fileName.set(file.name);
       this.setInput(text);
-      this.format();
+      void this.format();
     } catch {
       this.status.set({ kind: 'problem', message: `${file.name} could not be read. Try another file.` });
     }
@@ -128,6 +144,7 @@ export class JsonFormatter {
   }
 
   protected clear(): void {
+    this.jobId++;
     this.fileName.set(null);
     this.input.set('');
     this.output.set('');
@@ -142,9 +159,19 @@ export class JsonFormatter {
   }
 
   private setInput(text: string): void {
+    this.jobId++;
     this.input.set(text);
     this.output.set('');
     this.inputEditor().clearError();
+  }
+
+  private async run(job: JsonJob, action: Action): Promise<void> {
+    const id = ++this.jobId;
+    this.status.set({ kind: 'working', action });
+    const result = await this.runner.run(job);
+    // The text changed or another job started while this one ran.
+    if (id !== this.jobId) return;
+    this.apply(result, action);
   }
 
   private apply(result: JsonResult, action: Action): void {

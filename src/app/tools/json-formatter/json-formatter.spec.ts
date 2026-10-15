@@ -3,6 +3,9 @@ import { TestBed } from '@angular/core/testing';
 import { By } from '@angular/platform-browser';
 import { CodeEditor } from '../../shared/code-editor/code-editor';
 import { JsonFormatter } from './json-formatter';
+import { JsonRunner } from './json-runner';
+import { JsonResult } from './json-tools';
+import { FAQ } from './content';
 
 /** Monaco cannot run in jsdom, so tests use a textarea with the same API. */
 @Component({
@@ -56,7 +59,11 @@ describe('JsonFormatter', () => {
       await new Promise((resolve) => setTimeout(resolve));
       await fixture.whenStable();
     };
-    return { input, output, inputEditor, status, type, click, button, upload };
+    const settle = async () => {
+      await new Promise((resolve) => setTimeout(resolve));
+      await fixture.whenStable();
+    };
+    return { el, input, output, inputEditor, status, type, click, button, upload, settle };
   }
 
   describe('indent', () => {
@@ -228,5 +235,59 @@ describe('JsonFormatter', () => {
     expect(input.value).toBe('');
     expect(output.value).toBe('');
     expect(status()).toContain('Try a sample');
+  });
+
+  describe('working state', () => {
+    let resolveJob: (result: JsonResult) => void;
+
+    beforeEach(() => {
+      TestBed.configureTestingModule({
+        providers: [
+          {
+            provide: JsonRunner,
+            useValue: { run: () => new Promise<JsonResult>((resolve) => (resolveJob = resolve)) },
+          },
+        ],
+      });
+    });
+
+    it('shows progress and disables the actions while a job runs', async () => {
+      const { output, status, type, click, button, settle } = await setup();
+      await type('[1]');
+      await click('Format');
+      expect(status()).toContain('Formatting');
+      expect(button('Format').disabled).toBe(true);
+      expect(button('Minify').disabled).toBe(true);
+
+      resolveJob({ ok: true, output: '[\n  1\n]' });
+      await settle();
+      expect(output.value).toBe('[\n  1\n]');
+      expect(status()).toContain('Valid JSON. Formatted');
+      expect(button('Format').disabled).toBe(false);
+    });
+
+    it('ignores a result for text that changed while the job ran', async () => {
+      const { output, status, type, click, settle } = await setup();
+      await type('[1]');
+      await click('Format');
+      await type('[1, 2]');
+
+      resolveJob({ ok: true, output: 'stale' });
+      await settle();
+      expect(output.value).toBe('');
+      expect(status()).toContain('Ready');
+    });
+  });
+
+  it('explains the tool and answers common questions below it', async () => {
+    const { el } = await setup();
+    const headings = [...el.querySelectorAll('h2')].map((h) => h.textContent?.trim());
+    expect(headings).toEqual([
+      'About this JSON formatter',
+      'How to use it',
+      'Common JSON errors',
+      'Frequently asked questions',
+    ]);
+    expect(el.querySelectorAll('details')).toHaveLength(FAQ.length);
   });
 });

@@ -1,4 +1,4 @@
-import { findJsonError, formatJson, minifyJson, position } from './json-tools';
+import { countLines, findJsonError, formatJson, minifyJson, position, runJsonJob } from './json-tools';
 
 function errorOf(text: string) {
   const result = formatJson(text);
@@ -99,6 +99,21 @@ describe('error positions', () => {
   it('finds no error in valid JSON', () => {
     const valid = '{"a":[1,-2.5e10,0,true,false,null,"\\u00e9\\n"],"b":{}, "c": []}';
     expect(findJsonError(valid)).toBeNull();
+  });
+});
+
+describe('runJsonJob', () => {
+  it('runs format and minify jobs', () => {
+    expect(runJsonJob({ op: 'format', text: '[1]', indent: '\t' })).toEqual({ ok: true, output: '[\n\t1\n]' });
+    expect(runJsonJob({ op: 'minify', text: '[ 1 ]', indent: 2 })).toEqual({ ok: true, output: '[1]' });
+  });
+});
+
+describe('countLines', () => {
+  it('counts lines', () => {
+    expect(countLines('')).toBe(0);
+    expect(countLines('a')).toBe(1);
+    expect(countLines('a\nb\n')).toBe(3);
   });
 });
 
