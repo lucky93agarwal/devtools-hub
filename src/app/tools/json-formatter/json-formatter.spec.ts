@@ -1,32 +1,11 @@
-import { Component, input, model } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { By } from '@angular/platform-browser';
 import { CodeEditor } from '../../shared/code-editor/code-editor';
+import { FakeCodeEditor } from '../../../testing/fake-editors';
 import { JsonFormatter } from './json-formatter';
 import { JsonRunner } from './json-runner';
 import { JsonResult } from './json-tools';
 import { FAQ } from './content';
-
-/** Monaco cannot run in jsdom, so tests use a textarea with the same API. */
-@Component({
-  selector: 'app-code-editor',
-  template: `<textarea [value]="value()" [readOnly]="readOnly()" (input)="onInput($event)"></textarea>`,
-})
-class FakeCodeEditor {
-  readonly value = model('');
-  readonly language = input('');
-  readonly readOnly = input(false);
-  readonly placeholder = input('');
-  readonly ariaLabel = input('');
-  readonly invalid = input(false);
-  readonly showError = vi.fn();
-  readonly revealError = vi.fn();
-  readonly clearError = vi.fn();
-
-  onInput(event: Event): void {
-    this.value.set((event.target as HTMLTextAreaElement).value);
-  }
-}
 
 describe('JsonFormatter', () => {
   async function setup() {

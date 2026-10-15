@@ -21,6 +21,7 @@ export function loadMonaco(): Promise<MonacoApi> {
       import('monaco-editor/features/clipboard/register'),
       import('monaco-editor/features/contextmenu/register'),
       import('monaco-editor/features/cursorUndo/register'),
+      import('monaco-editor/features/diffEditor/register'),
       import('monaco-editor/features/find/register'),
       import('monaco-editor/features/folding/register'),
       import('monaco-editor/features/hover/register'),

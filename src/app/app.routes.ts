@@ -8,6 +8,7 @@ const placeholder = () =>
 /** Tools that are built. Every other tool path shows the placeholder page. */
 const toolComponents: Record<string, () => Promise<Type<unknown>>> = {
   'json-formatter': () => import('./tools/json-formatter/json-formatter').then((m) => m.JsonFormatter),
+  'json-compare': () => import('./tools/json-compare/json-compare').then((m) => m.JsonCompare),
 };
 
 /** Each tool is a lazy-loaded route with its own URL, title and description. */
