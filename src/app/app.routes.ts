@@ -10,6 +10,7 @@ const toolComponents: Record<string, () => Promise<Type<unknown>>> = {
   'json-formatter': () => import('./tools/json-formatter/json-formatter').then((m) => m.JsonFormatter),
   'json-compare': () => import('./tools/json-compare/json-compare').then((m) => m.JsonCompare),
   'image-converter': () => import('./tools/image-converter/image-converter').then((m) => m.ImageConverter),
+  jwt: () => import('./tools/jwt/jwt-tool').then((m) => m.JwtTool),
 };
 
 /** Each tool is a lazy-loaded route with its own URL, title and description. */
