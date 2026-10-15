@@ -41,7 +41,37 @@
           </span>
           <span class="text-sm text-muted">{{ formatBytes(totalBytes()) }} in total</span>
         </div>
-        <button type="button" class="btn-small" (click)="clearAll()">Clear all</button>
+        <button type="button" class="btn-small" [disabled]="converting()" (click)="clearAll()">Clear all</button>
+      </div>
+
+      <div class="mt-4 flex flex-wrap items-center gap-x-4 gap-y-3">
+        <div class="flex items-center gap-2" role="radiogroup" aria-labelledby="format-label">
+          <span id="format-label" class="text-sm leading-5 text-muted">Convert to</span>
+          <div class="flex rounded-full border border-line p-0.5">
+            @for (option of formats; track option.value) {
+              <button
+                type="button"
+                role="radio"
+                class="rounded-full px-4 py-1.5 text-sm leading-5 font-semibold transition-colors"
+                [class]="format() === option.value ? 'bg-brand text-on-brand' : 'text-muted hover:text-ink'"
+                [attr.aria-checked]="format() === option.value"
+                [disabled]="converting()"
+                (click)="setFormat(option.value)"
+              >
+                {{ option.label }}
+              </button>
+            }
+          </div>
+        </div>
+        <button type="button" class="btn-primary" [disabled]="converting() || !pending()" (click)="convertAll()">
+          @if (converting()) {
+            Converting…
+          } @else if (pending()) {
+            Convert {{ pending() === 1 ? '1 image' : pending() + ' images' }} to {{ labelOf(format()) }}
+          } @else {
+            All images converted
+          }
+        </button>
       </div>
 
       <ul class="mt-3 flex flex-col divide-y divide-line rounded-xl border border-line">
@@ -54,12 +84,38 @@
               <p class="truncate text-sm leading-5 font-semibold" [title]="item.file.name">{{ item.file.name }}</p>
               <p class="text-sm leading-5 text-muted">
                 {{ typeLabel(item.file) }} · {{ formatBytes(item.file.size) }}
+                @switch (item.state) {
+                  @case ('converting') {
+                    <span class="text-ink"> → converting…</span>
+                  }
+                  @case ('done') {
+                    <span class="text-ink">
+                      → {{ labelOf(format()) }} · {{ formatBytes(item.result!.blob.size) }}
+                      ({{ sizeChange(item.file.size, item.result!.blob.size) }})
+                    </span>
+                  }
+                }
               </p>
+              @if (item.state === 'error') {
+                <p class="text-sm leading-5 text-danger">{{ item.error }}</p>
+              }
             </div>
+            @if (item.state === 'done') {
+              <button
+                type="button"
+                class="btn-small shrink-0"
+                [attr.aria-label]="'Download ' + item.result!.name"
+                (click)="download(item)"
+              >
+                <app-icon [path]="icons.download" [size]="16" />
+                <span class="hidden sm:inline">Download</span>
+              </button>
+            }
             <button
               type="button"
-              class="grid size-10 shrink-0 place-items-center rounded-full text-muted hover:bg-surface hover:text-ink"
+              class="grid size-10 shrink-0 place-items-center rounded-full text-muted hover:bg-surface hover:text-ink disabled:opacity-40"
               [attr.aria-label]="'Remove ' + item.file.name"
+              [disabled]="item.state === 'converting'"
               (click)="remove(item)"
             >
               <app-icon [path]="icons.close" [size]="18" />

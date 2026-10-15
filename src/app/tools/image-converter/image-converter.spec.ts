@@ -1,16 +1,32 @@
 import { TestBed } from '@angular/core/testing';
 import { ImageConverter } from './image-converter';
+import { ConvertError, ImageEncoder, ImageFormat, outputName } from './image-encoder';
 
 const png = (name: string) => new File(['x'], name, { type: 'image/png' });
 
+describe('outputName', () => {
+  it('swaps the extension for the new format', () => {
+    expect(outputName('holiday.jpeg', 'webp')).toBe('holiday.webp');
+    expect(outputName('logo.final.png', 'jpg')).toBe('logo.final.jpg');
+    expect(outputName('scan', 'png')).toBe('scan.png');
+  });
+});
+
 describe('ImageConverter', () => {
   let revoked: string[];
+  let convert: ReturnType<typeof vi.fn>;
 
   beforeEach(() => {
     let n = 0;
     revoked = [];
     URL.createObjectURL = vi.fn(() => `blob:${++n}`);
     URL.revokeObjectURL = vi.fn((url: string) => void revoked.push(url));
+    // Pretend encoder: output is half the size, in the requested format.
+    convert = vi.fn(async (file: File, format: ImageFormat) => {
+      if (file.name.startsWith('broken')) throw new ConvertError('This image could not be read. The file may be damaged.');
+      return new Blob(['x'.repeat(Math.max(1, Math.floor(file.size / 2)))], { type: `image/${format}` });
+    });
+    TestBed.configureTestingModule({ providers: [{ provide: ImageEncoder, useValue: { convert } }] });
   });
 
   async function setup() {
@@ -87,5 +103,68 @@ describe('ImageConverter', () => {
     await choose([png('a.png')]);
     fixture.destroy();
     expect(revoked).toEqual(['blob:1']);
+  });
+
+  describe('converting', () => {
+    const sized = (name: string, size: number) => new File(['x'.repeat(size)], name, { type: 'image/png' });
+    const settle = async (fixture: { whenStable(): Promise<unknown> }) => {
+      await new Promise((resolve) => setTimeout(resolve));
+      await fixture.whenStable();
+    };
+
+    it('converts every image to the chosen format and shows the new size', async () => {
+      const { fixture, choose, rows, click } = await setup();
+      await choose([sized('a.png', 1000), sized('b.png', 400)]);
+      await click('JPG');
+      await click('Convert 2 images to JPG');
+      await settle(fixture);
+      expect(convert.mock.calls.map(([file, format]) => `${file.name}:${format}`)).toEqual(['a.png:jpg', 'b.png:jpg']);
+      expect(rows()[0]).toContain('PNG · 1000 B → JPG · 500 B (50% smaller)');
+      expect(rows()[1]).toContain('→ JPG · 200 B (50% smaller)');
+    });
+
+    it('uses WebP by default', async () => {
+      const { fixture, choose, click } = await setup();
+      await choose([sized('a.png', 10)]);
+      await click('Convert 1 image to WebP');
+      await settle(fixture);
+      expect(convert).toHaveBeenCalledWith(expect.any(File), 'webp');
+    });
+
+    it('downloads a converted image with the new extension', async () => {
+      const names: string[] = [];
+      vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(function (this: HTMLAnchorElement) {
+        names.push(this.download);
+      });
+      const { fixture, choose, click } = await setup();
+      await choose([sized('holiday.png', 10)]);
+      await click('Convert 1 image');
+      await settle(fixture);
+      await click('Download holiday.webp');
+      expect(names).toEqual(['holiday.webp']);
+      vi.restoreAllMocks();
+    });
+
+    it('shows an error for one image and still converts the rest', async () => {
+      const { fixture, choose, rows, click, text } = await setup();
+      await choose([sized('broken.png', 10), sized('good.png', 10)]);
+      await click('Convert 2 images');
+      await settle(fixture);
+      expect(rows()[0]).toContain('This image could not be read. The file may be damaged.');
+      expect(rows()[1]).toContain('→ WebP');
+      // Only the failed image is left to convert.
+      expect(text()).toContain('Convert 1 image to WebP');
+    });
+
+    it('marks results out of date when the format changes', async () => {
+      const { fixture, choose, rows, click, text } = await setup();
+      await choose([sized('a.png', 10)]);
+      await click('Convert 1 image');
+      await settle(fixture);
+      expect(text()).toContain('All images converted');
+      await click('PNG');
+      expect(rows()[0]).not.toContain('→');
+      expect(text()).toContain('Convert 1 image to PNG');
+    });
   });
 });
