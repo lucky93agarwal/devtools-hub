@@ -1,1 +1,108 @@
-/* You can add global styles to this file, and also import other style files */
+/* Self-hosted fonts (no request to Google, matches the privacy promise) */
+@import '@fontsource/poppins/600.css';
+@import '@fontsource-variable/inter';
+@import '@fontsource-variable/jetbrains-mono';
+
+@import 'tailwindcss';
+
+/* Dark mode is driven by a `.dark` class on <html>, set by ThemeService. */
+@custom-variant dark (&:where(.dark, .dark *));
+
+/* Design tokens. Change the brand colour here only. */
+:root {
+  --page: #ffffff;
+  --surface: #f5f7f9;
+  --line: #e5e7eb;
+  --ink: #1f2937;
+  --muted: #4b5563;
+  --brand: #4f46e5;
+  --brand-strong: #4338ca;
+  --on-brand: #ffffff;
+  --success: #16a34a;
+  --warning: #d97706;
+  --danger: #dc2626;
+  color-scheme: light;
+}
+
+.dark {
+  --page: #0b1220;
+  --surface: #111a2e;
+  --line: #243049;
+  --ink: #e5e7eb;
+  --muted: #9ca3af;
+  --brand: #818cf8;
+  --brand-strong: #a5b4fc;
+  --on-brand: #0b1220;
+  color-scheme: dark;
+}
+
+@theme inline {
+  --color-page: var(--page);
+  --color-surface: var(--surface);
+  --color-line: var(--line);
+  --color-ink: var(--ink);
+  --color-muted: var(--muted);
+  --color-brand: var(--brand);
+  --color-brand-strong: var(--brand-strong);
+  --color-on-brand: var(--on-brand);
+  --color-success: var(--success);
+  --color-warning: var(--warning);
+  --color-danger: var(--danger);
+
+  --font-sans: 'Inter Variable', ui-sans-serif, system-ui, sans-serif;
+  --font-heading: 'Poppins', ui-sans-serif, system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono Variable', ui-monospace, monospace;
+}
+
+@layer base {
+  body {
+    @apply bg-page text-ink font-sans text-base leading-6 antialiased;
+  }
+
+  h1,
+  h2,
+  h3 {
+    @apply font-heading font-semibold;
+  }
+
+  :focus-visible {
+    @apply outline-2 outline-offset-2 outline-brand;
+  }
+}
+
+/* Reusable building blocks. Every screen has one .btn-primary. */
+@utility btn {
+  @apply inline-flex items-center justify-center gap-2 rounded-full px-6 py-3 text-lg leading-6 font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-50;
+}
+
+@layer components {
+  .btn-primary {
+    @apply btn bg-brand text-on-brand hover:bg-brand-strong;
+  }
+
+  .btn-secondary {
+    @apply btn border border-line bg-page text-ink hover:bg-surface;
+  }
+
+  .chip {
+    @apply inline-flex items-center gap-1.5 rounded-full border border-line px-3 py-1.5 text-sm leading-5 font-semibold text-muted;
+  }
+
+  .card {
+    @apply rounded-xl border border-line bg-surface;
+  }
+
+  .container-page {
+    @apply mx-auto w-full max-w-[1200px] px-4 sm:px-6;
+  }
+
+  .container-tool {
+    @apply mx-auto w-full max-w-[960px] px-4 sm:px-6;
+  }
+
+  /* Shows transparent image areas */
+  .checkerboard {
+    background-image: conic-gradient(var(--line) 25%, transparent 0 50%, var(--line) 0 75%, transparent 0);
+    background-size: 16px 16px;
+  }
+}

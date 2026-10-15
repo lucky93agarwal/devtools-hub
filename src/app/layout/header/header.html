@@ -1,0 +1,69 @@
+<header class="sticky top-0 z-40 border-b border-line bg-page/90 backdrop-blur">
+  <div class="container-page flex h-16 items-center justify-between gap-4">
+    <a routerLink="/" class="flex items-center gap-2 rounded-lg" (click)="closeMenu()">
+      <span
+        class="grid size-8 place-items-center rounded-lg bg-brand font-mono text-sm font-bold text-on-brand"
+        aria-hidden="true"
+        >&#123;&#125;</span
+      >
+      <span class="font-heading text-lg font-semibold">{{ siteName }}</span>
+    </a>
+
+    <nav class="hidden md:block" aria-label="Main">
+      <ul class="flex items-center gap-1">
+        @for (link of links; track link.path) {
+          <li>
+            <a
+              [routerLink]="'/' + link.path"
+              routerLinkActive="bg-surface !text-ink"
+              ariaCurrentWhenActive="page"
+              class="rounded-full px-3 py-2 text-sm font-semibold text-muted hover:text-ink"
+              >{{ link.label }}</a
+            >
+          </li>
+        }
+      </ul>
+    </nav>
+
+    <div class="flex items-center gap-1">
+      <button
+        type="button"
+        class="grid size-11 place-items-center rounded-full text-muted hover:bg-surface hover:text-ink"
+        [attr.aria-label]="theme.theme() === 'dark' ? 'Switch to light theme' : 'Switch to dark theme'"
+        (click)="theme.toggle()"
+      >
+        <app-icon [path]="theme.theme() === 'dark' ? icons.sun : icons.moon" [size]="20" />
+      </button>
+
+      <button
+        type="button"
+        class="grid size-11 place-items-center rounded-full text-muted hover:bg-surface hover:text-ink md:hidden"
+        [attr.aria-label]="menuOpen() ? 'Close menu' : 'Open menu'"
+        [attr.aria-expanded]="menuOpen()"
+        aria-controls="mobile-menu"
+        (click)="toggleMenu()"
+      >
+        <app-icon [path]="menuOpen() ? icons.close : icons.menu" [size]="20" />
+      </button>
+    </div>
+  </div>
+
+  @if (menuOpen()) {
+    <nav id="mobile-menu" class="border-t border-line md:hidden" aria-label="Main">
+      <ul class="container-page flex flex-col py-2">
+        @for (link of links; track link.path) {
+          <li>
+            <a
+              [routerLink]="'/' + link.path"
+              routerLinkActive="bg-surface !text-ink"
+              ariaCurrentWhenActive="page"
+              class="block rounded-xl px-3 py-3 font-semibold text-muted"
+              (click)="closeMenu()"
+              >{{ link.label }}</a
+            >
+          </li>
+        }
+      </ul>
+    </nav>
+  }
+</header>
