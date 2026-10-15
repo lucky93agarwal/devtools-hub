@@ -1,0 +1,23 @@
+# Runs the unit tests and a production build on every push and pull request.
+# Deployment itself is done by Cloudflare Workers Builds, which watches the main branch.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test-and-build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version-file: .node-version
+          cache: npm
+
+      - run: npm ci
+      - run: npm test -- --watch=false
+      - run: npm run build
