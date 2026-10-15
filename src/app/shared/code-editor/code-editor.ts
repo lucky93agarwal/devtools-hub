@@ -1,7 +1,9 @@
 import {
+  AfterRenderRef,
   Component,
   DestroyRef,
   ElementRef,
+  Injector,
   afterNextRender,
   effect,
   inject,
@@ -62,6 +64,9 @@ export class CodeEditor {
   private errorDecorations?: Monaco.editor.IEditorDecorationsCollection;
   private flashDecorations?: Monaco.editor.IEditorDecorationsCollection;
   private flashTimer?: ReturnType<typeof setTimeout>;
+  private pendingError?: AfterRenderRef;
+  private queuedError?: { line: number; column: number; message: string };
+  private readonly injector = inject(Injector);
   private destroyed = false;
 
   constructor() {
@@ -70,16 +75,15 @@ export class CodeEditor {
     inject(DestroyRef).onDestroy(() => {
       this.destroyed = true;
       clearTimeout(this.flashTimer);
+      this.pendingError?.destroy();
       this.editor?.dispose();
       this.textModel?.dispose();
     });
 
     // Keep Monaco in sync when the parent changes the text (for example Clear).
     effect(() => {
-      const value = this.value();
-      if (this.ready() && this.textModel && this.textModel.getValue() !== value) {
-        this.textModel.setValue(value);
-      }
+      this.value();
+      if (this.ready()) this.syncText();
     });
 
     effect(() => {
@@ -88,19 +92,20 @@ export class CodeEditor {
     });
   }
 
-  /** Marks an error: red squiggle under the character and a tinted line. */
+  /**
+   * Marks an error: red squiggle under the character and a tinted line.
+   * Applied after the next render, because a value the parent just set reaches
+   * this component on the next change detection, and the mark must land on that text.
+   */
   showError(line: number, column: number, message: string): void {
-    if (!this.monaco || !this.editor || !this.textModel) return;
-    const range = this.errorRange(line, column);
-    this.monaco.editor.setModelMarkers(this.textModel, 'app', [
-      { severity: this.monaco.MarkerSeverity.Error, message, ...range },
-    ]);
-    this.errorDecorations?.set([
-      {
-        range,
-        options: { isWholeLine: true, className: 'code-error-line', linesDecorationsClassName: 'code-error-gutter' },
+    this.pendingError?.destroy();
+    this.pendingError = afterNextRender(
+      () => {
+        this.pendingError = undefined;
+        this.applyError(line, column, message);
       },
-    ]);
+      { injector: this.injector },
+    );
   }
 
   /** Scrolls the error line into the middle, puts the cursor there and flashes the line. */
@@ -123,10 +128,38 @@ export class CodeEditor {
   }
 
   clearError(): void {
+    this.pendingError?.destroy();
+    this.pendingError = undefined;
+    this.queuedError = undefined;
     if (!this.monaco || !this.textModel) return;
     this.monaco.editor.setModelMarkers(this.textModel, 'app', []);
     this.errorDecorations?.clear();
     this.flashDecorations?.clear();
+  }
+
+  private applyError(line: number, column: number, message: string): void {
+    if (!this.monaco || !this.textModel) {
+      // Monaco is still loading; mark the error once it is ready.
+      this.queuedError = { line, column, message };
+      return;
+    }
+    this.syncText();
+    const range = this.errorRange(line, column);
+    this.monaco.editor.setModelMarkers(this.textModel, 'app', [
+      { severity: this.monaco.MarkerSeverity.Error, message, ...range },
+    ]);
+    this.errorDecorations?.set([
+      {
+        range,
+        options: { isWholeLine: true, className: 'code-error-line', linesDecorationsClassName: 'code-error-gutter' },
+      },
+    ]);
+  }
+
+  private syncText(): void {
+    if (this.textModel && this.textModel.getValue() !== this.value()) {
+      this.textModel.setValue(this.value());
+    }
   }
 
   private errorRange(line: number, column: number) {
@@ -172,5 +205,11 @@ export class CodeEditor {
       if (text !== this.value()) this.value.set(text);
     });
     this.ready.set(true);
+
+    if (this.queuedError) {
+      const { line, column, message } = this.queuedError;
+      this.queuedError = undefined;
+      this.applyError(line, column, message);
+    }
   }
 }

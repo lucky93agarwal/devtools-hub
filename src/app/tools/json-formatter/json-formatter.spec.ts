@@ -49,12 +49,130 @@ describe('JsonFormatter', () => {
       button(label).click();
       await fixture.whenStable();
     };
-    return { input, output, inputEditor, status, type, click };
+    const upload = async (file: File) => {
+      const fileInput = el.querySelector<HTMLInputElement>('input[type=file]')!;
+      Object.defineProperty(fileInput, 'files', { value: [file], configurable: true });
+      fileInput.dispatchEvent(new Event('change'));
+      await new Promise((resolve) => setTimeout(resolve));
+      await fixture.whenStable();
+    };
+    return { input, output, inputEditor, status, type, click, button, upload };
   }
+
+  describe('indent', () => {
+    it('formats with the chosen indent', async () => {
+      const { output, type, click } = await setup();
+      await type('{"a":1}');
+      await click('4 spaces');
+      await click('Format');
+      expect(output.value).toBe('{\n    "a": 1\n}');
+    });
+
+    it('re-formats right away when the indent changes', async () => {
+      const { output, type, click, button } = await setup();
+      await type('{"a":1}');
+      await click('Format');
+      await click('Tab');
+      expect(output.value).toBe('{\n\t"a": 1\n}');
+      expect(button('Tab').getAttribute('aria-checked')).toBe('true');
+    });
+
+    it('does not turn minified output back into formatted output', async () => {
+      const { output, type, click } = await setup();
+      await type('{"a":1}');
+      await click('Minify');
+      await click('4 spaces');
+      expect(output.value).toBe('{"a":1}');
+    });
+  });
+
+  describe('samples', () => {
+    it('loads and formats the valid sample', async () => {
+      const { input, output, status, click } = await setup();
+      await click('Valid JSON');
+      expect(input.value).toContain('DevTools Hub');
+      expect(output.value.split('\n').length).toBeGreaterThan(5);
+      expect(status()).toContain('Valid JSON. Formatted');
+    });
+
+    it('loads the broken sample and points at the first error', async () => {
+      const { inputEditor, status, click } = await setup();
+      await click('JSON with errors');
+      expect(status()).toContain(`Line 4, column 3: Missing comma.`);
+      expect(inputEditor.showError).toHaveBeenLastCalledWith(4, 3, `Missing comma. Add ',' before '"'.`);
+    });
+  });
+
+  describe('file upload', () => {
+    it('reads the file and formats it', async () => {
+      const { input, output, status, upload } = await setup();
+      await upload(new File(['{"id":7}'], 'order.json', { type: 'application/json' }));
+      expect(input.value).toBe('{"id":7}');
+      expect(output.value).toBe('{\n  "id": 7\n}');
+      expect(status()).toContain('Valid JSON');
+    });
+
+    it('rejects files over the size limit', async () => {
+      const { input, status, upload } = await setup();
+      const file = new File(['{}'], 'huge.json');
+      Object.defineProperty(file, 'size', { value: 21 * 1024 * 1024 });
+      await upload(file);
+      expect(input.value).toBe('');
+      expect(status()).toBe('huge.json is 21.0 MB. The limit is 20.0 MB.');
+    });
+  });
+
+  describe('copy and download', () => {
+    afterEach(() => vi.restoreAllMocks());
+
+    it('disables both until there is output', async () => {
+      const { button } = await setup();
+      expect(button('Copy').disabled).toBe(true);
+      expect(button('Download').disabled).toBe(true);
+    });
+
+    it('copies the output and confirms', async () => {
+      const writeText = vi.fn().mockResolvedValue(undefined);
+      Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true });
+      const { type, click, button } = await setup();
+      await type('[1,2]');
+      await click('Minify');
+      await click('Copy');
+      expect(writeText).toHaveBeenCalledWith('[1,2]');
+      expect(button('Copied')).toBeTruthy();
+    });
+
+    it('says so when the clipboard is blocked', async () => {
+      Object.defineProperty(navigator, 'clipboard', {
+        value: { writeText: vi.fn().mockRejectedValue(new Error('blocked')) },
+        configurable: true,
+      });
+      const { type, click, button } = await setup();
+      await type('[1]');
+      await click('Format');
+      await click('Copy');
+      expect(button('Copy failed')).toBeTruthy();
+    });
+
+    it('downloads with a name based on the uploaded file', async () => {
+      URL.createObjectURL = vi.fn(() => 'blob:test');
+      URL.revokeObjectURL = vi.fn();
+      const names: string[] = [];
+      vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(function (this: HTMLAnchorElement) {
+        names.push(this.download);
+      });
+      const { click, upload } = await setup();
+      await upload(new File(['{"id":7}'], 'order.json'));
+      await click('Download');
+      await click('Minify');
+      await click('Download');
+      expect(names).toEqual(['order.formatted.json', 'order.min.json']);
+    });
+  });
 
   it('starts in the empty state', async () => {
     const { status } = await setup();
-    expect(status()).toContain('Paste JSON');
+    expect(status()).toContain('Try a sample');
   });
 
   it('formats valid JSON', async () => {
@@ -109,6 +227,6 @@ describe('JsonFormatter', () => {
     await click('Clear');
     expect(input.value).toBe('');
     expect(output.value).toBe('');
-    expect(status()).toContain('Paste JSON');
+    expect(status()).toContain('Try a sample');
   });
 });

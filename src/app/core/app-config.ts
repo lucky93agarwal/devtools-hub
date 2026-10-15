@@ -11,4 +11,6 @@ export const LIMITS = {
   MAX_IMAGE_BYTES: 20 * 1024 * 1024,
   /** Maximum total size of one batch, in bytes (150 MB). */
   MAX_BATCH_BYTES: 150 * 1024 * 1024,
+  /** Maximum JSON file size for upload, in bytes (20 MB). */
+  MAX_JSON_BYTES: 20 * 1024 * 1024,
 } as const;

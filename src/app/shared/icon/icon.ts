@@ -38,4 +38,6 @@ export const ICONS = {
   upload: 'M12 16V4M7 9l5-5 5 5M4 16v4h16v-4',
   arrowRight: 'M5 12h14M13 6l6 6-6 6',
   check: 'M5 12l5 5 9-10',
+  copy: 'M9 9h11v11H9zM5 15H4V4h11v1',
+  download: 'M12 4v12M7 11l5 5 5-5M4 20h16',
 } as const;
