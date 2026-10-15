@@ -11,6 +11,7 @@ describe('file utils', () => {
   it('formats sizes', () => {
     expect(formatBytes(512)).toBe('512 B');
     expect(formatBytes(1536)).toBe('1.5 KB');
-    expect(formatBytes(20 * 1024 * 1024)).toBe('20.0 MB');
+    expect(formatBytes(20 * 1024 * 1024)).toBe('20 MB');
+    expect(formatBytes(2048)).toBe('2 KB');
   });
 });

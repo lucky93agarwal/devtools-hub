@@ -104,7 +104,7 @@ describe('JsonFormatter', () => {
       Object.defineProperty(file, 'size', { value: 21 * 1024 * 1024 });
       await upload(file);
       expect(input.value).toBe('');
-      expect(status()).toBe('huge.json is 21.0 MB. The limit is 20.0 MB.');
+      expect(status()).toBe('huge.json is 21 MB. The limit is 20 MB.');
     });
   });
 

@@ -50,6 +50,11 @@ export class UploadBox {
   readonly accept = input('');
   readonly multiple = input(false);
   readonly disabled = input(false);
+  /**
+   * Drop files that do not match accept before emitting. Turn off when the parent
+   * wants every file so it can explain why some were skipped.
+   */
+  readonly filter = input(true);
 
   readonly filesSelected = output<File[]>();
 
@@ -84,7 +89,7 @@ export class UploadBox {
     if (this.disabled() || !fileList || fileList.length === 0) {
       return;
     }
-    const files = Array.from(fileList).filter((file) => this.isAccepted(file));
+    const files = Array.from(fileList).filter((file) => !this.filter() || this.isAccepted(file));
     const selected = this.multiple() ? files : files.slice(0, 1);
     if (selected.length > 0) {
       this.filesSelected.emit(selected);

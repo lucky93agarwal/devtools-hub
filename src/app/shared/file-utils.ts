@@ -29,9 +29,10 @@ export function baseName(fileName: string): string {
   return dot > 0 ? fileName.slice(0, dot) : fileName;
 }
 
-/** Human-readable size, for example "1.4 MB". */
+/** Human-readable size, for example "1.4 MB" or "20 MB". */
 export function formatBytes(bytes: number): string {
+  const oneDecimal = (n: number) => n.toFixed(1).replace(/\.0$/, '');
   if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  if (bytes < 1024 * 1024) return `${oneDecimal(bytes / 1024)} KB`;
+  return `${oneDecimal(bytes / (1024 * 1024))} MB`;
 }
