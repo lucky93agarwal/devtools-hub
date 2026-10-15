@@ -5,6 +5,7 @@ import { ICONS, Icon } from '../../shared/icon/icon';
 import { UploadBox } from '../../shared/upload-box/upload-box';
 import { ConvertError, FORMATS, ImageEncoder, ImageFormat, labelOf, outputName } from './image-encoder';
 import { DEFAULT_IMAGE_LIMITS, IMAGE_ACCEPT, describePlan, planAdd } from './image-list';
+import { buildZip } from './zip';
 
 /** One image in the batch and where it is in the conversion. */
 export interface ImageItem {
@@ -12,7 +13,8 @@ export interface ImageItem {
   file: File;
   /** Object URL for the thumbnail; revoked when the item is removed. */
   previewUrl: string;
-  state: 'ready' | 'converting' | 'done' | 'error';
+  /** waiting: in the current run but not started yet. */
+  state: 'ready' | 'waiting' | 'converting' | 'done' | 'error';
   result?: { blob: Blob; name: string };
   error?: string;
 }
@@ -35,11 +37,23 @@ export class ImageConverter {
   protected readonly notes = signal<string[]>([]);
   protected readonly format = signal<ImageFormat>('webp');
   protected readonly converting = signal(false);
+  protected readonly zipping = signal(false);
+  /** Size of the current run, for the overall progress bar. */
+  protected readonly runTotal = signal(0);
 
   protected readonly count = computed(() => this.items().length);
   protected readonly full = computed(() => this.count() >= this.limits.maxImages);
   protected readonly totalBytes = computed(() => this.items().reduce((sum, item) => sum + item.file.size, 0));
   protected readonly pending = computed(() => this.items().filter((item) => item.state !== 'done').length);
+  protected readonly doneItems = computed(() => this.items().filter((item) => item.state === 'done'));
+  protected readonly failedCount = computed(() => this.items().filter((item) => item.state === 'error').length);
+  /** Images finished (done or failed) in the current run. */
+  protected readonly runFinished = computed(
+    () => this.runTotal() - this.items().filter((item) => item.state === 'waiting' || item.state === 'converting').length,
+  );
+  protected readonly runPercent = computed(() =>
+    this.runTotal() ? Math.round((this.runFinished() / this.runTotal()) * 100) : 0,
+  );
 
   private readonly encoder = inject(ImageEncoder);
   private nextId = 0;
@@ -76,11 +90,14 @@ export class ImageConverter {
   /** Converts every image that is not done yet, one at a time to keep memory use low. */
   protected async convertAll(): Promise<void> {
     if (this.converting()) return;
+    const queue = this.items().filter((item) => item.state !== 'done');
+    if (!queue.length) return;
     this.converting.set(true);
+    this.runTotal.set(queue.length);
     const format = this.format();
+    for (const item of queue) this.patch(item.id, { state: 'waiting', error: undefined });
     try {
-      for (const item of this.items()) {
-        if (item.state === 'done') continue;
+      for (const item of queue) {
         // The item may have been removed while an earlier one was converting.
         if (!this.items().some((other) => other.id === item.id)) continue;
         this.patch(item.id, { state: 'converting', error: undefined });
@@ -101,8 +118,22 @@ export class ImageConverter {
     if (item.result) downloadBlob(item.result.blob, item.result.name);
   }
 
+  /** One ZIP with every converted image. */
+  protected async downloadZip(): Promise<void> {
+    const done = this.doneItems();
+    if (!done.length || this.zipping()) return;
+    this.zipping.set(true);
+    try {
+      const zip = await buildZip(done.map((item) => item.result!));
+      downloadBlob(zip, `converted-images-${this.format()}.zip`);
+    } finally {
+      this.zipping.set(false);
+    }
+  }
+
   protected remove(item: ImageItem): void {
     URL.revokeObjectURL(item.previewUrl);
+    if (item.state === 'waiting') this.runTotal.update((n) => n - 1);
     this.items.update((items) => items.filter((other) => other.id !== item.id));
     this.notes.set([]);
   }
@@ -111,6 +142,7 @@ export class ImageConverter {
     this.items().forEach((item) => URL.revokeObjectURL(item.previewUrl));
     this.items.set([]);
     this.notes.set([]);
+    this.runTotal.set(0);
   }
 
   /** Short type label, for example "PNG". */

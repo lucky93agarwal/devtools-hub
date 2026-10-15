@@ -1,4 +1,5 @@
 import { TestBed } from '@angular/core/testing';
+import { unzipSync } from 'fflate';
 import { ImageConverter } from './image-converter';
 import { ConvertError, ImageEncoder, ImageFormat, outputName } from './image-encoder';
 
@@ -153,7 +154,7 @@ describe('ImageConverter', () => {
       expect(rows()[0]).toContain('This image could not be read. The file may be damaged.');
       expect(rows()[1]).toContain('→ WebP');
       // Only the failed image is left to convert.
-      expect(text()).toContain('Convert 1 image to WebP');
+      expect(text()).toContain('Try the failed image again');
     });
 
     it('marks results out of date when the format changes', async () => {
@@ -165,6 +166,93 @@ describe('ImageConverter', () => {
       await click('PNG');
       expect(rows()[0]).not.toContain('→');
       expect(text()).toContain('Convert 1 image to PNG');
+    });
+  });
+
+  describe('batch progress and ZIP', () => {
+    const sized = (name: string, size: number) => new File(['x'.repeat(size)], name, { type: 'image/png' });
+    const settle = async (fixture: { whenStable(): Promise<unknown> }) => {
+      await new Promise((resolve) => setTimeout(resolve));
+      await fixture.whenStable();
+    };
+
+    it('shows overall and per-image progress while converting', async () => {
+      // Hold each conversion until the test releases it.
+      const releases: (() => void)[] = [];
+      convert.mockImplementation(
+        (file: File, format: ImageFormat) =>
+          new Promise<Blob>((resolve) => releases.push(() => resolve(new Blob(['y'], { type: `image/${format}` })))),
+      );
+      const { fixture, el, choose, rows, click } = await setup();
+      await choose([sized('a.png', 4), sized('b.png', 4), sized('c.png', 4)]);
+      await click('Convert 3 images');
+
+      const bar = () => el.querySelector('[role=progressbar]');
+      expect(el.textContent).toContain('Converting 1 of 3');
+      expect(bar()?.getAttribute('aria-valuenow')).toBe('0');
+      expect(rows()[0]).toContain('converting…');
+      expect(rows()[1]).toContain('waiting');
+      expect(el.querySelectorAll('.progress-indeterminate')).toHaveLength(1);
+
+      releases.shift()!();
+      await settle(fixture);
+      expect(el.textContent).toContain('Converting 2 of 3');
+      expect(bar()?.getAttribute('aria-valuenow')).toBe('33');
+      expect(rows()[0]).toContain('→ WebP');
+
+      releases.shift()!();
+      await settle(fixture);
+      releases.shift()!();
+      await settle(fixture);
+      expect(bar()).toBeNull();
+      expect(el.textContent).toContain('3 of 3 converted.');
+    });
+
+    it('offers to retry only the failed images', async () => {
+      const { fixture, choose, click, text } = await setup();
+      await choose([sized('broken-1.png', 4), sized('ok.png', 4), sized('broken-2.png', 4)]);
+      await click('Convert 3 images');
+      await settle(fixture);
+      expect(text()).toContain('1 of 3 converted. 2 failed; see the list below.');
+      expect(text()).toContain('Try the 2 failed images again');
+
+      convert.mockClear();
+      await click('Try the 2 failed images again');
+      await settle(fixture);
+      expect(convert.mock.calls.map(([file]) => file.name)).toEqual(['broken-1.png', 'broken-2.png']);
+    });
+
+    it('downloads every converted image in one ZIP', async () => {
+      const zips: Blob[] = [];
+      const names: string[] = [];
+      URL.createObjectURL = vi.fn((blob: Blob) => {
+        zips.push(blob);
+        return 'blob:zip';
+      });
+      vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(function (this: HTMLAnchorElement) {
+        names.push(this.download);
+      });
+      const { fixture, choose, click } = await setup();
+      await choose([sized('photo.png', 4), sized('photo.jpg', 4), sized('broken.png', 4)]);
+      await click('JPG');
+      await click('Convert 3 images');
+      await settle(fixture);
+      await click('Download all as ZIP');
+      await settle(fixture);
+
+      expect(names).toEqual(['converted-images-jpg.zip']);
+      const zip = zips.at(-1)!;
+      const entries = unzipSync(new Uint8Array(await zip.arrayBuffer()));
+      // The failed image is left out; the two photo.jpg names are made unique.
+      expect(Object.keys(entries)).toEqual(['photo.jpg', 'photo (2).jpg']);
+      vi.restoreAllMocks();
+    });
+
+    it('keeps the ZIP button off until something is converted', async () => {
+      const { el, choose } = await setup();
+      await choose([sized('a.png', 4)]);
+      const zipButton = [...el.querySelectorAll('button')].find((b) => b.textContent?.includes('ZIP'))!;
+      expect(zipButton.disabled).toBe(true);
     });
   });
 });

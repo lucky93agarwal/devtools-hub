@@ -66,13 +66,50 @@
         <button type="button" class="btn-primary" [disabled]="converting() || !pending()" (click)="convertAll()">
           @if (converting()) {
             Converting…
+          } @else if (failedCount() && failedCount() === pending()) {
+            Try {{ failedCount() === 1 ? 'the failed image' : 'the ' + failedCount() + ' failed images' }} again
           } @else if (pending()) {
             Convert {{ pending() === 1 ? '1 image' : pending() + ' images' }} to {{ labelOf(format()) }}
           } @else {
             All images converted
           }
         </button>
+        <button
+          type="button"
+          class="btn-secondary"
+          [disabled]="!doneItems().length || converting() || zipping()"
+          (click)="downloadZip()"
+        >
+          <app-icon [path]="icons.download" [size]="20" />
+          {{ zipping() ? 'Making ZIP…' : 'Download all as ZIP' }}
+        </button>
       </div>
+
+      @if (converting()) {
+        <div class="mt-4" aria-live="polite">
+          <div class="flex justify-between text-sm leading-5">
+            <span class="font-semibold">Converting {{ runFinished() + 1 }} of {{ runTotal() }}</span>
+            <span class="text-muted">{{ runPercent() }}%</span>
+          </div>
+          <div
+            class="mt-1 h-2 overflow-hidden rounded-full bg-surface"
+            role="progressbar"
+            aria-label="Overall progress"
+            [attr.aria-valuenow]="runPercent()"
+            aria-valuemin="0"
+            aria-valuemax="100"
+          >
+            <div class="h-full rounded-full bg-brand transition-[width]" [style.width.%]="runPercent()"></div>
+          </div>
+        </div>
+      } @else if (doneItems().length && runTotal()) {
+        <p class="mt-4 text-sm leading-5" aria-live="polite">
+          <span class="font-semibold">{{ doneItems().length }} of {{ count() }} converted.</span>
+          @if (failedCount()) {
+            {{ ' ' }}<span class="text-danger">{{ failedCount() }} failed; see the list below.</span>
+          }
+        </p>
+      }
 
       <ul class="mt-3 flex flex-col divide-y divide-line rounded-xl border border-line">
         @for (item of items(); track item.id) {
@@ -85,6 +122,9 @@
               <p class="text-sm leading-5 text-muted">
                 {{ typeLabel(item.file) }} · {{ formatBytes(item.file.size) }}
                 @switch (item.state) {
+                  @case ('waiting') {
+                    <span> → waiting</span>
+                  }
                   @case ('converting') {
                     <span class="text-ink"> → converting…</span>
                   }
@@ -98,6 +138,11 @@
               </p>
               @if (item.state === 'error') {
                 <p class="text-sm leading-5 text-danger">{{ item.error }}</p>
+              }
+              @if (item.state === 'converting') {
+                <div class="progress-indeterminate mt-1 h-1.5 overflow-hidden rounded-full bg-surface" aria-hidden="true">
+                  <div class="h-full w-1/3 rounded-full bg-brand"></div>
+                </div>
               }
             </div>
             @if (item.state === 'done') {
