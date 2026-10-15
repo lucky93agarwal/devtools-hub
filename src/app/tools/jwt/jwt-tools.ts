@@ -116,20 +116,22 @@ const TIME_LABELS: Record<TimeClaim['name'], string> = {
 
 /** "in 2 hours", "3 days ago", "now". */
 export function relativeTime(date: Date, now: Date): string {
-  const seconds = Math.round((date.getTime() - now.getTime()) / 1000);
-  const units: [Intl.RelativeTimeFormatUnit, number][] = [
-    ['year', 365 * 24 * 3600],
-    ['month', 30 * 24 * 3600],
-    ['day', 24 * 3600],
-    ['hour', 3600],
-    ['minute', 60],
-    ['second', 1],
-  ];
   const format = new Intl.RelativeTimeFormat('en', { numeric: 'auto' });
-  for (const [unit, size] of units) {
-    if (Math.abs(seconds) >= size || unit === 'second') return format.format(Math.round(seconds / size), unit);
+  const seconds = Math.round((date.getTime() - now.getTime()) / 1000);
+  // Round in each unit and move up once it reaches a whole next unit,
+  // so 3,599.6 seconds reads "in 1 hour", not "in 60 minutes".
+  const steps: [Intl.RelativeTimeFormatUnit, number, number][] = [
+    ['second', 1, 60],
+    ['minute', 60, 60],
+    ['hour', 3600, 24],
+    ['day', 86_400, 30],
+    ['month', 30 * 86_400, 12],
+  ];
+  for (const [unit, size, limit] of steps) {
+    const value = Math.round(seconds / size);
+    if (Math.abs(value) < limit) return format.format(value, unit);
   }
-  return '';
+  return format.format(Math.round(seconds / (365 * 86_400)), 'year');
 }
 
 /** Reads iat, nbf and exp when they are numbers (seconds since 1970, as the JWT standard says). */

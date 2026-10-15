@@ -94,6 +94,14 @@ describe('time claims', () => {
     expect(relativeTime(new Date(NOW.getTime() - 3 * 86_400_000), NOW)).toBe('3 days ago');
     expect(relativeTime(NOW, NOW)).toBe('now');
   });
+
+  it('moves up a unit instead of saying 60 minutes or 24 hours', () => {
+    const at = (ms: number) => relativeTime(new Date(NOW.getTime() + ms), NOW);
+    expect(at(3_599_400)).toBe('in 1 hour');
+    expect(at(-59_700)).toBe('1 minute ago');
+    expect(at(86_399_000)).toBe('tomorrow');
+    expect(at(2 * 365 * 86_400_000)).toBe('in 2 years');
+  });
 });
 
 describe('tokenTiming', () => {
