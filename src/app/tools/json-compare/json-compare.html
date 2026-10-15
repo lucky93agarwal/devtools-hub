@@ -10,6 +10,28 @@
     <button type="button" class="btn-secondary" [disabled]="!original() && !changed()" (click)="clear()">Clear</button>
   </div>
 
+  <fieldset class="mt-4 flex flex-wrap gap-x-6 gap-y-2">
+    <legend class="sr-only">Compare options</legend>
+    <label class="flex cursor-pointer items-center gap-2 text-sm leading-5">
+      <input
+        type="checkbox"
+        class="size-4 accent-brand"
+        [checked]="ignoreKeyOrder()"
+        (change)="setIgnoreKeyOrder($any($event.target).checked)"
+      />
+      <span class="flex flex-wrap gap-x-1"><span class="font-semibold">Ignore key order</span><span class="text-muted">(sort keys on both sides)</span></span>
+    </label>
+    <label class="flex cursor-pointer items-center gap-2 text-sm leading-5">
+      <input
+        type="checkbox"
+        class="size-4 accent-brand"
+        [checked]="onlyDifferences()"
+        (change)="onlyDifferences.set($any($event.target).checked)"
+      />
+      <span class="flex flex-wrap gap-x-1"><span class="font-semibold">Show only differences</span><span class="text-muted">(hide unchanged lines)</span></span>
+    </label>
+  </fieldset>
+
   <div id="compare-status" class="mt-4 min-h-12 text-sm leading-5" aria-live="polite">
     @switch (status().kind) {
       @case ('empty') {
@@ -111,10 +133,14 @@
         modifiedLabel="Changed JSON, formatted"
         [original]="r.original"
         [modified]="r.changed"
+        [onlyChanges]="onlyDifferences()"
         (diffUpdated)="onDiffUpdated($event)"
       />
       <p class="mt-2 text-sm text-muted">
         Both sides are formatted the same way before comparing, so spacing and line breaks do not count as changes.
+        @if (ignoreKeyOrder()) {
+          Keys are sorted alphabetically on both sides.
+        }
       </p>
     </section>
   }

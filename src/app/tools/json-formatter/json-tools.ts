@@ -3,6 +3,8 @@
  * code can later run in a Web Worker or a shared tools library.
  */
 
+import { parseTree, printTree, sortTree } from './json-tree';
+
 export type Indent = 2 | 4 | '\t';
 
 export interface JsonError {
@@ -17,14 +19,19 @@ export interface JsonError {
 
 export type JsonResult = { ok: true; output: string } | { ok: false; error: JsonError };
 
-/** Pretty-prints JSON with the given indent. */
-export function formatJson(text: string, indent: Indent = 2): JsonResult {
-  return transform(text, (value) => JSON.stringify(value, null, indent));
+export interface FormatOptions {
+  /** Sort object keys alphabetically at every level, so key order does not matter. */
+  sortKeys?: boolean;
+}
+
+/** Pretty-prints JSON with the given indent. Keys, numbers and strings stay exactly as written. */
+export function formatJson(text: string, indent: Indent = 2, options: FormatOptions = {}): JsonResult {
+  return transform(text, indent === '\t' ? '\t' : ' '.repeat(indent), options);
 }
 
 /** Removes all optional whitespace from JSON. */
-export function minifyJson(text: string): JsonResult {
-  return transform(text, (value) => JSON.stringify(value));
+export function minifyJson(text: string, options: FormatOptions = {}): JsonResult {
+  return transform(text, null, options);
 }
 
 /** One unit of work, as sent to the JSON Web Worker. */
@@ -32,10 +39,12 @@ export interface JsonJob {
   op: 'format' | 'minify';
   text: string;
   indent: Indent;
+  sortKeys?: boolean;
 }
 
 export function runJsonJob(job: JsonJob): JsonResult {
-  return job.op === 'format' ? formatJson(job.text, job.indent) : minifyJson(job.text);
+  const options = { sortKeys: job.sortKeys };
+  return job.op === 'format' ? formatJson(job.text, job.indent, options) : minifyJson(job.text, options);
 }
 
 /** Counts lines without splitting, so a 10 MB output does not create a huge array. */
@@ -46,14 +55,23 @@ export function countLines(text: string): number {
   return lines;
 }
 
-function transform(text: string, write: (value: unknown) => string): JsonResult {
+function transform(text: string, indent: string | null, options: FormatOptions): JsonResult {
   if (text.trim() === '') {
     return { ok: false, error: { message: 'Paste some JSON first.', line: 1, column: 1, offset: 0 } };
   }
+  let value: unknown;
   try {
-    return { ok: true, output: write(JSON.parse(text)) };
+    // The browser's parser is the fastest way to check the whole text is valid.
+    value = JSON.parse(text);
   } catch (e) {
     return { ok: false, error: findJsonError(text) ?? fallbackError(text, e) };
+  }
+  try {
+    const tree = parseTree(text);
+    return { ok: true, output: printTree(options.sortKeys ? sortTree(tree) : tree, indent) };
+  } catch {
+    // Extremely deep nesting can overflow the stack; fall back to the browser's printer.
+    return { ok: true, output: JSON.stringify(value, null, indent ?? undefined) };
   }
 }
 

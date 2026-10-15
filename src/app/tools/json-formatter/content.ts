@@ -57,6 +57,6 @@ export const FAQ: { question: string; answer: string }[] = [
   {
     question: 'Does formatting change my data?',
     answer:
-      'Only spaces and line breaks change, and the order of keys stays the same. Two cases differ: integers larger than 9007199254740991 lose precision, and numbers are written in their shortest form, so 1.0 becomes 1. If an object repeats a key, the last value is kept.',
+      'No. Only spaces and line breaks change. Keys stay in their order, numbers keep their exact digits (so 1.0 stays 1.0 and very large IDs are not rounded), escape sequences in strings are kept, and repeated keys are not removed.',
   },
 ];

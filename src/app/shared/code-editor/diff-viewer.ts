@@ -94,7 +94,10 @@ export class DiffViewer {
 
     effect(() => {
       const enabled = this.onlyChanges();
-      if (this.ready()) this.diffEditor!.updateOptions({ hideUnchangedRegions: { enabled } });
+      if (!this.ready() || !this.diffEditor) return;
+      this.diffEditor.updateOptions({ hideUnchangedRegions: { enabled } });
+      // Monaco works out which regions to collapse when a model is set, so set it again.
+      this.diffEditor.setModel({ original: this.originalModel!, modified: this.modifiedModel! });
     });
 
     effect(() => {

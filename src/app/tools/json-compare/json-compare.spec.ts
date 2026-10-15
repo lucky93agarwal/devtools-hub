@@ -150,4 +150,61 @@ describe('JsonCompare', () => {
     expect(changedBox.value).toBe('');
     expect(status()).toContain('try a sample');
   });
+
+  describe('options', () => {
+    const shuffled = {
+      original: '{"id": 1, "name": "Ada", "meta": {"x": 1, "y": 2}}',
+      changed: '{"meta": {"y": 2, "x": 1}, "name": "Ada", "id": 1}',
+    };
+
+    it('counts different key order as a difference by default', async () => {
+      const { originalBox, changedBox, status, type, click } = await setup();
+      await type(originalBox, shuffled.original);
+      await type(changedBox, shuffled.changed);
+      await click('Compare');
+      expect(status()).toContain('Differences found');
+    });
+
+    it('ignores key order when asked, and compares again right away', async () => {
+      const { el, originalBox, changedBox, diff, status, type, click, settle } = await setup();
+      await type(originalBox, shuffled.original);
+      await type(changedBox, shuffled.changed);
+      await click('Compare');
+
+      el.querySelectorAll<HTMLInputElement>('input[type=checkbox]')[0].click();
+      await settle();
+      expect(status()).toBe('No differences when key order is ignored. Both JSON documents have the same content.');
+      expect(diff()?.original()).toBe('{\n  "id": 1,\n  "meta": {\n    "x": 1,\n    "y": 2\n  },\n  "name": "Ada"\n}');
+    });
+
+    it('still finds value changes with key order ignored', async () => {
+      const { el, originalBox, changedBox, status, type, click, settle } = await setup();
+      el.querySelectorAll<HTMLInputElement>('input[type=checkbox]')[0].click();
+      await settle();
+      await type(originalBox, '{"a": 1, "b": 2}');
+      await type(changedBox, '{"b": 3, "a": 1}');
+      await click('Compare');
+      expect(status()).toContain('Differences found');
+    });
+
+    it('tells the diff viewer to hide unchanged lines without comparing again', async () => {
+      const { el, diff, click, settle } = await setup();
+      await click('Two sample files');
+      const before = diff();
+      expect(before?.onlyChanges()).toBe(false);
+
+      el.querySelectorAll<HTMLInputElement>('input[type=checkbox]')[1].click();
+      await settle();
+      expect(diff()).toBe(before);
+      expect(diff()?.onlyChanges()).toBe(true);
+    });
+  });
+
+  it('does not call different numbers equal', async () => {
+    const { originalBox, changedBox, status, type, click } = await setup();
+    await type(originalBox, '{"price": 1.0, "id": 12345678901234567890}');
+    await type(changedBox, '{"price": 1, "id": 12345678901234567891}');
+    await click('Compare');
+    expect(status()).toContain('Differences found');
+  });
 });

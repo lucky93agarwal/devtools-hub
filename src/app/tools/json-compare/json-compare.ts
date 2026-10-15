@@ -32,6 +32,10 @@ export class JsonCompare {
   /** Formatted texts shown in the diff, set by the last successful comparison. */
   protected readonly result = signal<{ original: string; changed: string } | null>(null);
   protected readonly stats = signal<DiffStats | null>(null);
+  /** Sort keys on both sides before comparing, so only values and structure count. */
+  protected readonly ignoreKeyOrder = signal(false);
+  /** Collapse unchanged lines in the diff. */
+  protected readonly onlyDifferences = signal(false);
 
   protected readonly working = computed(() => this.status().kind === 'working');
   protected readonly errors = computed(() => {
@@ -41,7 +45,11 @@ export class JsonCompare {
   protected readonly summary = computed(() => {
     const status = this.status();
     if (status.kind !== 'compared') return '';
-    if (status.identical) return 'No differences. Both JSON documents have the same content.';
+    if (status.identical) {
+      return this.ignoreKeyOrder()
+        ? 'No differences when key order is ignored. Both JSON documents have the same content.'
+        : 'No differences. Both JSON documents have the same content.';
+    }
     const stats = this.stats();
     return stats ? `Differences found in ${describeStats(stats)}.` : 'Differences found.';
   });
@@ -64,8 +72,8 @@ export class JsonCompare {
     const id = ++this.jobId;
     this.status.set({ kind: 'working' });
     const [original, changed] = await Promise.all([
-      this.runner.run({ op: 'format', text: this.original(), indent: 2 }),
-      this.runner.run({ op: 'format', text: this.changed(), indent: 2 }),
+      this.runner.run({ op: 'format', text: this.original(), indent: 2, sortKeys: this.ignoreKeyOrder() }),
+      this.runner.run({ op: 'format', text: this.changed(), indent: 2, sortKeys: this.ignoreKeyOrder() }),
     ]);
     if (id !== this.jobId) return;
 
@@ -90,6 +98,12 @@ export class JsonCompare {
     this.stats.set(null);
     this.result.set({ original: original.output, changed: changed.output });
     this.status.set({ kind: 'compared', identical: original.output === changed.output });
+  }
+
+  /** Changing the key order option compares again if a result is showing. */
+  protected setIgnoreKeyOrder(value: boolean): void {
+    this.ignoreKeyOrder.set(value);
+    if (this.status().kind === 'compared') void this.compare();
   }
 
   protected onDiffUpdated(stats: DiffStats): void {
