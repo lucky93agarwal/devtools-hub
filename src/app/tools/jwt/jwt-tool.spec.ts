@@ -74,9 +74,13 @@ describe('JwtTool', () => {
   });
 
   it('loads a sample token that is not expired', async () => {
-    const { text, click } = await setup();
+    const { fixture, text, click } = await setup();
     await click('Use a sample token');
-    expect(text()).toContain('Sample User');
+    // Signing with Web Crypto is async and can take longer on slow machines such as CI.
+    await vi.waitFor(async () => {
+      await fixture.whenStable();
+      expect(text()).toContain('Sample User');
+    });
     expect(text()).toContain('Not expired');
   });
 });
