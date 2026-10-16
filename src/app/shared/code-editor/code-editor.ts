@@ -14,7 +14,7 @@ import {
 } from '@angular/core';
 import type * as Monaco from 'monaco-editor/editor/editor.api';
 import { ThemeService } from '../../core/theme.service';
-import { MonacoApi, loadMonaco } from './monaco-loader';
+import { MonacoApi, loadMonaco, whenUserActive } from './monaco-loader';
 
 /** How long the highlight animation runs after jumping to an error, in ms. */
 const FLASH_MS = 1800;
@@ -32,6 +32,7 @@ const FLASH_MS = 1800;
       class="relative h-full overflow-hidden rounded-xl border bg-surface"
       [class]="invalid() ? 'border-danger' : 'border-line'"
       [attr.aria-busy]="!ready()"
+      (pointerdown)="focusWhenReady = !ready()"
     >
       <div #container class="absolute inset-0 py-3"></div>
       @if (!ready()) {
@@ -68,6 +69,8 @@ export class CodeEditor {
   private queuedError?: { line: number; column: number; message: string };
   private readonly injector = inject(Injector);
   private destroyed = false;
+  /** The user clicked the preview before Monaco loaded, so move the cursor in once it is ready. */
+  protected focusWhenReady = false;
 
   constructor() {
     afterNextRender(() => void this.init());
@@ -167,6 +170,8 @@ export class CodeEditor {
   }
 
   private async init(): Promise<void> {
+    await whenUserActive();
+    if (this.destroyed) return;
     const monaco = await loadMonaco();
     if (this.destroyed) return;
 
@@ -205,6 +210,7 @@ export class CodeEditor {
       if (text !== this.value()) this.value.set(text);
     });
     this.ready.set(true);
+    if (this.focusWhenReady && !this.readOnly()) this.editor.focus();
 
     if (this.queuedError) {
       const { line, column, message } = this.queuedError;

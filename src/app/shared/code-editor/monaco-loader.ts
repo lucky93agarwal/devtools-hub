@@ -3,6 +3,31 @@ import type * as Monaco from 'monaco-editor/editor/editor.api';
 export type MonacoApi = typeof Monaco;
 
 let loading: Promise<MonacoApi> | undefined;
+let intent: Promise<void> | undefined;
+
+/** Events that show someone is using the page (rather than a crawler or speed test just loading it). */
+const INTENT_EVENTS = ['pointerdown', 'pointermove', 'keydown', 'touchstart', 'wheel', 'focusin'] as const;
+
+/**
+ * Resolves on the first sign of a person using the page. Monaco is about 1 MB of
+ * JavaScript, so loading it only then keeps the first load fast, especially on phones.
+ * Until it loads, editors show their text as a plain preview.
+ */
+export function whenUserActive(): Promise<void> {
+  intent ??= new Promise((resolve) => {
+    // Arriving through a link click on another page of the app already counts.
+    if (navigator.userActivation?.hasBeenActive) {
+      resolve();
+      return;
+    }
+    const done = () => {
+      for (const name of INTENT_EVENTS) window.removeEventListener(name, done, true);
+      resolve();
+    };
+    for (const name of INTENT_EVENTS) window.addEventListener(name, done, { capture: true, passive: true });
+  });
+  return intent;
+}
 
 /**
  * Loads the Monaco editor once, in the browser only, and only on pages that use it.
@@ -96,6 +121,8 @@ function defineThemes(monaco: MonacoApi): void {
       'editorLineNumber.foreground': '#6B7280',
       'editorLineNumber.activeForeground': '#1F2937',
       'editor.lineHighlightBackground': '#EEF0F4',
+      // The default placeholder grey fails WCAG AA contrast on the light surface.
+      'editor.placeholder.foreground': '#4B5563',
     },
   });
   monaco.editor.defineTheme('dth-dark', {
@@ -114,6 +141,7 @@ function defineThemes(monaco: MonacoApi): void {
       'editorLineNumber.foreground': '#6B7280',
       'editorLineNumber.activeForeground': '#E5E7EB',
       'editor.lineHighlightBackground': '#16213A',
+      'editor.placeholder.foreground': '#9CA3AF',
     },
   });
 }

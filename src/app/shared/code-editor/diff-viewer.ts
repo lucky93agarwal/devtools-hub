@@ -12,7 +12,7 @@ import {
 } from '@angular/core';
 import type * as Monaco from 'monaco-editor/editor/editor.api';
 import { ThemeService } from '../../core/theme.service';
-import { MonacoApi, loadMonaco } from './monaco-loader';
+import { MonacoApi, loadMonaco, whenUserActive } from './monaco-loader';
 
 /** Line counts of one comparison. */
 export interface DiffStats {
@@ -107,6 +107,8 @@ export class DiffViewer {
   }
 
   private async init(): Promise<void> {
+    await whenUserActive();
+    if (this.destroyed) return;
     const monaco = await loadMonaco();
     if (this.destroyed) return;
 

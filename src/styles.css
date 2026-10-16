@@ -5,6 +5,28 @@
 
 @import 'tailwindcss';
 
+/*
+ * Fallback fonts sized to match Inter and Poppins, so text takes the same space
+ * before and after the web fonts load and the page does not jump (layout shift).
+ */
+@font-face {
+  font-family: 'Inter Fallback';
+  src: local('Arial');
+  ascent-override: 90.44%;
+  descent-override: 22.52%;
+  line-gap-override: 0%;
+  size-adjust: 107.12%;
+}
+
+@font-face {
+  font-family: 'Poppins Fallback';
+  src: local('Arial');
+  ascent-override: 93.62%;
+  descent-override: 31.21%;
+  line-gap-override: 8.92%;
+  size-adjust: 112.16%;
+}
+
 /* Dark mode is driven by a `.dark` class on <html>, set by ThemeService. */
 @custom-variant dark (&:where(.dark, .dark *));
 
@@ -49,8 +71,8 @@
   --color-warning: var(--warning);
   --color-danger: var(--danger);
 
-  --font-sans: 'Inter Variable', ui-sans-serif, system-ui, sans-serif;
-  --font-heading: 'Poppins', ui-sans-serif, system-ui, sans-serif;
+  --font-sans: 'Inter Variable', 'Inter Fallback', ui-sans-serif, system-ui, sans-serif;
+  --font-heading: 'Poppins', 'Poppins Fallback', ui-sans-serif, system-ui, sans-serif;
   --font-mono: 'JetBrains Mono Variable', ui-monospace, monospace;
 }
 
