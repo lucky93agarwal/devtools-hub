@@ -7,14 +7,28 @@
 import { copyFileSync, readFileSync, writeFileSync } from 'node:fs';
 
 const out = 'dist/devtools-hub/browser';
+const { routes } = JSON.parse(readFileSync('dist/devtools-hub/prerendered-routes.json', 'utf8'));
+const pageFile = (route) => (route === '/' ? `${out}/index.html` : `${out}${route}/index.html`);
+
+// Put the whole stylesheet (about 5 KB gzipped) inside each page. The first paint then
+// needs no second request, and nothing moves later as it would with partial critical CSS.
+// Font URLs in it are relative and resolve against <base href="/">.
+for (const file of [...Object.keys(routes).map(pageFile), `${out}/index.csr.html`]) {
+  const html = readFileSync(file, 'utf8');
+  const link = /<link rel="stylesheet" href="(styles-[\w-]+\.css)">/.exec(html);
+  if (!link) throw new Error(`No stylesheet link in ${file}`);
+  const css = readFileSync(`${out}/${link[1]}`, 'utf8');
+  writeFileSync(file, html.replace(link[0], () => `<style>${css}</style>`));
+}
+console.log(`Inlined the stylesheet into ${Object.keys(routes).length + 1} pages`);
+
 copyFileSync(`${out}/index.csr.html`, `${out}/404.html`);
 console.log(`Created ${out}/404.html`);
 
-const { routes } = JSON.parse(readFileSync('dist/devtools-hub/prerendered-routes.json', 'utf8'));
 const today = new Date().toISOString().slice(0, 10);
 const urls = [];
 for (const route of Object.keys(routes).sort()) {
-  const file = route === '/' ? `${out}/index.html` : `${out}${route}/index.html`;
+  const file = pageFile(route);
   const html = readFileSync(file, 'utf8');
   if (/<meta name="robots" content="noindex"/.test(html)) continue;
   const canonical = /<link rel="canonical" href="([^"]+)"/.exec(html)?.[1];
