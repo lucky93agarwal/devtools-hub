@@ -1,4 +1,5 @@
 /** Explanation and FAQ text shown below the JSON formatter, mainly for search engines. */
+import { FaqItem, ToolContent } from '../../shared/tool-info/tool-info';
 
 export const COMMON_ERRORS: { name: string; example: string; fix: string }[] = [
   {
@@ -33,7 +34,7 @@ export const COMMON_ERRORS: { name: string; example: string; fix: string }[] = [
   },
 ];
 
-export const FAQ: { question: string; answer: string }[] = [
+export const FAQ: FaqItem[] = [
   {
     question: 'Is my JSON uploaded anywhere?',
     answer:
@@ -60,3 +61,18 @@ export const FAQ: { question: string; answer: string }[] = [
       'No. Only spaces and line breaks change. Keys stay in their order, numbers keep their exact digits (so 1.0 stays 1.0 and very large IDs are not rounded), escape sequences in strings are kept, and repeated keys are not removed.',
   },
 ];
+
+export const FORMATTER_CONTENT: ToolContent = {
+  aboutHeading: 'About this JSON formatter',
+  about:
+    'Paste or upload JSON to make it readable, shrink it, or find out exactly why it does not parse. The checker names ' +
+    'the first problem in plain words with its line and column, and the editor marks the spot. Everything runs in ' +
+    'your browser, so private API responses and config files stay on your device.',
+  steps: [
+    'Paste JSON into the Input box, or choose Upload file to open a .json file.',
+    'Choose Format for readable output with 2 spaces, 4 spaces or tabs, or Minify for the smallest size.',
+    'If the JSON is invalid, click the error message to jump to the line and fix it.',
+    'Copy the result or download it as a file.',
+  ],
+  faq: FAQ,
+};

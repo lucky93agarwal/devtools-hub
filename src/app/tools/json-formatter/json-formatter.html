@@ -4,9 +4,20 @@
 
   <div class="mt-8 flex flex-wrap items-center gap-x-4 gap-y-3">
     <div class="flex flex-wrap items-center gap-2" role="toolbar" aria-label="JSON actions">
-      <button type="button" class="btn-primary" [disabled]="working()" (click)="format()">Format</button>
-      <button type="button" class="btn-secondary" [disabled]="working()" (click)="minify()">Minify</button>
-      <button type="button" class="btn-secondary" [disabled]="!input() && !output()" (click)="clear()">Clear</button>
+      <button type="button" class="btn-primary" [disabled]="working()" (click)="format()">
+        Format
+      </button>
+      <button type="button" class="btn-secondary" [disabled]="working()" (click)="minify()">
+        Minify
+      </button>
+      <button
+        type="button"
+        class="btn-secondary"
+        [disabled]="!input() && !output()"
+        (click)="clear()"
+      >
+        Clear
+      </button>
     </div>
 
     <div class="flex items-center gap-2" role="radiogroup" aria-labelledby="indent-label">
@@ -17,7 +28,9 @@
             type="button"
             role="radio"
             class="rounded-full px-3 py-1.5 text-sm leading-5 font-semibold transition-colors"
-            [class]="indent() === option.value ? 'bg-surface text-ink' : 'text-muted hover:text-ink'"
+            [class]="
+              indent() === option.value ? 'bg-surface text-ink' : 'text-muted hover:text-ink'
+            "
             [attr.aria-checked]="indent() === option.value"
             (click)="setIndent(option.value)"
           >
@@ -34,7 +47,9 @@
         <div class="flex flex-wrap items-center gap-2">
           <span class="text-muted">No JSON at hand? Try a sample:</span>
           <button type="button" class="btn-small" (click)="loadSample('valid')">Valid JSON</button>
-          <button type="button" class="btn-small" (click)="loadSample('broken')">JSON with errors</button>
+          <button type="button" class="btn-small" (click)="loadSample('broken')">
+            JSON with errors
+          </button>
         </div>
       }
       @case ('ready') {
@@ -54,7 +69,8 @@
           <span class="grid size-6 place-items-center rounded-full bg-success text-white">
             <app-icon [path]="icons.check" [size]="14" />
           </span>
-          Valid JSON. {{ action() }}, {{ outputLines() }} {{ outputLines() === 1 ? 'line' : 'lines' }}.
+          Valid JSON. {{ action() }}, {{ outputLines() }}
+          {{ outputLines() === 1 ? 'line' : 'lines' }}.
         </p>
       }
       @case ('error') {
@@ -151,26 +167,7 @@
     Your JSON is processed in your browser and never sent to a server.
   </p>
 
-  <section class="mt-16 flex flex-col gap-10 border-t border-line pt-10" aria-labelledby="about-heading">
-    <div>
-      <h2 id="about-heading" class="text-2xl leading-8 sm:text-[28px] sm:leading-9">About this JSON formatter</h2>
-      <p class="mt-3 text-muted">
-        Paste or upload JSON to make it readable, shrink it, or find out exactly why it does not parse. The checker
-        names the first problem in plain words with its line and column, and the editor marks the spot. Everything
-        runs in your browser, so private API responses and config files stay on your device.
-      </p>
-    </div>
-
-    <div>
-      <h2 class="text-2xl leading-8 sm:text-[28px] sm:leading-9">How to use it</h2>
-      <ol class="mt-3 flex list-decimal flex-col gap-2 pl-5 text-muted">
-        <li>Paste JSON into the Input box, or choose Upload file to open a .json file.</li>
-        <li>Choose Format for readable output with 2 spaces, 4 spaces or tabs, or Minify for the smallest size.</li>
-        <li>If the JSON is invalid, click the error message to jump to the line and fix it.</li>
-        <li>Copy the result or download it as a file.</li>
-      </ol>
-    </div>
-
+  <app-tool-info [tool]="tool" [content]="content">
     <div>
       <h2 class="text-2xl leading-8 sm:text-[28px] sm:leading-9">Common JSON errors</h2>
       <dl class="mt-4 grid gap-4 sm:grid-cols-2">
@@ -178,27 +175,14 @@
           <div class="card p-4">
             <dt class="font-semibold">{{ item.name }}</dt>
             <dd class="mt-2 flex flex-col gap-2 text-sm leading-5 text-muted">
-              <code class="w-fit rounded-md bg-page px-2 py-1 font-mono text-ink">{{ item.example }}</code>
+              <code class="w-fit rounded-md bg-page px-2 py-1 font-mono text-ink">{{
+                item.example
+              }}</code>
               <span>{{ item.fix }}</span>
             </dd>
           </div>
         }
       </dl>
     </div>
-
-    <div>
-      <h2 class="text-2xl leading-8 sm:text-[28px] sm:leading-9">Frequently asked questions</h2>
-      <div class="mt-4 flex flex-col divide-y divide-line rounded-xl border border-line">
-        @for (item of faq; track item.question) {
-          <details class="group px-4 py-3">
-            <summary class="flex cursor-pointer list-none items-center justify-between gap-4 rounded font-semibold">
-              <h3 class="text-base leading-6">{{ item.question }}</h3>
-              <span class="text-muted transition-transform group-open:rotate-45" aria-hidden="true">+</span>
-            </summary>
-            <p class="mt-2 text-muted">{{ item.answer }}</p>
-          </details>
-        }
-      </div>
-    </div>
-  </section>
+  </app-tool-info>
 </div>

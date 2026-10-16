@@ -6,6 +6,8 @@ import { ICONS, Icon } from '../../shared/icon/icon';
 import { JsonRunner } from '../json-formatter/json-runner';
 import { JsonError } from '../json-formatter/json-tools';
 import { COMPARE_SAMPLES, describeStats } from './compare-tools';
+import { COMPARE_CONTENT } from './content';
+import { ToolInfoSection } from '../../shared/tool-info/tool-info';
 
 type Side = 'original' | 'changed';
 
@@ -18,11 +20,12 @@ type Status =
 
 @Component({
   selector: 'app-json-compare',
-  imports: [Icon, CodeEditor, DiffViewer],
+  imports: [Icon, CodeEditor, DiffViewer, ToolInfoSection],
   templateUrl: './json-compare.html',
 })
 export class JsonCompare {
   protected readonly tool = TOOLS.find((t) => t.path === 'json-compare')!;
+  protected readonly content = COMPARE_CONTENT;
   protected readonly icons = ICONS;
   protected readonly sideLabels: Record<Side, string> = { original: 'Original', changed: 'Changed' };
 

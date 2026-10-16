@@ -7,14 +7,20 @@ export interface ToolInfo {
   path: string;
   /** Full name, used in the page title and H1. */
   name: string;
-  /** One-line description, used for the meta description and the home card. */
+  /** One-line description, used on the home card and under the H1. */
   description: string;
+  /** Browser tab and search result title; " | DevTools Hub" is added after it. */
+  seoTitle: string;
+  /** Search result snippet, about 150 characters. */
+  metaDescription: string;
   /** SVG path data for a 24x24 stroke icon. */
   icon: string;
   /** Phase of the roadmap in which the tool ships. */
   phase: number;
   /** Shown as a card on the home page. */
   onHome: boolean;
+  /** Built and usable. Tools that are not live show a "coming soon" page kept out of search results. */
+  live: boolean;
 }
 
 export const TOOLS: readonly ToolInfo[] = [
@@ -22,57 +28,82 @@ export const TOOLS: readonly ToolInfo[] = [
     path: 'json-formatter',
     name: 'JSON Formatter and Validator',
     description: 'Format, minify and validate JSON with clear error messages.',
+    seoTitle: 'JSON Formatter and Validator Online',
+    metaDescription:
+      'Format, minify and validate JSON in your browser. See each error with its line and column, upload files up to 20 MB, then copy or download the result.',
     icon: 'M8 4H7a2 2 0 0 0-2 2v4l-2 2 2 2v4a2 2 0 0 0 2 2h1M16 4h1a2 2 0 0 1 2 2v4l2 2-2 2v4a2 2 0 0 1-2 2h-1',
     phase: 1,
     onHome: true,
+    live: true,
   },
   {
     path: 'json-compare',
     name: 'JSON Compare',
     description: 'See what was added, removed or changed between two JSON documents.',
+    seoTitle: 'JSON Compare: Diff Two JSON Files Online',
+    metaDescription:
+      'Compare two JSON documents side by side and see what was added, removed or changed. Ignore key order or hide unchanged lines. Runs in your browser.',
     icon: 'M4 4h6v16H4zM14 4h6v16h-6zM7 9h0M17 9h0M7 13h0M17 15h0',
     phase: 1,
     onHome: true,
+    live: true,
   },
   {
     path: 'image-converter',
     name: 'Image Converter',
     description: 'Convert up to 15 images at once between PNG, JPG and WebP.',
+    seoTitle: 'Image Converter: PNG, JPG and WebP Online',
+    metaDescription:
+      'Convert up to 15 images at once between PNG, JPG and WebP. Set quality, resize and download all as a ZIP. Images never leave your browser.',
     icon: 'M4 5h16v14H4zM4 15l4-4 4 4 3-3 5 5M15 9h0',
     phase: 2,
     onHome: true,
+    live: true,
   },
   {
     path: 'jwt',
     name: 'JWT Decoder and Verifier',
     description: 'Decode, verify and create JSON Web Tokens without sending them anywhere.',
+    seoTitle: 'JWT Decoder, Verifier and Generator',
+    metaDescription:
+      'Decode JSON Web Tokens, check HS256, RS256 and ES256 signatures, and create test tokens. Dates show in your time zone. Tokens stay in your browser.',
     icon: 'M14 10a4 4 0 1 0-3.5 4L12 16h2v2h2v2h4v-3l-6.5-6.5',
     phase: 3,
     onHome: true,
+    live: true,
   },
   {
     path: 'background-remover',
     name: 'Background Remover',
     description: 'Remove an image background on your own device and download a transparent PNG.',
+    seoTitle: 'Background Remover (Coming Soon)',
+    metaDescription: 'A background remover that runs on your own device is coming soon.',
     icon: 'M6 3l12 12M6 15l3-3M12 9l3-3M4 21h16M8 21a4 4 0 0 1 8 0',
     phase: 5,
     onHome: true,
+    live: false,
   },
   {
     path: 'json-to-model',
     name: 'JSON to Kotlin, Dart and Swift',
     description: 'Turn JSON into Kotlin data classes, Dart models or Swift Codable structs.',
+    seoTitle: 'JSON to Kotlin, Dart and Swift (Coming Soon)',
+    metaDescription: 'Turn JSON into Kotlin, Dart and Swift model code. Coming soon.',
     icon: 'M7 3h10a1 1 0 0 1 1 1v16a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1zM11 18h2',
     phase: 6,
     onHome: true,
+    live: false,
   },
   {
     path: 'app-icon-generator',
     name: 'App Icon Generator',
     description: 'Create every Android and iOS app icon size from one image.',
+    seoTitle: 'App Icon Generator (Coming Soon)',
+    metaDescription: 'Create every Android and iOS app icon size from one image. Coming soon.',
     icon: 'M5 5h5v5H5zM14 5h5v5h-5zM5 14h5v5H5zM14 14h5v5h-5z',
     phase: 6,
     onHome: false,
+    live: false,
   },
 ];
 

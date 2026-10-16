@@ -16,28 +16,49 @@ const toolComponents: Record<string, () => Promise<Type<unknown>>> = {
 /** Each tool is a lazy-loaded route with its own URL, title and description. */
 const toolRoutes: Routes = TOOLS.map((tool) => ({
   path: tool.path,
-  title: tool.name,
+  title: tool.seoTitle,
   loadComponent: toolComponents[tool.path] ?? placeholder,
-  data: { heading: tool.name, description: tool.description, phase: tool.phase },
+  data: {
+    heading: tool.name,
+    description: tool.metaDescription,
+    phase: tool.phase,
+    // "Coming soon" pages have nothing to offer yet, so keep them out of search results.
+    noindex: !tool.live,
+  },
 }));
 
-const infoPages = [
-  { path: 'about', heading: 'About', description: `Who builds these tools and why.` },
-  { path: 'privacy', heading: 'Privacy policy', description: 'How this site handles your data.' },
-  { path: 'terms', heading: 'Terms of use', description: 'The rules for using this site.' },
-  { path: 'contact', heading: 'Contact', description: 'How to reach us with feedback or questions.' },
+/** About, Privacy, Terms and Contact. */
+const infoRoutes: Routes = [
+  {
+    path: 'about',
+    title: 'About',
+    loadComponent: () => import('./pages/info/about-page').then((m) => m.AboutPage),
+    data: { description: 'Why DevTools Hub exists, which tools it offers and how your data stays in your browser.' },
+  },
+  {
+    path: 'privacy',
+    title: 'Privacy policy',
+    loadComponent: () => import('./pages/info/privacy-page').then((m) => m.PrivacyPage),
+    data: { description: 'How DevTools Hub handles your data: tools run in your browser, with no accounts and no cookies.' },
+  },
+  {
+    path: 'terms',
+    title: 'Terms of use',
+    loadComponent: () => import('./pages/info/terms-page').then((m) => m.TermsPage),
+    data: { description: 'The terms for using the free developer tools on DevTools Hub.' },
+  },
+  {
+    path: 'contact',
+    title: 'Contact',
+    loadComponent: () => import('./pages/info/contact-page').then((m) => m.ContactPage),
+    data: { description: 'Report a bug, request a tool or ask a question about DevTools Hub.' },
+  },
 ];
-
-const infoRoutes: Routes = infoPages.map((page) => ({
-  path: page.path,
-  title: page.heading,
-  loadComponent: placeholder,
-  data: { heading: page.heading, description: page.description },
-}));
 
 export const routes: Routes = [
   {
     path: '',
+    title: 'Free Developer Tools in Your Browser',
     loadComponent: () => import('./pages/home/home').then((m) => m.Home),
     data: {
       description:

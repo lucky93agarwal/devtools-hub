@@ -15,6 +15,8 @@ import {
 } from './image-encoder';
 import { DEFAULT_IMAGE_LIMITS, IMAGE_ACCEPT, describePlan, planAdd } from './image-list';
 import { buildZip } from './zip';
+import { IMAGE_CONTENT } from './content';
+import { ToolInfoSection } from '../../shared/tool-info/tool-info';
 
 /** One image in the batch and where it is in the conversion. */
 export interface ImageItem {
@@ -35,11 +37,12 @@ export type ResizeChoice = 'original' | '75' | '50' | '25' | 'width';
 
 @Component({
   selector: 'app-image-converter',
-  imports: [Icon, UploadBox],
+  imports: [Icon, UploadBox, ToolInfoSection],
   templateUrl: './image-converter.html',
 })
 export class ImageConverter {
   protected readonly tool = TOOLS.find((t) => t.path === 'image-converter')!;
+  protected readonly content = IMAGE_CONTENT;
   protected readonly icons = ICONS;
   protected readonly limits = DEFAULT_IMAGE_LIMITS;
   protected readonly accept = IMAGE_ACCEPT;

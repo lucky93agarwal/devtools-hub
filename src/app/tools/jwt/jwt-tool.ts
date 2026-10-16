@@ -4,6 +4,8 @@ import { TOOLS } from '../../core/tools';
 import { copyText } from '../../shared/file-utils';
 import { ICONS, Icon } from '../../shared/icon/icon';
 import { CreatedToken, JwtCreator } from './jwt-creator';
+import { JWT_CONTENT } from './content';
+import { ToolInfoSection } from '../../shared/tool-info/tool-info';
 import { SAMPLE_SECRET, createSampleToken } from './jwt-sample';
 import { CLAIM_INFO, TokenTiming, decodeJwt, timeClaims, tokenTiming } from './jwt-tools';
 import { VerifyResult, keyKind, securityWarnings, verifySignature } from './jwt-verify';
@@ -20,11 +22,12 @@ const TIMING_TEXT: Record<TokenTiming, { label: string; detail: string; tone: 'd
 
 @Component({
   selector: 'app-jwt-tool',
-  imports: [Icon, JwtCreator],
+  imports: [Icon, JwtCreator, ToolInfoSection],
   templateUrl: './jwt-tool.html',
 })
 export class JwtTool {
   protected readonly tool = TOOLS.find((t) => t.path === 'jwt')!;
+  protected readonly content = JWT_CONTENT;
   protected readonly icons = ICONS;
 
   protected readonly tabs = [

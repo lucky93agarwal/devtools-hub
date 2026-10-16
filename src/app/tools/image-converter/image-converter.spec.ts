@@ -66,7 +66,7 @@ describe('ImageConverter', () => {
       input.dispatchEvent(new Event('change'));
       await fixture.whenStable();
     };
-    const rows = () => [...el.querySelectorAll('li')].map((li) => li.textContent!.replace(/\s+/g, ' ').trim());
+    const rows = () => [...el.querySelectorAll('section[aria-labelledby="images-heading"] li')].map((li) => li.textContent!.replace(/\s+/g, ' ').trim());
     const counter = () => el.querySelector('[aria-label$="images"]')?.textContent?.trim();
     const text = () => el.textContent!.replace(/\s+/g, ' ');
     const click = async (label: string) => {

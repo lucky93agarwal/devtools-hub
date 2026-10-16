@@ -4,9 +4,10 @@ import { TOOLS } from '../../core/tools';
 import { CodeEditor } from '../../shared/code-editor/code-editor';
 import { baseName, copyText, downloadText, formatBytes } from '../../shared/file-utils';
 import { ICONS, Icon } from '../../shared/icon/icon';
+import { ToolInfoSection } from '../../shared/tool-info/tool-info';
 import { JsonRunner } from './json-runner';
 import { Indent, JsonError, JsonJob, JsonResult, countLines } from './json-tools';
-import { COMMON_ERRORS, FAQ } from './content';
+import { COMMON_ERRORS, FORMATTER_CONTENT } from './content';
 import { JSON_SAMPLES } from './samples';
 
 type Action = 'Formatted' | 'Minified';
@@ -24,7 +25,7 @@ const COPIED_MS = 2000;
 
 @Component({
   selector: 'app-json-formatter',
-  imports: [Icon, CodeEditor],
+  imports: [Icon, CodeEditor, ToolInfoSection],
   templateUrl: './json-formatter.html',
 })
 export class JsonFormatter {
@@ -37,7 +38,7 @@ export class JsonFormatter {
   ];
   protected readonly accept = '.json,application/json,text/plain';
   protected readonly commonErrors = COMMON_ERRORS;
-  protected readonly faq = FAQ;
+  protected readonly content = FORMATTER_CONTENT;
 
   protected readonly input = signal('');
   protected readonly output = signal('');
@@ -126,7 +127,10 @@ export class JsonFormatter {
       this.setInput(text);
       void this.format();
     } catch {
-      this.status.set({ kind: 'problem', message: `${file.name} could not be read. Try another file.` });
+      this.status.set({
+        kind: 'problem',
+        message: `${file.name} could not be read. Try another file.`,
+      });
     }
   }
 

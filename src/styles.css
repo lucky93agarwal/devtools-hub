@@ -175,3 +175,23 @@
     opacity: 0.5;
   }
 }
+
+/* Long-form text on the About, Privacy, Terms and Contact pages. */
+@layer components {
+  .content-page h2 {
+    @apply mt-10 font-heading text-2xl leading-8 font-semibold;
+  }
+
+  .content-page p,
+  .content-page ul {
+    @apply mt-3;
+  }
+
+  .content-page ul {
+    @apply flex list-disc flex-col gap-2 pl-5;
+  }
+
+  .content-page a {
+    @apply text-brand underline underline-offset-2 hover:text-brand-strong;
+  }
+}

@@ -4,6 +4,12 @@
  */
 export const SITE_NAME = 'DevTools Hub';
 
+/** Public address of the site, without a trailing slash. Used for canonical links and the sitemap. */
+export const SITE_URL = 'https://devtools-hub.agarwal-lucky93.workers.dev';
+
+/** Source code and the place to report bugs or ask for tools. */
+export const REPO_URL = 'https://github.com/lucky93agarwal/devtools-hub';
+
 export const LIMITS = {
   /** Maximum images per batch in the image converter. */
   MAX_IMAGES: 15,
