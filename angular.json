@@ -27,6 +27,11 @@
                 "glob": "editor.main.css",
                 "input": "node_modules/monaco-editor/min/vs/editor",
                 "output": "monaco"
+              },
+              {
+                "glob": "ort-wasm-simd-threaded.{wasm,mjs}",
+                "input": "node_modules/onnxruntime-web/dist",
+                "output": "ort"
               }
             ],
             "styles": [

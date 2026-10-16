@@ -68,6 +68,14 @@ export const routes: Routes = [
   ...toolRoutes,
   ...infoRoutes,
   {
+    // Hidden proof-of-concept page for the background remover; not linked and not indexed.
+    path: 'lab/background-remover',
+    title: 'Background remover test',
+    loadComponent: () =>
+      import('./tools/background-remover/background-remover-lab').then((m) => m.BackgroundRemoverLab),
+    data: { description: 'Test page for the background remover.', noindex: true },
+  },
+  {
     path: '**',
     title: 'Page not found',
     loadComponent: placeholder,
