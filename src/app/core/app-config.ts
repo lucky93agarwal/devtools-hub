@@ -10,6 +10,19 @@ export const SITE_URL = 'https://devtools-hub.agarwal-lucky93.workers.dev';
 /** Source code and the place to report bugs or ask for tools. */
 export const REPO_URL = 'https://github.com/lucky93agarwal/devtools-hub';
 
+/**
+ * Umami Cloud visit counting. Copy both values from the Umami dashboard
+ * (Website settings, Tracking code). While either is empty, no analytics script
+ * loads and the privacy policy says so.
+ */
+export const ANALYTICS = {
+  umamiScriptUrl: '',
+  umamiWebsiteId: '',
+} as const;
+
+/** Google Search Console "HTML tag" verification code (only the content value). Empty adds no tag. */
+export const GOOGLE_SITE_VERIFICATION = '';
+
 export const LIMITS = {
   /** Maximum images per batch in the image converter. */
   MAX_IMAGES: 15,

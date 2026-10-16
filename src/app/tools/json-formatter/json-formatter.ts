@@ -1,4 +1,5 @@
 import { Component, DestroyRef, computed, inject, signal, viewChild } from '@angular/core';
+import { Analytics, sizeBucket } from '../../core/analytics';
 import { LIMITS } from '../../core/app-config';
 import { TOOLS } from '../../core/tools';
 import { CodeEditor } from '../../shared/code-editor/code-editor';
@@ -71,6 +72,7 @@ export class JsonFormatter {
 
   private readonly inputEditor = viewChild.required<CodeEditor>('inputEditor');
   private readonly runner = inject(JsonRunner);
+  private readonly analytics = inject(Analytics);
   private copyTimer?: ReturnType<typeof setTimeout>;
   /** Increases with every new job, so a slow result for older text is ignored. */
   private jobId = 0;
@@ -179,6 +181,10 @@ export class JsonFormatter {
   }
 
   private apply(result: JsonResult, action: Action): void {
+    this.analytics.track(action === 'Formatted' ? 'json-format' : 'json-minify', {
+      result: result.ok ? 'valid' : 'invalid',
+      size: sizeBucket(this.input().length),
+    });
     if (result.ok) {
       this.output.set(result.output);
       this.status.set({ kind: 'valid', action });

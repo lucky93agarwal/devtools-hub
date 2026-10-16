@@ -1,4 +1,5 @@
 import { Component, DestroyRef, computed, inject, signal } from '@angular/core';
+import { Analytics } from '../../core/analytics';
 import { TOOLS } from '../../core/tools';
 import { downloadBlob, formatBytes } from '../../shared/file-utils';
 import { ICONS, Icon } from '../../shared/icon/icon';
@@ -95,6 +96,7 @@ export class ImageConverter {
   );
 
   private readonly encoder = inject(ImageEncoder);
+  private readonly analytics = inject(Analytics);
   private nextId = 0;
 
   constructor() {
@@ -177,6 +179,12 @@ export class ImageConverter {
       }
     } finally {
       this.converting.set(false);
+      this.analytics.track('image-convert', {
+        format,
+        images: queue.length,
+        failed: this.failedCount(),
+        resized: options.resize.mode !== 'original',
+      });
     }
   }
 
@@ -192,6 +200,7 @@ export class ImageConverter {
     try {
       const zip = await buildZip(done.map((item) => item.result!));
       downloadBlob(zip, `converted-images-${this.format()}.zip`);
+      this.analytics.track('image-zip-download', { images: done.length });
     } finally {
       this.zipping.set(false);
     }

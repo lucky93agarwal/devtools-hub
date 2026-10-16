@@ -1,4 +1,5 @@
 import { Component, DestroyRef, PLATFORM_ID, computed, effect, inject, signal } from '@angular/core';
+import { Analytics } from '../../core/analytics';
 import { isPlatformBrowser } from '@angular/common';
 import { TOOLS } from '../../core/tools';
 import { copyText } from '../../shared/file-utils';
@@ -91,6 +92,9 @@ export class JwtTool {
   });
 
   private copyTimer?: ReturnType<typeof setTimeout>;
+  private readonly analytics = inject(Analytics);
+  /** Last token and result sent as an event, so typing a key does not send one per keystroke. */
+  private lastTracked = '';
   /** Increases with every check, so a slow result for an older key is ignored. */
   private verifyId = 0;
 
@@ -123,7 +127,13 @@ export class JwtTool {
         secretIsBase64,
         kid,
       }).then((result) => {
-        if (id === this.verifyId) this.verifyResult.set(result);
+        if (id !== this.verifyId) return;
+        this.verifyResult.set(result);
+        const tracked = `${jwt.parts.signature}:${result.status}`;
+        if (result.status !== 'error' && tracked !== this.lastTracked) {
+          this.lastTracked = tracked;
+          this.analytics.track('jwt-verify', { alg, result: result.status });
+        }
       });
     });
   }

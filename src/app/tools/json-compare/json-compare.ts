@@ -1,4 +1,5 @@
 import { Component, computed, inject, signal, viewChild } from '@angular/core';
+import { Analytics } from '../../core/analytics';
 import { TOOLS } from '../../core/tools';
 import { CodeEditor } from '../../shared/code-editor/code-editor';
 import { DiffStats, DiffViewer } from '../../shared/code-editor/diff-viewer';
@@ -58,6 +59,7 @@ export class JsonCompare {
   });
 
   private readonly runner = inject(JsonRunner);
+  private readonly analytics = inject(Analytics);
   private readonly originalEditor = viewChild.required<CodeEditor>('originalEditor');
   private readonly changedEditor = viewChild.required<CodeEditor>('changedEditor');
   /** Increases with every change, so a slow result for older text is ignored. */
@@ -95,12 +97,17 @@ export class JsonCompare {
     if (!original.ok || !changed.ok) {
       this.result.set(null);
       this.status.set({ kind: 'invalid', errors });
+      this.analytics.track('json-compare', { result: 'invalid' });
       return;
     }
 
     this.stats.set(null);
     this.result.set({ original: original.output, changed: changed.output });
     this.status.set({ kind: 'compared', identical: original.output === changed.output });
+    this.analytics.track('json-compare', {
+      result: original.output === changed.output ? 'same' : 'different',
+      ignoreKeyOrder: this.ignoreKeyOrder(),
+    });
   }
 
   /** Changing the key order option compares again if a result is showing. */

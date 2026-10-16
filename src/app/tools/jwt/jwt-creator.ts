@@ -1,4 +1,5 @@
 import { Component, DestroyRef, computed, inject, output, signal } from '@angular/core';
+import { Analytics } from '../../core/analytics';
 import { copyText } from '../../shared/file-utils';
 import { ICONS, Icon } from '../../shared/icon/icon';
 import {
@@ -69,6 +70,7 @@ export class JwtCreator {
   });
 
   private copyTimer?: ReturnType<typeof setTimeout>;
+  private readonly analytics = inject(Analytics);
 
   constructor() {
     inject(DestroyRef).onDestroy(() => clearTimeout(this.copyTimer));
@@ -114,6 +116,7 @@ export class JwtCreator {
       this.result.set({ ok: false, message: 'Generate a key pair first.' });
       return;
     }
+    const alg = this.alg();
     this.result.set(
       await signJwt(
         this.alg(),
@@ -124,6 +127,7 @@ export class JwtCreator {
           : { kind: 'pair', privateKey: pair!.privateKey },
       ),
     );
+    if (this.token()) this.analytics.track('jwt-create', { alg });
   }
 
   protected open(): void {

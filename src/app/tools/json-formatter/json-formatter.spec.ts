@@ -6,6 +6,7 @@ import { JsonFormatter } from './json-formatter';
 import { JsonRunner } from './json-runner';
 import { JsonResult } from './json-tools';
 import { FAQ } from './content';
+import { Analytics } from '../../core/analytics';
 
 describe('JsonFormatter', () => {
   async function setup() {
@@ -268,5 +269,20 @@ describe('JsonFormatter', () => {
       'Frequently asked questions',
     ]);
     expect(el.querySelectorAll('details')).toHaveLength(FAQ.length);
+  });
+
+  it('reports what was done without any of the JSON', async () => {
+    const track = vi.fn();
+    TestBed.configureTestingModule({ providers: [{ provide: Analytics, useValue: { track, load: vi.fn() } }] });
+    const { type, click } = await setup();
+    await type('{"secret":"do-not-send"}');
+    await click('Format');
+    await type('{"secret":');
+    await click('Minify');
+    expect(track.mock.calls).toEqual([
+      ['json-format', { result: 'valid', size: 'under 10 KB' }],
+      ['json-minify', { result: 'invalid', size: 'under 10 KB' }],
+    ]);
+    expect(JSON.stringify(track.mock.calls)).not.toContain('do-not-send');
   });
 });

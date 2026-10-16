@@ -1,4 +1,5 @@
-import { Component } from '@angular/core';
+import { Component, afterNextRender, inject } from '@angular/core';
+import { Analytics } from './core/analytics';
 import { RouterOutlet } from '@angular/router';
 import { Header } from './layout/header/header';
 import { Footer } from './layout/footer/footer';
@@ -21,4 +22,9 @@ import { Footer } from './layout/footer/footer';
     </div>
   `,
 })
-export class App {}
+export class App {
+  constructor() {
+    const analytics = inject(Analytics);
+    afterNextRender(() => analytics.load());
+  }
+}

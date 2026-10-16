@@ -1,6 +1,7 @@
 import { Component } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { REPO_URL, SITE_NAME } from '../../core/app-config';
+import { analyticsEnabled } from '../../core/analytics';
 import { InfoPage } from './info-page';
 
 @Component({
@@ -36,11 +37,35 @@ import { InfoPage } from './info-page';
         tools. Cloudflare's own privacy policy describes how it handles this data.
       </p>
 
-      <h2>Analytics and advertising</h2>
+      <h2>Visit counting</h2>
+      @if (analyticsOn) {
+        <p>
+          To learn which tools are useful, the site counts visits with Umami Cloud, a privacy-focused analytics service.
+          It does not use cookies and does not build a profile of you. It receives the page address, the referring site,
+          your browser, operating system, screen size and country (worked out from your IP address, which Umami does not
+          store).
+        </p>
+        <p>
+          The tools also send short notes about what was done, such as "image converted to WebP, 3 images" or "JWT
+          signature checked: valid", with a rough input size like "under 10 KB". These notes never include your JSON,
+          images, tokens, secrets, keys or file names.
+        </p>
+        <p>
+          If your browser's Do Not Track setting is on, nothing is counted. Content blockers that block analytics also
+          stop it, and every tool keeps working.
+        </p>
+      } @else {
+        <p>
+          The site does not currently count visits. If privacy-friendly visit counting is added, this page will be updated
+          first and will say what is collected and how to opt out.
+        </p>
+      }
+
+      <h2>Advertising</h2>
       <p>
-        The site does not currently use analytics or show ads. If that changes, for example by adding privacy-friendly
-        visit counting or advertising, this page will be updated first and will say which services are used, what they
-        collect and how to opt out. Where the law requires consent, it will be asked for before anything is collected.
+        The site does not currently show ads. If ads are added, this page will be updated first and will say which
+        services are used and what they collect. Where the law requires consent, it will be asked for before anything is
+        collected.
       </p>
 
       <h2>Children</h2>
@@ -60,4 +85,5 @@ import { InfoPage } from './info-page';
 export class PrivacyPage {
   protected readonly siteName = SITE_NAME;
   protected readonly repoUrl = REPO_URL;
+  protected readonly analyticsOn = analyticsEnabled();
 }

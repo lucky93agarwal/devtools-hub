@@ -1,7 +1,7 @@
 import { DOCUMENT, Injectable, inject } from '@angular/core';
 import { Meta, Title } from '@angular/platform-browser';
 import { RouterStateSnapshot, TitleStrategy } from '@angular/router';
-import { SITE_NAME, SITE_URL } from './app-config';
+import { GOOGLE_SITE_VERIFICATION, SITE_NAME, SITE_URL } from './app-config';
 
 /**
  * Sets the search and sharing tags for each page from its route: the title
@@ -36,6 +36,9 @@ export class SeoTitleStrategy extends TitleStrategy {
     this.meta.updateTag({ property: 'og:description', content: description });
     this.meta.updateTag({ property: 'og:url', content: url });
     this.meta.updateTag({ name: 'twitter:card', content: 'summary' });
+    if (GOOGLE_SITE_VERIFICATION) {
+      this.meta.updateTag({ name: 'google-site-verification', content: GOOGLE_SITE_VERIFICATION });
+    }
 
     this.setCanonical(url);
   }
