@@ -21,14 +21,24 @@ export function cleanToken(input: string): string {
   return input.trim().replace(/^Bearer\s+/i, '').replace(/\s+/g, '');
 }
 
-/** Decodes Base64URL (or plain Base64) to UTF-8 text. Returns null when it is not valid. */
-export function base64UrlDecode(part: string): string | null {
+/** Decodes Base64URL (or plain Base64) to bytes. Returns null when it is not valid. */
+export function base64UrlToBytes(part: string): Uint8Array<ArrayBuffer> | null {
   if (!/^[A-Za-z0-9\-_+/]*={0,2}$/.test(part)) return null;
   const base64 = part.replace(/-/g, '+').replace(/_/g, '/').replace(/=+$/, '');
   if (base64.length % 4 === 1) return null;
   try {
     const binary = atob(base64 + '='.repeat((4 - (base64.length % 4)) % 4));
-    const bytes = Uint8Array.from(binary, (ch) => ch.charCodeAt(0));
+    return Uint8Array.from(binary, (ch) => ch.charCodeAt(0));
+  } catch {
+    return null;
+  }
+}
+
+/** Decodes Base64URL (or plain Base64) to UTF-8 text. Returns null when it is not valid. */
+export function base64UrlDecode(part: string): string | null {
+  const bytes = base64UrlToBytes(part);
+  if (!bytes) return null;
+  try {
     return new TextDecoder('utf-8', { fatal: true }).decode(bytes);
   } catch {
     return null;

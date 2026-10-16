@@ -1,10 +1,11 @@
-import { Component, DestroyRef, PLATFORM_ID, computed, inject, signal } from '@angular/core';
+import { Component, DestroyRef, PLATFORM_ID, computed, effect, inject, signal } from '@angular/core';
 import { isPlatformBrowser } from '@angular/common';
 import { TOOLS } from '../../core/tools';
 import { copyText } from '../../shared/file-utils';
 import { ICONS, Icon } from '../../shared/icon/icon';
-import { createSampleToken } from './jwt-sample';
+import { SAMPLE_SECRET, createSampleToken } from './jwt-sample';
 import { CLAIM_INFO, TokenTiming, decodeJwt, timeClaims, tokenTiming } from './jwt-tools';
+import { VerifyResult, keyKind, securityWarnings, verifySignature } from './jwt-verify';
 
 /** How often relative times and the expiry badge refresh, in ms. */
 const TICK_MS = 15_000;
@@ -28,6 +29,14 @@ export class JwtTool {
   protected readonly token = signal('');
   protected readonly now = signal(new Date());
   protected readonly copied = signal(false);
+  protected readonly sampleSecret = SAMPLE_SECRET;
+
+  /** Secret (HS) or public key (RS, PS, ES) typed by the user to check the signature. */
+  protected readonly verifyKey = signal('');
+  protected readonly secretIsBase64 = signal(false);
+  protected readonly verifyResult = signal<VerifyResult | null>(null);
+  /** The token currently in the box is the generated sample. */
+  protected readonly sampleLoaded = signal(false);
 
   protected readonly result = computed(() => (this.token().trim() ? decodeJwt(this.token()) : null));
   protected readonly jwt = computed(() => {
@@ -50,6 +59,17 @@ export class JwtTool {
     const alg = this.jwt()?.header['alg'];
     return typeof alg === 'string' ? alg : null;
   });
+  protected readonly keyKind = computed(() => keyKind(this.algorithm()));
+  protected readonly verifyError = computed(() => {
+    const result = this.verifyResult();
+    return result?.status === 'error' ? result.message : null;
+  });
+  protected readonly warnings = computed(() => {
+    const jwt = this.jwt();
+    if (!jwt) return [];
+    const secret = this.keyKind() === 'secret' ? { text: this.verifyKey(), isBase64: this.secretIsBase64() } : undefined;
+    return securityWarnings(jwt.header, secret);
+  });
   protected readonly claims = computed(() => {
     const jwt = this.jwt();
     if (!jwt) return [];
@@ -61,6 +81,8 @@ export class JwtTool {
   });
 
   private copyTimer?: ReturnType<typeof setTimeout>;
+  /** Increases with every check, so a slow result for an older key is ignored. */
+  private verifyId = 0;
 
   constructor() {
     const destroyRef = inject(DestroyRef);
@@ -70,18 +92,50 @@ export class JwtTool {
       const timer = setInterval(() => this.now.set(new Date()), TICK_MS);
       destroyRef.onDestroy(() => clearInterval(timer));
     }
+
+    // Check the signature again whenever the token, key or key format changes.
+    effect(() => {
+      const jwt = this.jwt();
+      const alg = this.algorithm();
+      const key = this.verifyKey();
+      const secretIsBase64 = this.secretIsBase64();
+      const id = ++this.verifyId;
+      if (!jwt || !alg || !this.keyKind() || !key.trim()) {
+        this.verifyResult.set(null);
+        return;
+      }
+      const kid = typeof jwt.header['kid'] === 'string' ? jwt.header['kid'] : undefined;
+      void verifySignature({
+        alg,
+        signingInput: `${jwt.parts.header}.${jwt.parts.payload}`,
+        signature: jwt.parts.signature,
+        key,
+        secretIsBase64,
+        kid,
+      }).then((result) => {
+        if (id === this.verifyId) this.verifyResult.set(result);
+      });
+    });
   }
 
   protected onInput(value: string): void {
+    this.sampleLoaded.set(false);
     this.token.set(value);
     this.now.set(new Date());
   }
 
   protected async useSample(): Promise<void> {
     this.onInput(await createSampleToken());
+    this.sampleLoaded.set(true);
+  }
+
+  protected useSampleSecret(): void {
+    this.secretIsBase64.set(false);
+    this.verifyKey.set(SAMPLE_SECRET);
   }
 
   protected clear(): void {
+    this.sampleLoaded.set(false);
     this.token.set('');
   }
 

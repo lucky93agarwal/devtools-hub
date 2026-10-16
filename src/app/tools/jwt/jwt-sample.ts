@@ -1,7 +1,7 @@
 import { base64UrlEncode } from './jwt-tools';
 
 /** Secret for the sample token only. Shown on the page so the signature check can be tried. */
-export const SAMPLE_SECRET = 'devtools-hub-sample-secret';
+export const SAMPLE_SECRET = 'devtools-hub-sample-secret-for-demo-only';
 
 /**
  * Builds an HS256 sample token issued an hour ago that expires in an hour,

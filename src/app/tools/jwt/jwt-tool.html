@@ -67,7 +67,7 @@
               ></span>
               {{ timing.label }}
             </span>
-            <span class="text-sm leading-5 text-muted">{{ timing.detail }} The signature is not checked here.</span>
+            <span class="text-sm leading-5 text-muted">{{ timing.detail }}</span>
           }
         </div>
 
@@ -145,15 +145,114 @@
           </div>
         </section>
 
+        @if (warnings().length) {
+          <div class="flex flex-col gap-1 rounded-xl border border-warning bg-warning/10 px-4 py-3 text-sm leading-5">
+            <p class="font-semibold">Security warnings</p>
+            @for (warning of warnings(); track warning) {
+              <p>{{ warning }}</p>
+            }
+          </div>
+        }
+
         <section aria-labelledby="signature-heading">
-          <h2 id="signature-heading" class="text-xl leading-7">Signature</h2>
+          <h2 id="signature-heading" class="text-xl leading-7">Verify the signature</h2>
           <p class="mt-3 rounded-xl border border-line bg-surface p-4 font-mono text-sm leading-[22px] break-all">
             {{ jwt.parts.signature || '(empty)' }}
           </p>
-          <p class="mt-2 text-sm leading-5 text-muted">
-            Anyone can write a token that decodes. Only checking this signature with the right secret or public key
-            proves the token is genuine.
-          </p>
+
+          @switch (keyKind()) {
+            @case ('secret') {
+              <div class="mt-4 flex flex-col gap-2">
+                <div class="flex flex-wrap items-center justify-between gap-2">
+                  <label for="jwt-secret" class="text-sm leading-5 font-semibold">Secret</label>
+                  @if (sampleLoaded()) {
+                    <button type="button" class="btn-small" (click)="useSampleSecret()">Use the sample secret</button>
+                  }
+                </div>
+                <input
+                  id="jwt-secret"
+                  type="text"
+                  class="w-full rounded-xl border border-line bg-page px-4 py-2.5 font-mono text-sm"
+                  placeholder="The shared secret the token was signed with"
+                  spellcheck="false"
+                  autocapitalize="off"
+                  autocomplete="off"
+                  [value]="verifyKey()"
+                  (input)="verifyKey.set($any($event.target).value)"
+                />
+                <label class="flex cursor-pointer items-center gap-2 text-sm leading-5">
+                  <input
+                    type="checkbox"
+                    class="size-4 accent-brand"
+                    [checked]="secretIsBase64()"
+                    (change)="secretIsBase64.set($any($event.target).checked)"
+                  />
+                  The secret is Base64 encoded
+                </label>
+              </div>
+            }
+            @case ('public-key') {
+              <div class="mt-4 flex flex-col gap-2">
+                <label for="jwt-public-key" class="text-sm leading-5 font-semibold">Public key</label>
+                <textarea
+                  id="jwt-public-key"
+                  rows="6"
+                  class="w-full resize-y rounded-xl border border-line bg-page p-4 font-mono text-sm leading-[22px]"
+                  placeholder="-----BEGIN PUBLIC KEY-----&#10;...&#10;-----END PUBLIC KEY-----&#10;or a JWK / JWK set"
+                  spellcheck="false"
+                  autocomplete="off"
+                  [value]="verifyKey()"
+                  (input)="verifyKey.set($any($event.target).value)"
+                ></textarea>
+                <p class="text-sm leading-5 text-muted">PEM (BEGIN PUBLIC KEY) or JWK. With a JWK set, the key matching the token's kid is used.</p>
+              </div>
+            }
+            @default {
+              <p class="mt-4 text-sm leading-5 text-muted">
+                @if (algorithm()?.toLowerCase() === 'none') {
+                  This token is not signed, so there is nothing to check.
+                } @else {
+                  Checking {{ algorithm() ?? 'this' }} signatures is not supported here.
+                }
+              </p>
+            }
+          }
+
+          <div class="mt-4" aria-live="polite">
+            @if (verifyResult(); as result) {
+              @switch (result.status) {
+                @case ('valid') {
+                  <p class="flex items-center gap-2 rounded-xl border border-success bg-success/10 px-4 py-3 text-sm leading-5">
+                    <span class="grid size-6 place-items-center rounded-full bg-success text-white">
+                      <app-icon [path]="icons.check" [size]="14" />
+                    </span>
+                    <span><span class="font-semibold">Signature verified.</span> This key signed this exact token.</span>
+                  </p>
+                }
+                @case ('invalid') {
+                  <p class="flex items-center gap-2 rounded-xl border border-danger bg-danger/10 px-4 py-3 text-sm leading-5">
+                    <span class="grid size-6 place-items-center rounded-full bg-danger text-white">
+                      <app-icon [path]="icons.close" [size]="14" />
+                    </span>
+                    <span
+                      ><span class="font-semibold">Invalid signature.</span> The key is wrong, or the token was changed after it
+                      was signed.</span
+                    >
+                  </p>
+                }
+                @case ('error') {
+                  <p class="rounded-xl border border-danger bg-danger/10 px-4 py-3 text-sm leading-5">
+                    {{ verifyError() }}
+                  </p>
+                }
+              }
+            } @else if (keyKind()) {
+              <p class="text-sm leading-5 text-muted">
+                Enter the {{ keyKind() === 'secret' ? 'secret' : 'public key' }} to check the signature. It stays in your
+                browser.
+              </p>
+            }
+          </div>
         </section>
       </div>
     }
