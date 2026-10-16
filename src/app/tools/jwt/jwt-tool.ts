@@ -3,6 +3,7 @@ import { isPlatformBrowser } from '@angular/common';
 import { TOOLS } from '../../core/tools';
 import { copyText } from '../../shared/file-utils';
 import { ICONS, Icon } from '../../shared/icon/icon';
+import { CreatedToken, JwtCreator } from './jwt-creator';
 import { SAMPLE_SECRET, createSampleToken } from './jwt-sample';
 import { CLAIM_INFO, TokenTiming, decodeJwt, timeClaims, tokenTiming } from './jwt-tools';
 import { VerifyResult, keyKind, securityWarnings, verifySignature } from './jwt-verify';
@@ -19,12 +20,18 @@ const TIMING_TEXT: Record<TokenTiming, { label: string; detail: string; tone: 'd
 
 @Component({
   selector: 'app-jwt-tool',
-  imports: [Icon],
+  imports: [Icon, JwtCreator],
   templateUrl: './jwt-tool.html',
 })
 export class JwtTool {
   protected readonly tool = TOOLS.find((t) => t.path === 'jwt')!;
   protected readonly icons = ICONS;
+
+  protected readonly tabs = [
+    { value: 'decode' as const, label: 'Decode and verify' },
+    { value: 'create' as const, label: 'Create a token' },
+  ];
+  protected readonly mode = signal<'decode' | 'create'>('decode');
 
   protected readonly token = signal('');
   protected readonly now = signal(new Date());
@@ -127,6 +134,14 @@ export class JwtTool {
   protected async useSample(): Promise<void> {
     this.onInput(await createSampleToken());
     this.sampleLoaded.set(true);
+  }
+
+  /** Shows a token made in the Create tab, with its key filled in so it verifies straight away. */
+  protected openCreated(created: CreatedToken): void {
+    this.onInput(created.token);
+    this.secretIsBase64.set(created.secretIsBase64);
+    this.verifyKey.set(created.key);
+    this.mode.set('decode');
   }
 
   protected useSampleSecret(): void {

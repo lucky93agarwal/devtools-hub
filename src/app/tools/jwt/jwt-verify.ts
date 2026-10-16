@@ -4,10 +4,10 @@
  */
 import { base64UrlToBytes } from './jwt-tools';
 
-type Family = 'hmac' | 'rsa' | 'pss' | 'ecdsa';
+export type Family = 'hmac' | 'rsa' | 'pss' | 'ecdsa';
 type Hash = 'SHA-256' | 'SHA-384' | 'SHA-512';
 
-interface AlgorithmInfo {
+export interface AlgorithmInfo {
   family: Family;
   hash: Hash;
   /** Hash size in bytes; also the minimum safe HMAC secret length. */
@@ -17,7 +17,7 @@ interface AlgorithmInfo {
   ecSignatureBytes?: number;
 }
 
-const ALGORITHMS: Record<string, AlgorithmInfo> = {
+export const ALGORITHMS: Record<string, AlgorithmInfo> = {
   HS256: { family: 'hmac', hash: 'SHA-256', bytes: 32 },
   HS384: { family: 'hmac', hash: 'SHA-384', bytes: 48 },
   HS512: { family: 'hmac', hash: 'SHA-512', bytes: 64 },

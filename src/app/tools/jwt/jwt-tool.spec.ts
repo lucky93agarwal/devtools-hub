@@ -136,4 +136,52 @@ describe('JwtTool', () => {
       expect(text()).toContain('This token is not signed, so there is nothing to check.');
     });
   });
+
+  describe('create a token', () => {
+    const settle = async (fixture: { whenStable(): Promise<unknown> }) => {
+      await new Promise((resolve) => setTimeout(resolve));
+      await fixture.whenStable();
+    };
+
+    it('creates an HS256 token that opens in the decoder and verifies', async () => {
+      const { fixture, el, text, click } = await setup();
+      await click('Create a token');
+      expect(el.querySelector<HTMLElement>('#panel-create')!.hidden).toBe(false);
+      expect(el.querySelector<HTMLElement>('#panel-decode')!.hidden).toBe(true);
+
+      await click('Generate a random secret');
+      await click('1 hour');
+      await click('Create token');
+      await vi.waitFor(async () => {
+        await settle(fixture);
+        expect(el.querySelector('#created-token')?.textContent?.trim()).toMatch(/^eyJ[\w-]+\.[\w-]+\.[\w-]+$/);
+      });
+
+      await click('Open in the decoder');
+      expect(el.querySelector<HTMLElement>('#panel-decode')!.hidden).toBe(false);
+      expect(el.querySelector<HTMLTextAreaElement>('#jwt-input')!.value).toBe(
+        el.querySelector('#created-token')!.textContent!.trim(),
+      );
+      await vi.waitFor(async () => {
+        await settle(fixture);
+        expect(text()).toContain('Signature verified.');
+      });
+      expect(text()).toContain('Test User');
+    });
+
+    it('shows a JSON error from the payload instead of a token', async () => {
+      const { fixture, el, text, click } = await setup();
+      await click('Create a token');
+      const payload = el.querySelector<HTMLTextAreaElement>('#create-payload')!;
+      payload.value = '{"sub": "x",}';
+      payload.dispatchEvent(new Event('input'));
+      await click('Generate a random secret');
+      await click('Create token');
+      await vi.waitFor(async () => {
+        await settle(fixture);
+        expect(text()).toContain('Payload is not valid JSON. Line 1, column 13: Trailing comma is not allowed before }.');
+      });
+      expect(el.querySelector('#created-token')).toBeNull();
+    });
+  });
 });
