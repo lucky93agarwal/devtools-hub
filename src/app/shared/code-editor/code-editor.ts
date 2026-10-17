@@ -32,7 +32,7 @@ const FLASH_MS = 1800;
       class="relative h-full overflow-hidden rounded-xl border bg-surface"
       [class]="invalid() ? 'border-danger' : 'border-line'"
       [attr.aria-busy]="!ready()"
-      (pointerdown)="focusWhenReady = !ready()"
+      (pointerdown)="onPointerDown()"
     >
       <div #container class="absolute inset-0 py-3"></div>
       @if (!ready()) {
@@ -71,6 +71,15 @@ export class CodeEditor {
   private destroyed = false;
   /** The user clicked the preview before Monaco loaded, so move the cursor in once it is ready. */
   protected focusWhenReady = false;
+
+  /**
+   * A method rather than an inline assignment: a template handler that returns false
+   * makes Angular cancel the event, and a cancelled pointerdown never reaches Monaco
+   * as mousedown, so clicks on the loaded editor would do nothing.
+   */
+  protected onPointerDown(): void {
+    this.focusWhenReady = !this.ready();
+  }
 
   constructor() {
     afterNextRender(() => void this.init());
