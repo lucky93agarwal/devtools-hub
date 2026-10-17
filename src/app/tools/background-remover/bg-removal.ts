@@ -49,6 +49,8 @@ export const MODELS: Record<ModelInfo['id'], ModelInfo> = {
 
 /** ONNX Runtime's WebAssembly files, copied into the build by angular.json. */
 export const ORT_WASM_BASE = '/ort/';
+/** Size of ort-wasm-simd-threaded.wasm, downloaded once with the model. */
+export const ORT_WASM_BYTES = 14_239_897;
 
 const CACHE_NAME = 'background-remover-models-v1';
 

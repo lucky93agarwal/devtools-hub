@@ -76,12 +76,13 @@ export const TOOLS: readonly ToolInfo[] = [
     path: 'background-remover',
     name: 'Background Remover',
     description: 'Remove an image background on your own device and download a transparent PNG.',
-    seoTitle: 'Background Remover (Coming Soon)',
-    metaDescription: 'A background remover that runs on your own device is coming soon.',
+    seoTitle: 'Remove Image Background: Free and Private',
+    metaDescription:
+      'Remove the background from a photo and download a transparent PNG. The AI runs on your own device, so your image is never uploaded. Free, no sign-up.',
     icon: 'M6 3l12 12M6 15l3-3M12 9l3-3M4 21h16M8 21a4 4 0 0 1 8 0',
     phase: 5,
     onHome: true,
-    live: false,
+    live: true,
   },
   {
     path: 'json-to-model',

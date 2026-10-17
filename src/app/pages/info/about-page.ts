@@ -31,8 +31,8 @@ import { InfoPage } from './info-page';
         }
       </ul>
       <p>
-        More tools are on the way, including a background remover and tools for mobile developers, such as turning JSON
-        into Kotlin, Dart or Swift models and generating app icons.
+        More tools are on the way for mobile developers, such as turning JSON into Kotlin, Dart or Swift models and
+        generating app icons.
       </p>
 
       <h2>Who builds it</h2>

@@ -1,0 +1,84 @@
+<div class="container-tool pt-10 sm:pt-16">
+  <h1 class="text-[28px] leading-9 sm:text-[40px] sm:leading-12">{{ tool.name }}</h1>
+  <p class="mt-3 text-muted">{{ tool.description }}</p>
+
+  <div class="mt-8" aria-live="polite">
+    @if (working(); as work) {
+      <div class="card flex flex-col gap-4 p-6">
+        @if (modelPercent() !== null) {
+          <p class="font-semibold">Preparing the background remover…</p>
+          <p class="text-sm leading-5 text-muted">
+            First time only: downloading the model and runtime ({{ firstUseSize }}). After this they stay in your
+            browser.
+          </p>
+          <div
+            class="h-2 overflow-hidden rounded-full bg-page"
+            role="progressbar"
+            aria-label="Download progress"
+            [attr.aria-valuenow]="modelPercent()"
+            aria-valuemin="0"
+            aria-valuemax="100"
+          >
+            <div class="h-full rounded-full bg-brand transition-[width]" [style.width.%]="modelPercent()"></div>
+          </div>
+          <p class="text-sm leading-5">{{ modelPercent() }}%</p>
+        } @else {
+          <p class="font-semibold">Removing the background from {{ work.fileName }}…</p>
+          <p class="text-sm leading-5 text-muted">This takes a few seconds, and longer on phones.</p>
+          <div class="progress-indeterminate h-2 overflow-hidden rounded-full bg-page" aria-hidden="true">
+            <div class="h-full w-1/3 rounded-full bg-brand"></div>
+          </div>
+        }
+      </div>
+    } @else if (done(); as result) {
+      <div class="flex flex-col gap-4">
+        <div class="grid gap-4 sm:grid-cols-2">
+          <figure>
+            <img
+              [src]="result.originalUrl"
+              alt="Original image"
+              class="max-h-[28rem] w-full rounded-xl border border-line object-contain"
+            />
+            <figcaption class="mt-1 text-sm text-muted">Before</figcaption>
+          </figure>
+          <figure>
+            <img
+              [src]="result.resultUrl"
+              alt="Image with the background removed"
+              class="checkerboard max-h-[28rem] w-full rounded-xl border border-line object-contain"
+            />
+            <figcaption class="mt-1 text-sm text-muted">
+              After · {{ result.width }}×{{ result.height }} · {{ formatBytes(result.png.size) }} PNG
+            </figcaption>
+          </figure>
+        </div>
+        <div class="flex flex-wrap items-center gap-2">
+          <button type="button" class="btn-primary" (click)="download()">
+            <app-icon [path]="icons.download" [size]="20" />
+            Download PNG
+          </button>
+          <button type="button" class="btn-secondary" (click)="reset()">Try another image</button>
+        </div>
+      </div>
+    } @else {
+      @if (error(); as message) {
+        <p class="mb-4 rounded-xl border border-danger bg-danger/10 px-4 py-3 text-sm leading-5">{{ message }}</p>
+      }
+      <app-upload-box
+        title="Drop an image here"
+        buttonLabel="Choose image"
+        [hint]="'PNG, JPG or WebP, up to ' + maxSize + '. You can also paste an image.'"
+        [accept]="accept"
+        [filter]="false"
+        (filesSelected)="start($event)"
+      />
+    }
+  </div>
+
+  <p class="mt-4 flex items-center gap-2 text-sm text-muted">
+    <app-icon [path]="icons.lock" [size]="16" />
+    Your image is processed on your device and never uploaded.
+  </p>
+
+  <app-tool-info [tool]="tool" [content]="content" />
+</div>

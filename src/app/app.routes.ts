@@ -11,6 +11,8 @@ const toolComponents: Record<string, () => Promise<Type<unknown>>> = {
   'json-compare': () => import('./tools/json-compare/json-compare').then((m) => m.JsonCompare),
   'image-converter': () => import('./tools/image-converter/image-converter').then((m) => m.ImageConverter),
   jwt: () => import('./tools/jwt/jwt-tool').then((m) => m.JwtTool),
+  'background-remover': () =>
+    import('./tools/background-remover/background-remover').then((m) => m.BackgroundRemover),
 };
 
 /** Each tool is a lazy-loaded route with its own URL, title and description. */

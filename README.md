@@ -14,7 +14,7 @@ Free, privacy-first developer tools that run entirely in the browser. Nothing yo
 | [JSON Compare](https://devtools-hub.agarwal-lucky93.workers.dev/json-compare) | Live |
 | [Image Converter](https://devtools-hub.agarwal-lucky93.workers.dev/image-converter) | Live |
 | [JWT Decoder and Verifier](https://devtools-hub.agarwal-lucky93.workers.dev/jwt) | Live (decode, verify and create) |
-| Background Remover | Planned |
+| [Background Remover](https://devtools-hub.agarwal-lucky93.workers.dev/background-remover) | Live |
 | JSON to Kotlin, Dart and Swift | Planned |
 | App Icon Generator | Planned |
 
