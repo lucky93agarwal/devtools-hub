@@ -8,6 +8,8 @@ import { ToolInfoSection } from '../../shared/tool-info/tool-info';
 import { UploadBox } from '../../shared/upload-box/upload-box';
 import { IMAGE_ACCEPT, isSupportedImage } from '../image-converter/image-list';
 import { MODELS, ORT_WASM_BYTES } from './bg-removal';
+import { BeforeAfter } from './before-after';
+import { BACKGROUND_COLOURS, NewBackground, composeBackground } from './compose';
 import { BACKGROUND_REMOVER_CONTENT } from './content';
 import { RemoveProgress, RemoverClient } from './remover-client';
 
@@ -19,7 +21,7 @@ type State =
 
 @Component({
   selector: 'app-background-remover',
-  imports: [Icon, UploadBox, ToolInfoSection],
+  imports: [Icon, UploadBox, ToolInfoSection, BeforeAfter],
   templateUrl: './background-remover.html',
 })
 export class BackgroundRemover {
@@ -33,6 +35,22 @@ export class BackgroundRemover {
   protected readonly formatBytes = formatBytes;
 
   protected readonly state = signal<State>({ kind: 'empty' });
+  protected readonly colours = BACKGROUND_COLOURS;
+
+  /** What goes behind the cut-out in the preview and the download. */
+  protected readonly background = signal<NewBackground>({ kind: 'transparent' });
+  /** Last colour picked, kept when switching to another background and back. */
+  protected readonly colour = signal<string>(BACKGROUND_COLOURS[0].value);
+  /** Object URL of the chosen background image, for the preview. */
+  protected readonly backgroundImageUrl = signal<string | null>(null);
+  protected readonly backgroundNote = signal('');
+  protected readonly saving = signal(false);
+
+  protected readonly previewColour = computed(() => {
+    const background = this.background();
+    return background.kind === 'colour' ? background.colour : null;
+  });
+  protected readonly previewImage = computed(() => (this.background().kind === 'image' ? this.backgroundImageUrl() : null));
 
   protected readonly working = computed(() => {
     const state = this.state();
@@ -55,7 +73,10 @@ export class BackgroundRemover {
   private readonly analytics = inject(Analytics);
 
   constructor() {
-    inject(DestroyRef).onDestroy(() => this.releaseUrls());
+    inject(DestroyRef).onDestroy(() => {
+      this.releaseUrls();
+      this.releaseBackgroundImage();
+    });
   }
 
   protected async start(files: File[]): Promise<void> {
@@ -94,14 +115,65 @@ export class BackgroundRemover {
     }
   }
 
-  protected download(): void {
+  protected useTransparent(): void {
+    this.background.set({ kind: 'transparent' });
+  }
+
+  protected useColour(colour: string): void {
+    this.colour.set(colour);
+    this.background.set({ kind: 'colour', colour });
+  }
+
+  protected onBackgroundFile(element: HTMLInputElement): void {
+    this.useBackgroundImage(Array.from(element.files ?? []));
+    // Reset so choosing the same file again still fires a change event.
+    element.value = '';
+  }
+
+  /** A background photo; it is scaled to cover the whole image, like a wallpaper. */
+  protected useBackgroundImage(files: File[]): void {
+    const file = files[0];
+    this.backgroundNote.set('');
+    if (!file) return;
+    if (!isSupportedImage(file) || file.size > LIMITS.MAX_IMAGE_BYTES) {
+      this.backgroundNote.set(`Choose a PNG, JPG or WebP image up to ${this.maxSize} for the background.`);
+      return;
+    }
+    this.releaseBackgroundImage();
+    this.backgroundImageUrl.set(URL.createObjectURL(file));
+    this.background.set({ kind: 'image', file });
+  }
+
+  /** Saves the cut-out with the chosen background as a PNG. */
+  protected async download(): Promise<void> {
     const done = this.done();
-    if (done) downloadBlob(done.png, done.name);
+    if (!done || this.saving()) return;
+    const background = this.background();
+    this.saving.set(true);
+    try {
+      const png = await composeBackground(done.png, background);
+      const suffix = background.kind === 'transparent' ? 'no-background' : 'new-background';
+      downloadBlob(png, done.name.replace(/-no-background\.png$/, `-${suffix}.png`));
+      this.analytics.track('background-download', { background: background.kind });
+    } catch {
+      this.backgroundNote.set('The image could not be saved. Try another background.');
+    } finally {
+      this.saving.set(false);
+    }
   }
 
   protected reset(): void {
     this.releaseUrls();
+    this.releaseBackgroundImage();
+    this.background.set({ kind: 'transparent' });
+    this.backgroundNote.set('');
     this.state.set({ kind: 'empty' });
+  }
+
+  private releaseBackgroundImage(): void {
+    const url = this.backgroundImageUrl();
+    if (url) URL.revokeObjectURL(url);
+    this.backgroundImageUrl.set(null);
   }
 
   private fail(message: string): void {

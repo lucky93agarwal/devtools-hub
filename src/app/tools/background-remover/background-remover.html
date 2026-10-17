@@ -32,30 +32,97 @@
       </div>
     } @else if (done(); as result) {
       <div class="flex flex-col gap-4">
-        <div class="grid gap-4 sm:grid-cols-2">
-          <figure>
-            <img
-              [src]="result.originalUrl"
-              alt="Original image"
-              class="max-h-[28rem] w-full rounded-xl border border-line object-contain"
+        <app-before-after
+          [before]="result.originalUrl"
+          [after]="result.resultUrl"
+          [width]="result.width"
+          [height]="result.height"
+          [backgroundColour]="previewColour()"
+          [backgroundImage]="previewImage()"
+        />
+        <p class="text-sm leading-5 text-muted">
+          Drag the divider to compare. {{ result.width }}×{{ result.height }} px.
+        </p>
+
+        <fieldset class="card flex flex-col gap-3 p-4">
+          <legend class="sr-only">New background</legend>
+          <div class="flex flex-wrap items-center gap-2" role="radiogroup" aria-label="Background">
+            <span class="text-sm leading-5 font-semibold">Background</span>
+            <button
+              type="button"
+              role="radio"
+              class="btn-small"
+              [class.!border-brand]="background().kind === 'transparent'"
+              [attr.aria-checked]="background().kind === 'transparent'"
+              (click)="useTransparent()"
+            >
+              Transparent
+            </button>
+            <button
+              type="button"
+              role="radio"
+              class="btn-small"
+              [class.!border-brand]="background().kind === 'colour'"
+              [attr.aria-checked]="background().kind === 'colour'"
+              (click)="useColour(colour())"
+            >
+              Colour
+            </button>
+            <button
+              type="button"
+              role="radio"
+              class="btn-small"
+              [class.!border-brand]="background().kind === 'image'"
+              [attr.aria-checked]="background().kind === 'image'"
+              (click)="bgInput.click()"
+            >
+              Image…
+            </button>
+            <input
+              #bgInput
+              type="file"
+              class="sr-only"
+              tabindex="-1"
+              aria-hidden="true"
+              [accept]="accept"
+              (change)="onBackgroundFile(bgInput)"
             />
-            <figcaption class="mt-1 text-sm text-muted">Before</figcaption>
-          </figure>
-          <figure>
-            <img
-              [src]="result.resultUrl"
-              alt="Image with the background removed"
-              class="checkerboard max-h-[28rem] w-full rounded-xl border border-line object-contain"
-            />
-            <figcaption class="mt-1 text-sm text-muted">
-              After · {{ result.width }}×{{ result.height }} · {{ formatBytes(result.png.size) }} PNG
-            </figcaption>
-          </figure>
-        </div>
+          </div>
+
+          @if (background().kind === 'colour') {
+            <div class="flex flex-wrap items-center gap-2">
+              @for (swatch of colours; track swatch.value) {
+                <button
+                  type="button"
+                  class="size-9 rounded-full border-2"
+                  [class]="colour() === swatch.value ? 'border-brand' : 'border-line'"
+                  [style.background-color]="swatch.value"
+                  [attr.aria-label]="swatch.label"
+                  [attr.aria-pressed]="colour() === swatch.value"
+                  (click)="useColour(swatch.value)"
+                ></button>
+              }
+              <label class="flex items-center gap-2 text-sm leading-5">
+                <input
+                  type="color"
+                  class="size-9 cursor-pointer rounded-full border border-line"
+                  aria-label="Pick any colour"
+                  [value]="colour()"
+                  (input)="useColour($any($event.target).value)"
+                />
+                Any colour
+              </label>
+            </div>
+          }
+          @if (backgroundNote()) {
+            <p class="text-sm leading-5 text-danger">{{ backgroundNote() }}</p>
+          }
+        </fieldset>
+
         <div class="flex flex-wrap items-center gap-2">
-          <button type="button" class="btn-primary" (click)="download()">
+          <button type="button" class="btn-primary" [disabled]="saving()" (click)="download()">
             <app-icon [path]="icons.download" [size]="20" />
-            Download PNG
+            {{ saving() ? 'Saving…' : 'Download PNG' }}
           </button>
           <button type="button" class="btn-secondary" (click)="reset()">Try another image</button>
         </div>

@@ -80,7 +80,7 @@ describe('BackgroundRemover', () => {
 
     client.resolve!(result());
     await settle();
-    expect(text()).toContain('After · 1600×1200');
+    expect(text()).toContain('Drag the divider to compare. 1600×1200 px.');
     expect(el.querySelectorAll('img')).toHaveLength(2);
     expect(track).toHaveBeenCalledWith('background-remove', { result: 'done', seconds: 4 });
   });
@@ -106,7 +106,9 @@ describe('BackgroundRemover', () => {
     await settle();
     await click('Try another image');
     expect(el.querySelector('app-upload-box')).not.toBeNull();
-    expect(URL.revokeObjectURL).toHaveBeenCalledTimes(2);
+    // The original (blob:1) and the result (blob:2) are freed.
+    expect(URL.revokeObjectURL).toHaveBeenCalledWith('blob:1');
+    expect(URL.revokeObjectURL).toHaveBeenCalledWith('blob:2');
   });
 
   it('rejects files that are not images or are too large, without starting', async () => {
@@ -134,5 +136,55 @@ describe('BackgroundRemover', () => {
   it('explains the tool below it', async () => {
     const { el } = await setup();
     expect(el.querySelector('#about-heading')?.textContent).toContain('About this background remover');
+  });
+
+  describe('new background', () => {
+    async function finished() {
+      const parts = await setup();
+      await parts.choose(photo());
+      client.resolve!(result());
+      await parts.settle();
+      return parts;
+    }
+
+    it('previews a colour behind the cut-out and remembers the choice', async () => {
+      const { el, click, settle } = await finished();
+      await click('Colour');
+      const layer = el.querySelector<HTMLElement>('app-before-after .absolute.inset-0')!;
+      expect(layer.style.backgroundColor).toBe('rgb(255, 255, 255)');
+
+      el.querySelector<HTMLButtonElement>('button[aria-label="Indigo"]')!.click();
+      await settle();
+      expect(layer.style.backgroundColor).toBe('rgb(79, 70, 229)');
+
+      await click('Transparent');
+      expect(el.querySelector('app-before-after .checkerboard')).not.toBeNull();
+      await click('Colour');
+      expect(layer.style.backgroundColor).toBe('rgb(79, 70, 229)');
+    });
+
+    it('previews a background image and frees it when starting over', async () => {
+      const { el, settle, click } = await finished();
+      const input = el.querySelector<HTMLInputElement>('fieldset input[type=file]')!;
+      Object.defineProperty(input, 'files', { value: [new File(['x'], 'beach.jpg', { type: 'image/jpeg' })], configurable: true });
+      input.dispatchEvent(new Event('change'));
+      await settle();
+      const layer = el.querySelector<HTMLElement>('app-before-after .absolute.inset-0')!;
+      expect(layer.style.backgroundImage).toContain('blob:');
+      expect(el.querySelector('button[role=radio][aria-checked=true]')?.textContent).toContain('Image');
+
+      await click('Try another image');
+      // Original, result and background image previews are all freed.
+      for (const url of ['blob:1', 'blob:2', 'blob:3']) expect(URL.revokeObjectURL).toHaveBeenCalledWith(url);
+    });
+
+    it('refuses a background that is not an image', async () => {
+      const { el, settle, text } = await finished();
+      const input = el.querySelector<HTMLInputElement>('fieldset input[type=file]')!;
+      Object.defineProperty(input, 'files', { value: [new File(['x'], 'notes.txt', { type: 'text/plain' })], configurable: true });
+      input.dispatchEvent(new Event('change'));
+      await settle();
+      expect(text()).toContain('Choose a PNG, JPG or WebP image up to 20 MB for the background.');
+    });
   });
 });
