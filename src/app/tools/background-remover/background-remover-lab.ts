@@ -83,7 +83,8 @@ export class BackgroundRemoverLab {
       }
       const bitmap = await createImageBitmap(file);
       const total = performance.now();
-      const { png, inferenceMs } = await this.remover.remove(bitmap);
+      const { result, inferenceMs } = await this.remover.remove(bitmap);
+      const png = await result.convertToBlob({ type: 'image/png' });
       this.say(
         `Done: ${bitmap.width}x${bitmap.height}, model ${(inferenceMs / 1000).toFixed(1)} s, ` +
           `total ${seconds(total)}, PNG ${formatBytes(png.size)}`,

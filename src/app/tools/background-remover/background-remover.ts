@@ -11,12 +11,25 @@ import { MODELS, ORT_WASM_BYTES } from './bg-removal';
 import { BeforeAfter } from './before-after';
 import { BACKGROUND_COLOURS, NewBackground, composeBackground } from './compose';
 import { BACKGROUND_REMOVER_CONTENT } from './content';
-import { RemoveProgress, RemoverClient } from './remover-client';
+import { CANCELLED, REPLACED, RemoveProgress, RemoverClient } from './remover-client';
 
 type State =
   | { kind: 'empty' }
   | { kind: 'working'; progress: RemoveProgress | null; fileName: string }
-  | { kind: 'done'; originalUrl: string; resultUrl: string; png: Blob; name: string; width: number; height: number; ms: number }
+  | {
+      kind: 'done';
+      /** Object URLs of the small preview images. */
+      originalUrl: string;
+      resultUrl: string;
+      /** Full-size result, used for the download. */
+      png: Blob;
+      name: string;
+      width: number;
+      height: number;
+      /** Set when the image was scaled down to fit the device's memory. */
+      scaledFrom: { width: number; height: number } | null;
+      ms: number;
+    }
   | { kind: 'error'; message: string };
 
 @Component({
@@ -74,6 +87,8 @@ export class BackgroundRemover {
 
   constructor() {
     inject(DestroyRef).onDestroy(() => {
+      // Leaving the page stops an image still in progress.
+      if (this.working()) this.client.cancel();
       this.releaseUrls();
       this.releaseBackgroundImage();
     });
@@ -97,22 +112,31 @@ export class BackgroundRemover {
       const result = await this.client.remove(file, (progress) =>
         this.state.update((state) => (state.kind === 'working' ? { ...state, progress } : state)),
       );
+      const scaled = result.sourceWidth !== result.width;
       this.state.set({
         kind: 'done',
-        originalUrl: URL.createObjectURL(file),
-        resultUrl: URL.createObjectURL(result.png),
+        originalUrl: URL.createObjectURL(result.beforePreview),
+        resultUrl: URL.createObjectURL(result.afterPreview),
         png: result.png,
         name: `${baseName(file.name)}-no-background.png`,
         width: result.width,
         height: result.height,
+        scaledFrom: scaled ? { width: result.sourceWidth, height: result.sourceHeight } : null,
         ms: result.ms,
       });
       this.analytics.track('background-remove', { result: 'done', seconds: Math.round(result.ms / 1000) });
     } catch (e) {
-      if (e instanceof Error && e.message === 'Replaced by a newer image.') return;
+      if (e instanceof Error && (e.message === REPLACED || e.message === CANCELLED)) return;
       this.fail(e instanceof Error ? e.message : 'The background could not be removed.');
       this.analytics.track('background-remove', { result: 'error' });
     }
+  }
+
+  /** Stops the image in progress and goes back to the upload box. */
+  protected cancel(): void {
+    this.client.cancel();
+    this.state.set({ kind: 'empty' });
+    this.analytics.track('background-remove', { result: 'cancelled' });
   }
 
   protected useTransparent(): void {

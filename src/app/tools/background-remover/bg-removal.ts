@@ -54,45 +54,117 @@ export const ORT_WASM_BYTES = 14_239_897;
 
 const CACHE_NAME = 'background-remover-models-v1';
 
+/** Longest side of the before/after preview. The download keeps the full result size. */
+export const PREVIEW_SIDE = 1600;
+/** Smaller images do not have enough detail for the model. */
+export const MIN_SIDE = 32;
+
+/**
+ * Longest side of the result. Bigger photos are scaled down first: a 48 MP phone photo
+ * needs about 200 MB per copy of its pixels, and phones keep several copies while saving.
+ */
+export function maxOutputSide(device: { deviceMemory?: number; coarsePointer: boolean }): number {
+  if (device.coarsePointer || (device.deviceMemory ?? 8) <= 4) return 4096;
+  return 8192;
+}
+
+/** Size that fits inside a square of `maxSide`, keeping the shape. Never enlarges. */
+export function fitWithin(width: number, height: number, maxSide: number): { width: number; height: number } {
+  const factor = Math.min(1, maxSide / Math.max(width, height));
+  return { width: Math.max(1, Math.round(width * factor)), height: Math.max(1, Math.round(height * factor)) };
+}
+
+/** An error whose message can be shown to the user as it is. */
+export class RemoverError extends Error {}
+
+export const MESSAGES = {
+  offline: 'The background remover could not be downloaded. Check your internet connection and try again.',
+  downloadStopped: 'The download stopped before it finished. Check your internet connection and try again.',
+  memory: 'Your device ran out of memory. Try a smaller image, or close other tabs and try again.',
+  startFailed: 'The background remover could not start. Reload the page and try again.',
+  unknown: 'The background could not be removed. Try again, or try another image.',
+};
+
+/** Turns any error into a sentence for the user. Errors from the runtime are mostly memory problems. */
+export function friendlyError(error: unknown): string {
+  if (error instanceof RemoverError) return error.message;
+  const message = error instanceof Error ? `${error.name} ${error.message}` : String(error);
+  if (/memory|allocat|RangeError|out of bounds|OOM/i.test(message)) return MESSAGES.memory;
+  if (/fetch|network|load failed/i.test(message)) return MESSAGES.offline;
+  return MESSAGES.unknown;
+}
+
 /** ImageNet mean and standard deviation, which both models were trained with. */
 const MEAN = [0.485, 0.456, 0.406];
 const STD = [0.229, 0.224, 0.225];
 
 export interface Remover {
   model: ModelInfo;
-  /** Returns a PNG of the image with a transparent background, plus the time the model took. */
-  remove(image: ImageBitmap): Promise<{ png: Blob; inferenceMs: number }>;
+  /** Returns the image with a transparent background, at the image's size, plus the time the model took. */
+  remove(image: ImageBitmap): Promise<{ result: OffscreenCanvas; inferenceMs: number }>;
+}
+
+/** Cache Storage, or nothing when the browser refuses it (some private windows). */
+async function openCache(): Promise<Cache | undefined> {
+  try {
+    return 'caches' in globalThis ? await caches.open(CACHE_NAME) : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+/** Removes a cached model, for example when it turns out to be damaged. */
+export async function forgetModel(model: ModelInfo): Promise<void> {
+  await (await openCache())?.delete(model.url);
 }
 
 /** Gets the model bytes, from the browser cache when possible, reporting progress from 0 to 1. */
 export async function downloadModel(model: ModelInfo, onProgress: (fraction: number) => void): Promise<Uint8Array> {
-  const cache = 'caches' in globalThis ? await caches.open(CACHE_NAME) : undefined;
+  const cache = await openCache();
   const cached = await cache?.match(model.url);
   if (cached) {
     onProgress(1);
     return new Uint8Array(await cached.arrayBuffer());
   }
 
-  const response = await fetch(model.url);
-  if (!response.ok || !response.body) throw new Error(`Model download failed (${response.status}).`);
-  const total = Number(response.headers.get('content-length')) || model.bytes;
+  let response: Response;
+  try {
+    response = await fetch(model.url);
+  } catch {
+    throw new RemoverError(MESSAGES.offline);
+  }
+  if (!response.ok || !response.body) {
+    throw new RemoverError(`The background remover could not be downloaded (error ${response.status}). Try again in a moment.`);
+  }
   const chunks: Uint8Array[] = [];
   const reader = response.body.getReader();
   let received = 0;
   for (;;) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    chunks.push(value);
-    received += value.length;
-    onProgress(Math.min(received / total, 1));
+    let chunk: ReadableStreamReadResult<Uint8Array>;
+    try {
+      chunk = await reader.read();
+    } catch {
+      throw new RemoverError(MESSAGES.downloadStopped);
+    }
+    if (chunk.done) break;
+    chunks.push(chunk.value);
+    received += chunk.value.length;
+    // The known size, not Content-Length, which is the compressed size when the server compresses.
+    onProgress(Math.min(received / model.bytes, 1));
   }
+  // A connection that drops can end the stream early without an error.
+  if (received < model.bytes) throw new RemoverError(MESSAGES.downloadStopped);
   const bytes = new Uint8Array(received);
   let offset = 0;
   for (const chunk of chunks) {
     bytes.set(chunk, offset);
     offset += chunk.length;
   }
-  await cache?.put(model.url, new Response(bytes, { headers: { 'content-type': 'application/octet-stream' } }));
+  try {
+    await cache?.put(model.url, new Response(bytes, { headers: { 'content-type': 'application/octet-stream' } }));
+  } catch {
+    // Storage is full or not allowed: it still works, and downloads again next time.
+  }
   return bytes;
 }
 
@@ -116,7 +188,7 @@ export async function createRemover(info: ModelInfo, modelBytes: Uint8Array): Pr
       const inferenceMs = performance.now() - started;
       const output = outputs[session.outputNames[0]];
       const raw = output.type === 'float16' ? fromHalf(output.data as Uint16Array) : (output.data as Float32Array);
-      return { png: await cutOut(image, toAlpha(raw, info.output), size), inferenceMs };
+      return { result: cutOut(image, toAlpha(raw, info.output), size), inferenceMs };
     },
   };
 }
@@ -159,7 +231,7 @@ export function toAlpha(values: Float32Array, kind: ModelInfo['output']): Uint8C
 }
 
 /** Uses the mask as the alpha channel of the original image, at full size. */
-async function cutOut(image: ImageBitmap, alpha: Uint8ClampedArray, size: number): Promise<Blob> {
+function cutOut(image: ImageBitmap, alpha: Uint8ClampedArray, size: number): OffscreenCanvas {
   const mask = new OffscreenCanvas(size, size);
   const maskContext = mask.getContext('2d')!;
   const maskPixels = maskContext.createImageData(size, size);
@@ -173,7 +245,7 @@ async function cutOut(image: ImageBitmap, alpha: Uint8ClampedArray, size: number
   context.globalCompositeOperation = 'destination-in';
   context.imageSmoothingQuality = 'high';
   context.drawImage(mask, 0, 0, image.width, image.height);
-  return result.convertToBlob({ type: 'image/png' });
+  return result;
 }
 
 /** float32 to IEEE 754 half precision, as ONNX Runtime expects for float16 inputs. */

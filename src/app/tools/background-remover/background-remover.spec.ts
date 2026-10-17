@@ -1,7 +1,7 @@
 import { TestBed } from '@angular/core/testing';
 import { Analytics } from '../../core/analytics';
 import { BackgroundRemover } from './background-remover';
-import { RemoveProgress, RemoveResult, RemoverClient } from './remover-client';
+import { CANCELLED, RemoveProgress, RemoveResult, RemoverClient } from './remover-client';
 
 /** Stand-in for the Web Worker client; the test decides when progress and results arrive. */
 class FakeClient {
@@ -9,6 +9,7 @@ class FakeClient {
   resolve?: (result: RemoveResult) => void;
   reject?: (error: Error) => void;
   files: Blob[] = [];
+  cancelled = 0;
 
   remove(file: Blob, onProgress: (progress: RemoveProgress) => void): Promise<RemoveResult> {
     this.files.push(file);
@@ -17,6 +18,11 @@ class FakeClient {
       this.resolve = resolve;
       this.reject = reject;
     });
+  }
+
+  cancel(): void {
+    this.cancelled++;
+    this.reject?.(new Error(CANCELLED));
   }
 }
 
@@ -61,7 +67,17 @@ describe('BackgroundRemover', () => {
   }
 
   const photo = () => new File(['x'.repeat(100)], 'holiday.jpg', { type: 'image/jpeg' });
-  const result = (): RemoveResult => ({ png: new Blob(['png'], { type: 'image/png' }), width: 1600, height: 1200, ms: 4200 });
+  const result = (changes: Partial<RemoveResult> = {}): RemoveResult => ({
+    png: new Blob(['png'], { type: 'image/png' }),
+    beforePreview: new Blob(['jpg'], { type: 'image/jpeg' }),
+    afterPreview: new Blob(['small png'], { type: 'image/png' }),
+    width: 1600,
+    height: 1200,
+    sourceWidth: 1600,
+    sourceHeight: 1200,
+    ms: 4200,
+    ...changes,
+  });
 
   it('shows the model download, then the removal, then the result', async () => {
     const { el, settle, choose, text } = await setup();
@@ -81,6 +97,7 @@ describe('BackgroundRemover', () => {
     client.resolve!(result());
     await settle();
     expect(text()).toContain('Drag the divider to compare. 1600×1200 px.');
+    expect(text()).not.toContain('Scaled down');
     expect(el.querySelectorAll('img')).toHaveLength(2);
     expect(track).toHaveBeenCalledWith('background-remove', { result: 'done', seconds: 4 });
   });
@@ -131,6 +148,55 @@ describe('BackgroundRemover', () => {
     expect(text()).toContain('Model download failed (503).');
     expect(el.querySelector('app-upload-box')).not.toBeNull();
     expect(track).toHaveBeenCalledWith('background-remove', { result: 'error' });
+  });
+
+  it('says when a large photo was scaled down to fit the device', async () => {
+    const { settle, choose, text } = await setup();
+    await choose(photo());
+    client.resolve!(result({ width: 4096, height: 3072, sourceWidth: 8064, sourceHeight: 6048 }));
+    await settle();
+    expect(text()).toContain('4096×3072 px. Scaled down from 8064×6048 px so your device does not run out of memory.');
+  });
+
+  it('shows the small previews and downloads the full-size result', async () => {
+    const created: Blob[] = [];
+    URL.createObjectURL = vi.fn((blob: Blob) => {
+      created.push(blob);
+      return `blob:${created.length}`;
+    });
+    const { settle, choose } = await setup();
+    await choose(photo());
+    const done = result();
+    client.resolve!(done);
+    await settle();
+    expect(created).toEqual([done.beforePreview, done.afterPreview]);
+  });
+
+  it('cancels a slow image and goes back to the upload box', async () => {
+    const { el, choose, click, text } = await setup();
+    await choose(photo());
+    client.onProgress!({ stage: 'removing' });
+    await click('Cancel');
+    expect(client.cancelled).toBe(1);
+    expect(el.querySelector('app-upload-box')).not.toBeNull();
+    // Cancelling is not an error.
+    expect(text()).not.toContain('Cancelled');
+    expect(track).toHaveBeenCalledWith('background-remove', { result: 'cancelled' });
+  });
+
+  it('stops the image in progress when leaving the page', async () => {
+    const { fixture, choose } = await setup();
+    await choose(photo());
+    fixture.destroy();
+    expect(client.cancelled).toBe(1);
+  });
+
+  it('shows the memory message when the worker is stopped', async () => {
+    const { settle, choose, text } = await setup();
+    await choose(photo());
+    client.reject!(new Error('Your device ran out of memory. Try a smaller image, or close other tabs and try again.'));
+    await settle();
+    expect(text()).toContain('Your device ran out of memory.');
   });
 
   it('explains the tool below it', async () => {
