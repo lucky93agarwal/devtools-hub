@@ -33,4 +33,11 @@ describe('buildZip', () => {
     expect(Object.keys(files)).toEqual(['a.webp', 'a (2).webp', 'b.webp']);
     expect(strFromU8(files['a (2).webp'])).toBe('second');
   });
+
+  it('compresses BMP files, which are stored uncompressed', async () => {
+    const bmp = new Blob([new Uint8Array(10_000)]);
+    const zip = await buildZip([{ name: 'scan.bmp', blob: bmp }]);
+    expect(zip.size).toBeLessThan(1_000);
+    expect(unzipSync(new Uint8Array(await zip.arrayBuffer()))['scan.bmp']).toHaveLength(10_000);
+  });
 });

@@ -32,6 +32,11 @@
                 "glob": "ort-wasm-simd-threaded.{wasm,mjs}",
                 "input": "node_modules/onnxruntime-web/dist",
                 "output": "ort"
+              },
+              {
+                "glob": "avif_enc.wasm",
+                "input": "node_modules/@jsquash/avif/codec/enc",
+                "output": "avif"
               }
             ],
             "styles": [
@@ -39,6 +44,7 @@
             ],
             "server": "src/main.server.ts",
             "outputMode": "static",
+            "allowedCommonJsDependencies": ["pako", "utif"],
             "security": {
               "allowedHosts": []
             },

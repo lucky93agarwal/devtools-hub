@@ -39,7 +39,8 @@ import { InfoPage } from './info-page';
       <p>
         {{ siteName }} is built and run by an independent developer. The source code is public on
         <a [href]="repoUrl" target="_blank" rel="noopener">GitHub</a>, so you can see exactly what the tools do with your
-        data.
+        data. The open source libraries it uses are listed with their licences in
+        <a href="/third-party-licenses.txt">third-party-licenses.txt</a>.
       </p>
 
       <h2>Feedback</h2>

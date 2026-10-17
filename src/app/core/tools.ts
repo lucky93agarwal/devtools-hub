@@ -51,10 +51,10 @@ export const TOOLS: readonly ToolInfo[] = [
   {
     path: 'image-converter',
     name: 'Image Converter',
-    description: 'Convert up to 15 images at once between PNG, JPG and WebP.',
-    seoTitle: 'Image Converter: PNG, JPG and WebP Online',
+    description: 'Convert up to 15 images at once between JPG, PNG, WebP, AVIF, HEIC, GIF, TIFF, ICO and more.',
+    seoTitle: 'Image Converter: JPG, PNG, WebP, HEIC, AVIF',
     metaDescription:
-      'Convert up to 15 images at once between PNG, JPG and WebP. Set quality, resize and download all as a ZIP. Images never leave your browser.',
+      'Convert JPG, PNG, WebP, AVIF, HEIC, GIF, BMP, TIFF, ICO and SVG images, 15 at a time. Set quality, resize and download a ZIP. Nothing is uploaded.',
     icon: 'M4 5h16v14H4zM4 15l4-4 4 4 3-3 5 5M15 9h0',
     phase: 2,
     onHome: true,

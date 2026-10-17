@@ -1,4 +1,4 @@
-import { ImageLimits, describePlan, isSupportedImage, planAdd } from './image-list';
+import { CONVERTER_ACCEPT, CONVERTER_TYPES, ImageLimits, describePlan, isSupportedImage, planAdd } from './image-list';
 
 const MB = 1024 * 1024;
 const limits: ImageLimits = { maxImages: 15, maxImageBytes: 20 * MB, maxBatchBytes: 150 * MB };
@@ -25,6 +25,30 @@ describe('isSupportedImage', () => {
     expect(isSupportedImage(image('Photo.JPEG', 1, ''))).toBe(true);
     expect(isSupportedImage(image('notes', 1, ''))).toBe(false);
   });
+
+  it('accepts every converter format, by type or by extension', () => {
+    for (const [name, type] of [
+      ['a.gif', 'image/gif'],
+      ['a.bmp', 'image/bmp'],
+      ['a.tiff', 'image/tiff'],
+      ['a.ico', 'image/vnd.microsoft.icon'],
+      ['a.avif', 'image/avif'],
+      ['a.svg', 'image/svg+xml'],
+      ['IMG_0001.HEIC', 'image/heic'],
+      // Chrome on Windows often gives HEIC files no type at all.
+      ['IMG_0002.heic', ''],
+      ['scan.tif', 'application/octet-stream'],
+    ]) {
+      expect(isSupportedImage(image(name, 1, type), CONVERTER_TYPES)).toBe(true);
+    }
+    expect(isSupportedImage(image('a.pdf', 1, 'application/pdf'), CONVERTER_TYPES)).toBe(false);
+  });
+
+  it('lists each extension once in the accept attribute', () => {
+    const parts = CONVERTER_ACCEPT.split(',');
+    expect(new Set(parts).size).toBe(parts.length);
+    expect(parts).toEqual(expect.arrayContaining(['.heic', '.heif', '.svg', '.ico', '.tif', '.tiff', '.avif']));
+  });
 });
 
 describe('planAdd', () => {
@@ -48,9 +72,10 @@ describe('planAdd', () => {
   });
 
   it('skips files that are not supported images', () => {
-    const plan = planAdd([], [image('a.png'), image('notes.txt', 10, 'text/plain'), image('anim.gif', 10, 'image/gif')], limits);
-    expect(plan.added).toHaveLength(1);
-    expect(describePlan(plan, limits)).toEqual(['Skipped because they are not PNG, JPG or WebP images: notes.txt, anim.gif.']);
+    const files = [image('a.png'), image('notes.txt', 10, 'text/plain'), image('anim.gif', 10, 'image/gif'), image('cv.pdf', 10, 'application/pdf')];
+    const plan = planAdd([], files, limits);
+    expect(plan.added.map((f) => f.name)).toEqual(['a.png', 'anim.gif']);
+    expect(describePlan(plan, limits)).toEqual(['Skipped because they are not images this tool can open: notes.txt, cv.pdf.']);
   });
 
   it('skips images over the size limit', () => {
@@ -78,7 +103,7 @@ describe('planAdd', () => {
   it('shortens long lists of names', () => {
     const texts = Array.from({ length: 5 }, (_, i) => image(`n${i}.txt`, 1, 'text/plain'));
     expect(describePlan(planAdd([], texts, limits), limits)[0]).toBe(
-      'Skipped because they are not PNG, JPG or WebP images: n0.txt, n1.txt, n2.txt and 2 more.',
+      'Skipped because they are not images this tool can open: n0.txt, n1.txt, n2.txt and 2 more.',
     );
   });
 });

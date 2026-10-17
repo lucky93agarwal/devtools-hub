@@ -4,6 +4,7 @@
 // 2. Writes sitemap.xml and robots.txt from the prerendered pages. Each page's canonical
 //    link gives its address, so the site URL is only set in one place (app-config.ts).
 //    Pages marked noindex (such as "coming soon" tools) are left out of the sitemap.
+// 3. Publishes the licences of the libraries in the site at /third-party-licenses.txt.
 import { copyFileSync, readFileSync, writeFileSync } from 'node:fs';
 
 const out = 'dist/devtools-hub/browser';
@@ -24,6 +25,12 @@ console.log(`Inlined the stylesheet into ${Object.keys(routes).length + 1} pages
 
 copyFileSync(`${out}/index.csr.html`, `${out}/404.html`);
 console.log(`Created ${out}/404.html`);
+
+// Angular collects the licences of bundled packages; add the files copied as they are.
+const bundled = readFileSync('dist/devtools-hub/3rdpartylicenses.txt', 'utf8');
+const copied = readFileSync('scripts/licenses-extra.txt', 'utf8');
+writeFileSync(`${out}/third-party-licenses.txt`, `${bundled}\n${copied}`);
+console.log(`Created ${out}/third-party-licenses.txt`);
 
 const today = new Date().toISOString().slice(0, 10);
 const urls = [];

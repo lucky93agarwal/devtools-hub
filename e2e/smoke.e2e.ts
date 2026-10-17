@@ -136,6 +136,24 @@ test('Image Converter converts an uploaded PNG', async ({ page }) => {
   await expect(page.getByRole('button', { name: /^Download small.*\.webp$/ })).toBeVisible();
 });
 
+test('Image Converter opens HEIC, TIFF and SVG and saves every output format', async ({ page }) => {
+  await page.goto('/image-converter');
+  const chooser = page.waitForEvent('filechooser');
+  await page.getByRole('button', { name: 'Choose images' }).click();
+  // Chromium cannot open HEIC or TIFF itself, so these use the bundled readers.
+  const files = ['small.heic', 'small.tiff', 'small.svg'].map((name) => `e2e/fixtures/${name}`);
+  await (await chooser).setFiles(files);
+  await expect(page.getByText('3 / 15')).toBeVisible();
+
+  for (const format of ['AVIF', 'GIF', 'BMP', 'TIFF', 'ICO', 'JPG']) {
+    await page.getByRole('radio', { name: format, exact: true }).click();
+    await page.getByRole('button', { name: `Convert 3 images to ${format}` }).click();
+    await expect(page.getByText('3 of 3 converted.')).toBeVisible({ timeout: 30_000 });
+  }
+  // SVG has no pixel size of its own, so it is drawn at 1024 px.
+  await expect(page.getByText(/1024×1024/)).toBeVisible();
+});
+
 test('Background Remover shows the upload box', async ({ page }) => {
   await page.goto('/background-remover');
   await expect(page.getByText('Drop an image here')).toBeVisible();

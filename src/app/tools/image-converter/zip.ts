@@ -19,15 +19,19 @@ export function uniqueNames(names: readonly string[]): string[] {
   });
 }
 
+/** BMP and TIFF are written without compression, so the ZIP compresses them. */
+const UNCOMPRESSED = /\.(bmp|tiff?)$/i;
+
 /**
- * Packs files into one ZIP. Images are already compressed, so they are stored
- * as they are (level 0), which is much faster and barely bigger.
+ * Packs files into one ZIP. Most images are already compressed, so they are
+ * stored as they are (level 0), which is much faster and barely bigger.
  */
 export async function buildZip(files: readonly { name: string; blob: Blob }[]): Promise<Blob> {
   const names = uniqueNames(files.map((f) => f.name));
-  const entries: Record<string, [Uint8Array, { level: 0 }]> = {};
+  const entries: Record<string, [Uint8Array, { level: 0 | 6 }]> = {};
   for (let i = 0; i < files.length; i++) {
-    entries[names[i]] = [new Uint8Array(await files[i].blob.arrayBuffer()), { level: 0 }];
+    const level = UNCOMPRESSED.test(names[i]) ? 6 : 0;
+    entries[names[i]] = [new Uint8Array(await files[i].blob.arrayBuffer()), { level }];
   }
   return new Blob([zipSync(entries) as Uint8Array<ArrayBuffer>], { type: 'application/zip' });
 }

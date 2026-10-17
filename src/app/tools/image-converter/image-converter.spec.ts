@@ -104,7 +104,7 @@ describe('ImageConverter', () => {
     const { choose, rows, text } = await setup();
     await choose([png('ok.png'), new File(['x'], 'notes.txt', { type: 'text/plain' })]);
     expect(rows()).toHaveLength(1);
-    expect(text()).toContain('Skipped because they are not PNG, JPG or WebP images: notes.txt.');
+    expect(text()).toContain('Skipped because they are not images this tool can open: notes.txt.');
   });
 
   it('removes one image and frees its preview', async () => {

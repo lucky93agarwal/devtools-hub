@@ -14,7 +14,7 @@ import {
   labelOf,
   outputName,
 } from './image-encoder';
-import { DEFAULT_IMAGE_LIMITS, IMAGE_ACCEPT, describePlan, planAdd } from './image-list';
+import { CONVERTER_ACCEPT, DEFAULT_IMAGE_LIMITS, describePlan, planAdd } from './image-list';
 import { buildZip } from './zip';
 import { IMAGE_CONTENT } from './content';
 import { ToolInfoSection } from '../../shared/tool-info/tool-info';
@@ -46,7 +46,7 @@ export class ImageConverter {
   protected readonly content = IMAGE_CONTENT;
   protected readonly icons = ICONS;
   protected readonly limits = DEFAULT_IMAGE_LIMITS;
-  protected readonly accept = IMAGE_ACCEPT;
+  protected readonly accept = CONVERTER_ACCEPT;
   protected readonly formats = FORMATS;
   protected readonly formatBytes = formatBytes;
   protected readonly nameSuffix = NAME_SUFFIX;
@@ -67,7 +67,7 @@ export class ImageConverter {
   /** Size of the current run, for the overall progress bar. */
   protected readonly runTotal = signal(0);
 
-  /** JPG and WebP quality, 10 to 100. */
+  /** JPG, WebP and AVIF quality, 10 to 100. */
   protected readonly quality = signal(90);
   protected readonly resizeChoice = signal<ResizeChoice>('original');
   protected readonly maxWidth = signal(1920);
@@ -222,9 +222,10 @@ export class ImageConverter {
 
   /** Short type label, for example "PNG". */
   protected typeLabel(file: File): string {
+    // The extension reads better than types such as "image/svg+xml" or "image/x-icon".
+    const fromName = file.name.includes('.') ? file.name.split('.').pop() : '';
     const fromType = file.type.split('/')[1];
-    const fromName = file.name.split('.').pop();
-    return (fromType || fromName || '').replace('jpeg', 'jpg').toUpperCase();
+    return (fromName || fromType || '').replace(/^jpeg$/i, 'jpg').replace(/^tif$/i, 'tiff').toUpperCase();
   }
 
   /** Size change in plain words, for example "62% smaller". */
