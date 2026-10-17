@@ -97,6 +97,18 @@ export const TOOLS: readonly ToolInfo[] = [
     live: true,
   },
   {
+    path: 'data-converter',
+    name: 'Data Converter',
+    description: 'Convert between JSON, YAML, XML and CSV, in either direction.',
+    seoTitle: 'Convert JSON to YAML, XML and CSV (and Back)',
+    metaDescription:
+      'Free JSON to YAML, YAML to JSON, XML to JSON and JSON to CSV converter. Errors shown by line, and your data never leaves your browser.',
+    icon: 'M4 7h13l-3-3M20 17H7l3 3',
+    phase: 6,
+    onHome: true,
+    live: true,
+  },
+  {
     path: 'app-icon-generator',
     name: 'App Icon Generator',
     description: 'Create every Android and iOS app icon size from one image.',
@@ -116,4 +128,5 @@ export const NAV_LINKS: readonly { label: string; path: string }[] = [
   { label: 'Images', path: 'image-converter' },
   { label: 'JWT', path: 'jwt' },
   { label: 'JSON to Code', path: 'json-to-code' },
+  { label: 'Data', path: 'data-converter' },
 ];

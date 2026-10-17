@@ -17,6 +17,10 @@ import {
 } from './generators/python';
 import { PHP_DEFAULTS, PhpOptions, toPhp } from './generators/php';
 import { RUBY_DEFAULTS, RubyOptions, toRuby } from './generators/ruby';
+import { JSON_SCHEMA_DEFAULTS, JsonSchemaOptions, toJsonSchema } from './generators/json-schema';
+import { PROTOBUF_DEFAULTS, ProtobufOptions, toProtobuf } from './generators/protobuf';
+import { GRAPHQL_DEFAULTS, GraphQLOptions, toGraphQL } from './generators/graphql';
+import { SQL_DEFAULTS, SqlOptions, toSql } from './generators/sql';
 
 /**
  * Every output the page offers. A language has settings; a target is one entry in
@@ -277,6 +281,72 @@ const RUBY: Language = {
   generate: (model, options) => toRuby(model, options as unknown as RubyOptions),
 };
 
+const JSON_SCHEMA: Language = {
+  id: 'json-schema',
+  monaco: 'json',
+  extension: 'schema.json',
+  defaults: { ...JSON_SCHEMA_DEFAULTS },
+  settings: [
+    {
+      id: 'draft',
+      label: 'Draft',
+      choices: [
+        { value: '2020-12', label: '2020-12' },
+        { value: '07', label: 'Draft 7' },
+      ],
+    },
+    { id: 'strict', label: 'Reject unknown keys (additionalProperties: false)' },
+  ],
+  generate: (model, options) => toJsonSchema(model, options as unknown as JsonSchemaOptions),
+};
+
+const PROTOBUF: Language = {
+  id: 'protobuf',
+  monaco: 'protobuf',
+  extension: 'proto',
+  defaults: { ...PROTOBUF_DEFAULTS },
+  settings: [{ id: 'jsonNames', label: 'Keep JSON key names (json_name)' }],
+  generate: (model, options) => toProtobuf(model, options as unknown as ProtobufOptions),
+};
+
+const GRAPHQL: Language = {
+  id: 'graphql',
+  monaco: 'graphql',
+  extension: 'graphql',
+  defaults: { ...GRAPHQL_DEFAULTS },
+  settings: [
+    {
+      id: 'kind',
+      label: 'Declare as',
+      choices: [
+        { value: 'type', label: 'type' },
+        { value: 'input', label: 'input' },
+      ],
+    },
+    { id: 'nonNull', label: 'Non-null (!) for values that are always there' },
+  ],
+  generate: (model, options) => toGraphQL(model, options as unknown as GraphQLOptions),
+};
+
+const SQL: Language = {
+  id: 'sql',
+  monaco: 'sql',
+  extension: 'sql',
+  defaults: { ...SQL_DEFAULTS },
+  settings: [
+    {
+      id: 'dialect',
+      label: 'Database',
+      choices: [
+        { value: 'postgres', label: 'PostgreSQL' },
+        { value: 'mysql', label: 'MySQL' },
+        { value: 'sqlite', label: 'SQLite' },
+      ],
+    },
+  ],
+  generate: (model, options) => toSql(model, options as unknown as SqlOptions),
+};
+
 export const TARGETS: Target[] = [
   { id: 'kotlin', label: 'Kotlin data class', group: 'Kotlin', language: KOTLIN, preset: { library: 'none' } },
   { id: 'kotlin-serialization', label: 'Kotlin Serialization', group: 'Kotlin', language: KOTLIN, preset: { library: 'kotlinx' } },
@@ -301,6 +371,10 @@ export const TARGETS: Target[] = [
   { id: 'rust', label: 'Rust struct (serde)', group: 'Go and Rust', language: RUST },
   { id: 'php', label: 'PHP class', group: 'PHP and Ruby', language: PHP },
   { id: 'ruby', label: 'Ruby class', group: 'PHP and Ruby', language: RUBY },
+  { id: 'json-schema', label: 'JSON Schema', group: 'Schemas and databases', language: JSON_SCHEMA },
+  { id: 'protobuf', label: 'Protocol Buffers', group: 'Schemas and databases', language: PROTOBUF },
+  { id: 'graphql', label: 'GraphQL types', group: 'Schemas and databases', language: GRAPHQL },
+  { id: 'sql', label: 'SQL tables', group: 'Schemas and databases', language: SQL },
 ];
 
 /** Targets grouped for the list, in order. */

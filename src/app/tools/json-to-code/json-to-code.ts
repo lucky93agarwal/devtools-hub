@@ -1,5 +1,5 @@
 import { Component, DestroyRef, computed, effect, inject, signal, viewChild } from '@angular/core';
-import { ActivatedRoute, Router } from '@angular/router';
+import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { Analytics, sizeBucket } from '../../core/analytics';
 import { LIMITS } from '../../core/app-config';
 import { TOOLS } from '../../core/tools';
@@ -25,7 +25,7 @@ const COPIED_MS = 2000;
 
 @Component({
   selector: 'app-json-to-code',
-  imports: [Icon, CodeEditor, ToolInfoSection],
+  imports: [Icon, CodeEditor, ToolInfoSection, RouterLink],
   templateUrl: './json-to-code.html',
 })
 export class JsonToCode {

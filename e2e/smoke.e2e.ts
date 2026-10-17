@@ -12,6 +12,7 @@ const NAV = [
   { label: 'Images', path: '/image-converter', heading: 'Image Converter' },
   { label: 'JWT', path: '/jwt', heading: /JWT/ },
   { label: 'JSON to Code', path: '/json-to-code', heading: 'JSON to Code' },
+  { label: 'Data', path: '/data-converter', heading: 'Data Converter' },
 ];
 
 let errors: string[];
@@ -180,6 +181,30 @@ test('JSON to Code writes Dart and Go from the sample', async ({ page }) => {
   await expect(output).toContainText('json:"user_name"');
   await page.getByRole('checkbox', { name: 'Pointers for values that may be missing' }).uncheck();
   await expect(page.getByRole('button', { name: 'Root.go' })).toBeEnabled();
+});
+
+test('Data Converter turns typed JSON into YAML, then back, then into CSV', async ({ page }) => {
+  await page.goto('/data-converter');
+  await typeInEditor(page, 'Input', '{"name":"Ada","langs":["en"]}');
+  const result = page.locator('app-code-editor').nth(1);
+  await expect(page.getByText('Converted JSON to YAML.')).toBeVisible();
+  await expect(result).toContainText('name: Ada');
+
+  await page.getByRole('button', { name: 'Swap: convert the result back' }).click();
+  await expect(page).toHaveURL(/from=yaml&to=json/);
+  await expect(result).toContainText('"name": "Ada"');
+
+  await page.locator('select').nth(1).selectOption('csv');
+  await expect(result).toContainText('name,langs.0');
+  const download = page.waitForEvent('download');
+  await page.getByRole('button', { name: 'data.csv' }).click();
+  expect((await download).suggestedFilename()).toBe('data.csv');
+});
+
+test('Data Converter points at the line of an XML mistake', async ({ page }) => {
+  await page.goto('/data-converter?from=xml&to=json');
+  await typeInEditor(page, 'Input', '<a>\n<b>1</c>\n</a>');
+  await expect(page.getByRole('button', { name: /Line 2, column \d+:/ })).toBeVisible();
 });
 
 test('the old JSON to model address opens JSON to Code', async ({ page }) => {

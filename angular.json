@@ -44,7 +44,7 @@
             ],
             "server": "src/main.server.ts",
             "outputMode": "static",
-            "allowedCommonJsDependencies": ["pako", "utif"],
+            "allowedCommonJsDependencies": ["pako", "papaparse", "utif"],
             "security": {
               "allowedHosts": []
             },

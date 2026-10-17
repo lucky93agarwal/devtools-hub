@@ -67,6 +67,12 @@ export function loadMonaco(): Promise<MonacoApi> {
       import('monaco-editor/languages/definitions/rust/register'),
       import('monaco-editor/languages/definitions/php/register'),
       import('monaco-editor/languages/definitions/ruby/register'),
+      import('monaco-editor/languages/definitions/protobuf/register'),
+      import('monaco-editor/languages/definitions/graphql/register'),
+      import('monaco-editor/languages/definitions/sql/register'),
+      // Data Converter
+      import('monaco-editor/languages/definitions/yaml/register'),
+      import('monaco-editor/languages/definitions/xml/register'),
     ]);
 
     registerJson(monaco);

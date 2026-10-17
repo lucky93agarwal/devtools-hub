@@ -32,7 +32,7 @@ const FLASH_MS = 1800;
       class="relative h-full overflow-hidden rounded-xl border bg-surface"
       [class]="invalid() ? 'border-danger' : 'border-line'"
       [attr.aria-busy]="!ready()"
-      (pointerdown)="onPointerDown()"
+      (pointerdown)="onPointerDown($event)"
     >
       <div #container class="absolute inset-0 py-3"></div>
       @if (!ready()) {
@@ -77,8 +77,13 @@ export class CodeEditor {
    * makes Angular cancel the event, and a cancelled pointerdown never reaches Monaco
    * as mousedown, so clicks on the loaded editor would do nothing.
    */
-  protected onPointerDown(): void {
+  protected onPointerDown(event: PointerEvent): void {
     this.focusWhenReady = !this.ready();
+    // Monaco can finish loading just before the click, while the preview still covers it
+    // until the next render. The click then lands on the preview and Monaco never sees it,
+    // so focus the editor ourselves, after the browser's own mousedown handling.
+    const onEditor = this.editor?.getDomNode()?.contains(event.target as Node);
+    if (this.ready() && !onEditor && !this.readOnly()) setTimeout(() => this.editor?.focus());
   }
 
   constructor() {
