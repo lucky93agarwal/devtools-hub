@@ -10,12 +10,15 @@ import { copyFileSync, readFileSync, writeFileSync } from 'node:fs';
 const out = 'dist/devtools-hub/browser';
 const { routes } = JSON.parse(readFileSync('dist/devtools-hub/prerendered-routes.json', 'utf8'));
 const pageFile = (route) => (route === '/' ? `${out}/index.html` : `${out}${route}/index.html`);
+// Old addresses are prerendered as tiny redirect pages; they get no stylesheet and stay out of the sitemap.
+const isRedirect = (html) => /<meta http-equiv="refresh"/.test(html);
 
 // Put the whole stylesheet (about 5 KB gzipped) inside each page. The first paint then
 // needs no second request, and nothing moves later as it would with partial critical CSS.
 // Font URLs in it are relative and resolve against <base href="/">.
 for (const file of [...Object.keys(routes).map(pageFile), `${out}/index.csr.html`]) {
   const html = readFileSync(file, 'utf8');
+  if (isRedirect(html)) continue;
   const link = /<link rel="stylesheet" href="(styles-[\w-]+\.css)">/.exec(html);
   if (!link) throw new Error(`No stylesheet link in ${file}`);
   const css = readFileSync(`${out}/${link[1]}`, 'utf8');
@@ -37,7 +40,7 @@ const urls = [];
 for (const route of Object.keys(routes).sort()) {
   const file = pageFile(route);
   const html = readFileSync(file, 'utf8');
-  if (/<meta name="robots" content="noindex"/.test(html)) continue;
+  if (isRedirect(html) || /<meta name="robots" content="noindex"/.test(html)) continue;
   const canonical = /<link rel="canonical" href="([^"]+)"/.exec(html)?.[1];
   if (!canonical) throw new Error(`No canonical link in ${file}`);
   urls.push(canonical);

@@ -85,15 +85,16 @@ export const TOOLS: readonly ToolInfo[] = [
     live: true,
   },
   {
-    path: 'json-to-model',
-    name: 'JSON to Kotlin, Dart and Swift',
-    description: 'Turn JSON into Kotlin data classes, Dart models or Swift Codable structs.',
-    seoTitle: 'JSON to Kotlin, Dart and Swift (Coming Soon)',
-    metaDescription: 'Turn JSON into Kotlin, Dart and Swift model code. Coming soon.',
+    path: 'json-to-code',
+    name: 'JSON to Code',
+    description: 'Turn JSON into Kotlin data classes, Java POJOs and TypeScript interfaces.',
+    seoTitle: 'JSON to Kotlin, Java and TypeScript Classes',
+    metaDescription:
+      'Convert JSON to Kotlin data classes (kotlinx.serialization, Moshi, Gson), Java POJOs and TypeScript interfaces. Free, and your JSON never leaves your browser.',
     icon: 'M7 3h10a1 1 0 0 1 1 1v16a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1zM11 18h2',
     phase: 6,
     onHome: true,
-    live: false,
+    live: true,
   },
   {
     path: 'app-icon-generator',
@@ -114,5 +115,5 @@ export const NAV_LINKS: readonly { label: string; path: string }[] = [
   { label: 'Compare', path: 'json-compare' },
   { label: 'Images', path: 'image-converter' },
   { label: 'JWT', path: 'jwt' },
-  { label: 'Mobile tools', path: 'json-to-model' },
+  { label: 'JSON to Code', path: 'json-to-code' },
 ];

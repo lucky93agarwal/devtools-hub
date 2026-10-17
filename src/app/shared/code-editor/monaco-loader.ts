@@ -54,6 +54,11 @@ export function loadMonaco(): Promise<MonacoApi> {
       import('monaco-editor/features/multicursor/register'),
       import('monaco-editor/features/placeholderText/register'),
       import('monaco-editor/features/wordHighlighter/register'),
+      // Colours for the JSON to Code output. Each only registers a name here; its
+      // tokenizer is downloaded the first time that language is shown.
+      import('monaco-editor/languages/definitions/kotlin/register'),
+      import('monaco-editor/languages/definitions/java/register'),
+      import('monaco-editor/languages/definitions/typescript/register'),
     ]);
 
     registerJson(monaco);

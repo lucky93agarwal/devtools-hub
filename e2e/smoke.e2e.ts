@@ -11,6 +11,7 @@ const NAV = [
   { label: 'Compare', path: '/json-compare', heading: 'JSON Compare' },
   { label: 'Images', path: '/image-converter', heading: 'Image Converter' },
   { label: 'JWT', path: '/jwt', heading: /JWT/ },
+  { label: 'JSON to Code', path: '/json-to-code', heading: 'JSON to Code' },
 ];
 
 let errors: string[];
@@ -152,6 +153,26 @@ test('Image Converter opens HEIC, TIFF and SVG and saves every output format', a
   }
   // SVG has no pixel size of its own, so it is drawn at 1024 px.
   await expect(page.getByText(/1024×1024/)).toBeVisible();
+});
+
+test('JSON to Code writes classes as you type and switches language', async ({ page }) => {
+  await page.goto('/json-to-code');
+  await typeInEditor(page, 'JSON input', '{"user_name":"Ada","tags":["a"]}');
+  await expect(page.getByText('Kotlin Serialization: 1 class.')).toBeVisible();
+  await expect(page.locator('app-code-editor').nth(1)).toContainText('@SerialName("user_name") val userName: String');
+
+  await page.getByLabel('Convert to').selectOption('typescript-interface');
+  await expect(page).toHaveURL(/\?to=typescript-interface$/);
+  await expect(page.locator('app-code-editor').nth(1)).toContainText('user_name: string;');
+
+  const download = page.waitForEvent('download');
+  await page.getByRole('button', { name: 'Root.ts' }).click();
+  expect((await download).suggestedFilename()).toBe('Root.ts');
+});
+
+test('the old JSON to model address opens JSON to Code', async ({ page }) => {
+  await page.goto('/json-to-model');
+  await expect(page.getByRole('heading', { level: 1 })).toHaveText('JSON to Code');
 });
 
 test('Background Remover shows the upload box', async ({ page }) => {

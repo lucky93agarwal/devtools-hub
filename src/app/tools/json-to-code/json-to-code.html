@@ -1,0 +1,184 @@
+<div class="container-tool pt-10 sm:pt-16">
+  <h1 class="text-[28px] leading-9 sm:text-[40px] sm:leading-12">{{ tool.name }}</h1>
+  <p class="mt-3 text-muted">{{ tool.description }}</p>
+
+  <div class="mt-8 flex flex-wrap items-end gap-x-4 gap-y-3">
+    <label class="flex flex-col gap-1 text-sm leading-5">
+      <span class="font-semibold">Convert to</span>
+      <select
+        class="min-w-56 rounded-xl border border-line bg-page px-3 py-2"
+        [value]="target().id"
+        (change)="chooseTarget($any($event.target).value)"
+      >
+        @for (group of groups; track group.group) {
+          <optgroup [label]="group.group">
+            @for (option of group.targets; track option.id) {
+              <option [value]="option.id" [selected]="option.id === target().id">{{ option.label }}</option>
+            }
+          </optgroup>
+        }
+      </select>
+    </label>
+    <label class="flex flex-col gap-1 text-sm leading-5">
+      <span class="font-semibold">Root class name</span>
+      <input
+        type="text"
+        class="w-44 rounded-xl border border-line bg-page px-3 py-2"
+        spellcheck="false"
+        autocomplete="off"
+        [value]="rootName()"
+        (input)="rootName.set($any($event.target).value)"
+      />
+    </label>
+    <div class="flex gap-2">
+      <button type="button" class="btn-secondary" (click)="loadSample()">Sample JSON</button>
+      <button type="button" class="btn-secondary" [disabled]="!input()" (click)="clear()">Clear</button>
+    </div>
+  </div>
+
+  @if (settings().length) {
+    <fieldset class="card mt-4 flex flex-wrap items-center gap-x-6 gap-y-3 p-4">
+      <legend class="sr-only">{{ target().group }} settings</legend>
+      @for (setting of settings(); track setting.id) {
+        @if (setting.choices) {
+          <label class="flex items-center gap-2 text-sm leading-5">
+            <span class="font-semibold">{{ setting.label }}</span>
+            <select
+              class="rounded-xl border border-line bg-page px-3 py-1.5"
+              (change)="setOption(setting.id, $any($event.target).value)"
+            >
+              @for (choice of setting.choices; track choice.value) {
+                <option [value]="choice.value" [selected]="choice.value === setting.value">{{ choice.label }}</option>
+              }
+            </select>
+          </label>
+        } @else {
+          <label class="flex cursor-pointer items-center gap-2 text-sm leading-5">
+            <input
+              type="checkbox"
+              class="size-4 accent-brand"
+              [checked]="asBoolean(setting.value)"
+              (change)="setOption(setting.id, $any($event.target).checked)"
+            />
+            {{ setting.label }}
+          </label>
+        }
+      }
+    </fieldset>
+  }
+
+  <div class="mt-4 min-h-12 text-sm leading-5" aria-live="polite">
+    @if (problem(); as message) {
+      <p class="rounded-xl border border-danger bg-danger/10 px-4 py-3">{{ message }}</p>
+    } @else {
+      @switch (result().kind) {
+        @case ('empty') {
+          <p class="text-muted">Paste JSON on the left, or try the sample. The code appears as you type.</p>
+        }
+        @case ('error') {
+          @if (error(); as e) {
+            <button
+              type="button"
+              class="flex w-full flex-wrap items-center gap-x-3 gap-y-1 rounded-xl border border-danger bg-danger/10 px-4 py-3 text-left hover:bg-danger/15"
+              (click)="goToError()"
+            >
+              <span><span class="font-semibold">Line {{ e.line }}, column {{ e.column }}:</span> {{ e.message }}</span>
+              <span class="font-semibold underline underline-offset-2">Go to error</span>
+            </button>
+          }
+        }
+        @case ('problem') {
+          @if (result(); as r) {
+            @if (r.kind === 'problem') {
+              <p class="rounded-xl border border-warning bg-warning/10 px-4 py-3">{{ r.message }}</p>
+            }
+          }
+        }
+        @case ('ok') {
+          @if (result(); as r) {
+            @if (r.kind === 'ok') {
+              <p class="flex items-center gap-2 font-semibold">
+                <span class="grid size-6 place-items-center rounded-full bg-success text-white">
+                  <app-icon [path]="icons.check" [size]="14" />
+                </span>
+                {{ target().label }}: {{ r.classes }} {{ r.classes === 1 ? 'class' : 'classes' }}.
+              </p>
+            }
+          }
+        }
+      }
+    }
+  </div>
+
+  <div class="mt-4 grid gap-4 lg:grid-cols-2">
+    <div class="flex flex-col gap-2">
+      <div class="flex min-h-9 items-center justify-between gap-2">
+        <span class="text-sm leading-5 font-semibold">JSON</span>
+        <button type="button" class="btn-small" (click)="fileInput.click()">
+          <app-icon [path]="icons.upload" [size]="16" />
+          Upload file
+        </button>
+        <input
+          #fileInput
+          type="file"
+          class="sr-only"
+          tabindex="-1"
+          aria-hidden="true"
+          [accept]="accept"
+          (change)="onFileChosen(fileInput)"
+        />
+      </div>
+      <app-code-editor
+        #inputEditor
+        class="h-80 lg:h-[32rem]"
+        language="json"
+        ariaLabel="JSON input"
+        placeholder='Paste JSON here, for example {"id": 1, "name": "Ada"}'
+        [invalid]="!!error()"
+        [value]="input()"
+        (valueChange)="onInput($event)"
+      />
+    </div>
+
+    <div class="flex flex-col gap-2">
+      <div class="flex min-h-9 items-center justify-between gap-2">
+        <span class="text-sm leading-5 font-semibold">{{ target().group }}</span>
+        <div class="flex gap-2">
+          <button type="button" class="btn-small" [disabled]="!code()" (click)="copy()">
+            <app-icon [path]="copyState() === 'copied' ? icons.check : icons.copy" [size]="16" />
+            @switch (copyState()) {
+              @case ('copied') {
+                Copied
+              }
+              @case ('failed') {
+                Copy failed
+              }
+              @default {
+                Copy
+              }
+            }
+          </button>
+          <button type="button" class="btn-small" [disabled]="!code()" (click)="download()">
+            <app-icon [path]="icons.download" [size]="16" />
+            {{ className() }}.{{ target().language.extension }}
+          </button>
+        </div>
+      </div>
+      <app-code-editor
+        class="h-80 lg:h-[32rem]"
+        [language]="target().language.monaco"
+        ariaLabel="Generated code"
+        placeholder="The code appears here."
+        [readOnly]="true"
+        [value]="code()"
+      />
+    </div>
+  </div>
+
+  <p class="mt-4 flex items-center gap-2 text-sm text-muted">
+    <app-icon [path]="icons.lock" [size]="16" />
+    Your JSON is converted in your browser and never sent to a server.
+  </p>
+
+  <app-tool-info [tool]="tool" [content]="content" />
+</div>

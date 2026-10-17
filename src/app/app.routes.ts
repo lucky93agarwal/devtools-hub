@@ -13,6 +13,7 @@ const toolComponents: Record<string, () => Promise<Type<unknown>>> = {
   jwt: () => import('./tools/jwt/jwt-tool').then((m) => m.JwtTool),
   'background-remover': () =>
     import('./tools/background-remover/background-remover').then((m) => m.BackgroundRemover),
+  'json-to-code': () => import('./tools/json-to-code/json-to-code').then((m) => m.JsonToCode),
 };
 
 /** Each tool is a lazy-loaded route with its own URL, title and description. */
@@ -77,6 +78,8 @@ export const routes: Routes = [
       import('./tools/background-remover/background-remover-lab').then((m) => m.BackgroundRemoverLab),
     data: { description: 'Test page for the background remover.', noindex: true },
   },
+  // The page's first address, from before it was built.
+  { path: 'json-to-model', redirectTo: 'json-to-code' },
   {
     path: '**',
     title: 'Page not found',

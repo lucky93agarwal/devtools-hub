@@ -98,6 +98,12 @@ export class CodeEditor {
       if (this.ready()) this.syncText();
     });
 
+    // The JSON to Code tool switches the output language without a new editor.
+    effect(() => {
+      const language = this.language();
+      if (this.ready() && this.textModel) this.monaco?.editor.setModelLanguage(this.textModel, language);
+    });
+
     effect(() => {
       const name = this.theme.theme() === 'dark' ? 'dth-dark' : 'dth-light';
       if (this.ready()) this.monaco?.editor.setTheme(name);
