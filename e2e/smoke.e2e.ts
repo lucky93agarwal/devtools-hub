@@ -207,6 +207,35 @@ test('Data Converter points at the line of an XML mistake', async ({ page }) => 
   await expect(page.getByRole('button', { name: /Line 2, column \d+:/ })).toBeVisible();
 });
 
+test('XML Formatter formats typed XML and finds a broken tag', async ({ page }) => {
+  await page.goto('/xml-formatter');
+  await typeInEditor(page, 'XML input', '<a><b>1</b></a>');
+  await expect(page.getByText('Valid XML.')).toBeVisible();
+  await expect(page.locator('app-code-editor').nth(1)).toContainText('<b>1</b>');
+  await page.getByRole('button', { name: 'XML with errors' }).click();
+  await expect(page.getByRole('button', { name: /Line 4, column \d+:/ })).toBeVisible();
+});
+
+test('YAML Validator reports a tab and accepts the valid sample', async ({ page }) => {
+  await page.goto('/yaml-validator');
+  await page.getByRole('button', { name: 'YAML with errors' }).click();
+  await expect(page.getByRole('button', { name: /Line 4, column \d+:/ })).toBeVisible();
+  await page.getByRole('button', { name: 'Valid YAML' }).click();
+  await expect(page.getByText('Valid YAML. 2 documents.')).toBeVisible();
+});
+
+test('App Icon Generator previews icons and downloads the ZIP', async ({ page }) => {
+  await page.goto('/app-icon-generator');
+  const chooser = page.waitForEvent('filechooser');
+  await page.getByRole('button', { name: 'Choose image' }).click();
+  await (await chooser).setFiles('e2e/fixtures/photo.png');
+  await expect(page.getByText('Use at least 1024×1024 px')).toBeVisible();
+  await expect(page.locator('ul img')).toHaveCount(4);
+  const download = page.waitForEvent('download');
+  await page.getByRole('button', { name: 'Download 21 files (ZIP)' }).click();
+  expect((await download).suggestedFilename()).toBe('app-icons.zip');
+});
+
 test('the old JSON to model address opens JSON to Code', async ({ page }) => {
   await page.goto('/json-to-model');
   await expect(page.getByRole('heading', { level: 1 })).toHaveText('JSON to Code');

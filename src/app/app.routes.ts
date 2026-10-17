@@ -15,6 +15,9 @@ const toolComponents: Record<string, () => Promise<Type<unknown>>> = {
     import('./tools/background-remover/background-remover').then((m) => m.BackgroundRemover),
   'json-to-code': () => import('./tools/json-to-code/json-to-code').then((m) => m.JsonToCode),
   'data-converter': () => import('./tools/data-converter/data-converter').then((m) => m.DataConverter),
+  'xml-formatter': () => import('./tools/text-formatter/text-formatter').then((m) => m.TextFormatter),
+  'yaml-validator': () => import('./tools/text-formatter/text-formatter').then((m) => m.TextFormatter),
+  'app-icon-generator': () => import('./tools/app-icon/app-icon-generator').then((m) => m.AppIconGenerator),
 };
 
 /** Each tool is a lazy-loaded route with its own URL, title and description. */
@@ -66,7 +69,7 @@ export const routes: Routes = [
     loadComponent: () => import('./pages/home/home').then((m) => m.Home),
     data: {
       description:
-        'Free developer tools that run entirely in your browser: JSON formatter, JSON compare, image converter, JWT decoder and more.',
+        'Free developer tools that run in your browser: JSON formatter, JSON to code, YAML and XML converters, image converter, JWT decoder and more.',
     },
   },
   ...toolRoutes,

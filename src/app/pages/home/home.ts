@@ -13,7 +13,7 @@ import { ToolCard } from '../../shared/tool-card/tool-card';
         Developer tools that stay on your device
       </h1>
       <p class="mx-auto mt-4 max-w-2xl text-xl leading-7 font-semibold text-muted">
-        Format JSON, convert images and decode tokens in seconds. Free, fast and private.
+        Format JSON, turn it into code, convert data and images, and make app icons. Free, fast and private.
       </p>
 
       <div class="mt-8 flex justify-center">

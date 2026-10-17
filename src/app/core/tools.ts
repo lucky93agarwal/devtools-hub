@@ -109,15 +109,40 @@ export const TOOLS: readonly ToolInfo[] = [
     live: true,
   },
   {
+    path: 'xml-formatter',
+    name: 'XML Formatter and Validator',
+    description: 'Format, minify and validate XML, keeping comments, CDATA and attributes as written.',
+    seoTitle: 'XML Formatter and Validator Online',
+    metaDescription:
+      'Format, minify and validate XML online. Errors shown by line, comments and CDATA kept, and your XML never leaves your browser.',
+    icon: 'M8 7l-5 5 5 5M16 7l5 5-5 5M14 4l-4 16',
+    phase: 6,
+    onHome: true,
+    live: true,
+  },
+  {
+    path: 'yaml-validator',
+    name: 'YAML Validator and Formatter',
+    description: 'Check YAML for mistakes and format it, with errors shown by line.',
+    seoTitle: 'YAML Validator and Formatter Online',
+    metaDescription:
+      'Validate and format YAML for Docker Compose, Kubernetes and CI files. Errors by line, comments kept, and nothing is uploaded.',
+    icon: 'M5 6h14M5 12h9M5 18h12M17 15l2 2 4-4',
+    phase: 6,
+    onHome: true,
+    live: true,
+  },
+  {
     path: 'app-icon-generator',
     name: 'App Icon Generator',
-    description: 'Create every Android and iOS app icon size from one image.',
-    seoTitle: 'App Icon Generator (Coming Soon)',
-    metaDescription: 'Create every Android and iOS app icon size from one image. Coming soon.',
+    description: 'Create every Android and iOS app icon size from one image, ready for your project.',
+    seoTitle: 'App Icon Generator for Android and iOS',
+    metaDescription:
+      'Make Android mipmaps, adaptive icons, the Play Store icon and an iOS AppIcon.appiconset from one image. Free, and nothing is uploaded.',
     icon: 'M5 5h5v5H5zM14 5h5v5h-5zM5 14h5v5H5zM14 14h5v5h-5z',
     phase: 6,
-    onHome: false,
-    live: false,
+    onHome: true,
+    live: true,
   },
 ];
 
