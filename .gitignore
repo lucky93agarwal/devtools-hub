@@ -45,3 +45,7 @@ Thumbs.db
 
 # Cloudflare local dev
 .wrangler
+
+# Playwright
+/test-results
+/playwright-report
