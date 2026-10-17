@@ -97,8 +97,8 @@ describe('inferModel', () => {
   });
 
   it('gives two different classes with the same key different names', () => {
-    const { classes } = model({ a: { data: { x: 1 } }, b: { data: { y: 2 } } });
-    expect(classes.map((c) => c.name)).toEqual(['Root', 'A', 'Data', 'B', 'Data2']);
+    const { classes } = model({ a: { meta: { x: 1 } }, b: { meta: { y: 2 } } });
+    expect(classes.map((c) => c.name)).toEqual(['Root', 'A', 'Meta', 'B', 'Meta2']);
   });
 
   it('counts a key repeated in one object once', () => {
@@ -112,5 +112,13 @@ describe('inferModel', () => {
       ok: false,
       message: 'Classes are made from objects. Paste a JSON object, or a list of objects.',
     });
+  });
+});
+
+describe('class names', () => {
+  it('avoids names of built-in types', () => {
+    const result = inferModel('{"list": [{"a": 1}], "data": {"b": 2}, "error": {"c": 3}}');
+    if (!result.ok) throw new Error();
+    expect(result.model.classes.map((c) => c.name)).toEqual(['Root', 'ListModel', 'DataModel', 'ErrorModel']);
   });
 });

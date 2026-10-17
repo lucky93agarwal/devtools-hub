@@ -2,6 +2,21 @@ import { CodeModel } from './infer';
 import { JAVA_DEFAULTS, JavaOptions, toJava } from './generators/java';
 import { KOTLIN_DEFAULTS, KotlinOptions, toKotlin } from './generators/kotlin';
 import { TYPESCRIPT_DEFAULTS, TypeScriptOptions, toTypeScript } from './generators/typescript';
+import { DART_DEFAULTS, DartOptions, toDart } from './generators/dart';
+import { SWIFT_DEFAULTS, SwiftOptions, toSwift } from './generators/swift';
+import { CSHARP_DEFAULTS, CSharpOptions, toCSharp } from './generators/csharp';
+import { GO_DEFAULTS, GoOptions, toGo } from './generators/go';
+import { RUST_DEFAULTS, RustOptions, toRust } from './generators/rust';
+import {
+  PYDANTIC_DEFAULTS,
+  PYTHON_DEFAULTS,
+  PydanticOptions,
+  PythonOptions,
+  toPydantic,
+  toPython,
+} from './generators/python';
+import { PHP_DEFAULTS, PhpOptions, toPhp } from './generators/php';
+import { RUBY_DEFAULTS, RubyOptions, toRuby } from './generators/ruby';
 
 /**
  * Every output the page offers. A language has settings; a target is one entry in
@@ -111,6 +126,157 @@ const TYPESCRIPT: Language = {
   generate: (model, options) => toTypeScript(model, options as unknown as TypeScriptOptions),
 };
 
+const DART: Language = {
+  id: 'dart',
+  monaco: 'dart',
+  extension: 'dart',
+  defaults: { ...DART_DEFAULTS },
+  settings: [
+    {
+      id: 'style',
+      label: 'Style',
+      choices: [
+        { value: 'plain', label: 'fromJson and toJson' },
+        { value: 'json_serializable', label: 'json_serializable' },
+      ],
+    },
+    { id: 'finalFields', label: 'final fields' },
+  ],
+  generate: (model, options) => toDart(model, options as unknown as DartOptions),
+};
+
+const SWIFT: Language = {
+  id: 'swift',
+  monaco: 'swift',
+  extension: 'swift',
+  defaults: { ...SWIFT_DEFAULTS },
+  settings: [
+    {
+      id: 'declaration',
+      label: 'Declare as',
+      choices: [
+        { value: 'struct', label: 'struct' },
+        { value: 'class', label: 'class' },
+      ],
+    },
+    {
+      id: 'protocol',
+      label: 'Protocol',
+      choices: [
+        { value: 'Codable', label: 'Codable' },
+        { value: 'Decodable', label: 'Decodable' },
+      ],
+    },
+    { id: 'mutable', label: 'Use var instead of let' },
+  ],
+  generate: (model, options) => toSwift(model, options as unknown as SwiftOptions),
+};
+
+const CSHARP: Language = {
+  id: 'csharp',
+  monaco: 'csharp',
+  extension: 'cs',
+  defaults: { ...CSHARP_DEFAULTS },
+  settings: [
+    {
+      id: 'library',
+      label: 'Library',
+      choices: [
+        { value: 'system-text-json', label: 'System.Text.Json' },
+        { value: 'newtonsoft', label: 'Newtonsoft.Json' },
+        { value: 'none', label: 'None' },
+      ],
+    },
+    {
+      id: 'declaration',
+      label: 'Declare as',
+      choices: [
+        { value: 'class', label: 'class' },
+        { value: 'record', label: 'record' },
+      ],
+    },
+    { id: 'nullableReferences', label: 'Nullable reference types' },
+  ],
+  generate: (model, options) => toCSharp(model, options as unknown as CSharpOptions),
+};
+
+const GO: Language = {
+  id: 'go',
+  monaco: 'go',
+  extension: 'go',
+  defaults: { ...GO_DEFAULTS },
+  settings: [
+    { id: 'pointers', label: 'Pointers for values that may be missing' },
+    { id: 'omitEmpty', label: 'omitempty on optional fields' },
+  ],
+  generate: (model, options) => toGo(model, options as unknown as GoOptions),
+};
+
+const RUST: Language = {
+  id: 'rust',
+  monaco: 'rust',
+  extension: 'rs',
+  defaults: { ...RUST_DEFAULTS },
+  settings: [
+    {
+      id: 'derives',
+      label: 'Derive',
+      choices: [
+        { value: 'debug-clone', label: 'Debug, Clone' },
+        { value: 'debug-clone-partialeq', label: 'Debug, Clone, PartialEq' },
+        { value: 'none', label: 'Serde only' },
+      ],
+    },
+    { id: 'public', label: 'Public structs and fields' },
+  ],
+  generate: (model, options) => toRust(model, options as unknown as RustOptions),
+};
+
+const PYTHON: Language = {
+  id: 'python',
+  monaco: 'python',
+  extension: 'py',
+  defaults: { ...PYTHON_DEFAULTS },
+  settings: [
+    { id: 'methods', label: 'from_dict and to_dict methods' },
+    { id: 'frozen', label: 'Frozen (cannot be changed)' },
+  ],
+  generate: (model, options) => toPython(model, options as unknown as PythonOptions),
+};
+
+const PYDANTIC: Language = {
+  id: 'pydantic',
+  monaco: 'python',
+  extension: 'py',
+  defaults: { ...PYDANTIC_DEFAULTS },
+  settings: [{ id: 'frozen', label: 'Frozen (cannot be changed)' }],
+  generate: (model, options) => toPydantic(model, options as unknown as PydanticOptions),
+};
+
+const PHP: Language = {
+  id: 'php',
+  monaco: 'php',
+  extension: 'php',
+  defaults: { ...PHP_DEFAULTS },
+  settings: [
+    { id: 'readonly', label: 'readonly properties (PHP 8.1+)' },
+    { id: 'methods', label: 'fromArray and toArray methods' },
+  ],
+  generate: (model, options) => toPhp(model, options as unknown as PhpOptions),
+};
+
+const RUBY: Language = {
+  id: 'ruby',
+  monaco: 'ruby',
+  extension: 'rb',
+  defaults: { ...RUBY_DEFAULTS },
+  settings: [
+    { id: 'writable', label: 'attr_accessor instead of attr_reader' },
+    { id: 'methods', label: 'from_hash and to_h methods' },
+  ],
+  generate: (model, options) => toRuby(model, options as unknown as RubyOptions),
+};
+
 export const TARGETS: Target[] = [
   { id: 'kotlin', label: 'Kotlin data class', group: 'Kotlin', language: KOTLIN, preset: { library: 'none' } },
   { id: 'kotlin-serialization', label: 'Kotlin Serialization', group: 'Kotlin', language: KOTLIN, preset: { library: 'kotlinx' } },
@@ -126,6 +292,15 @@ export const TARGETS: Target[] = [
     language: TYPESCRIPT,
     preset: { declaration: 'type' },
   },
+  { id: 'dart', label: 'Dart model class', group: 'Dart and Swift', language: DART },
+  { id: 'swift', label: 'Swift Codable model', group: 'Dart and Swift', language: SWIFT },
+  { id: 'csharp', label: 'C# class', group: 'C#', language: CSHARP },
+  { id: 'python', label: 'Python dataclass', group: 'Python', language: PYTHON },
+  { id: 'pydantic', label: 'Pydantic model', group: 'Python', language: PYDANTIC },
+  { id: 'go', label: 'Go struct', group: 'Go and Rust', language: GO },
+  { id: 'rust', label: 'Rust struct (serde)', group: 'Go and Rust', language: RUST },
+  { id: 'php', label: 'PHP class', group: 'PHP and Ruby', language: PHP },
+  { id: 'ruby', label: 'Ruby class', group: 'PHP and Ruby', language: RUBY },
 ];
 
 /** Targets grouped for the list, in order. */

@@ -56,6 +56,18 @@ interface ObjectShape {
 
 const emptyShape = (): Shape => ({ nulls: false, primitives: new Set() });
 
+/**
+ * Names that clash with built-in types in at least one target language
+ * (List in Dart, C# and Python, Data and URL in Swift, Error in most). A class
+ * found under such a key becomes ListModel, DataModel and so on.
+ */
+const BUILT_IN_TYPES = new Set(
+  ('any array bool boolean byte char character class codable data date decimal dictionary double error exception ' +
+    'float int integer iterable json jsonelement jsonvalue list long map nil nothing null number object option ' +
+    'optional range record result self set short string task type uint unit url uuid value vec void')
+    .split(' '),
+);
+
 const INT_MAX = 2_147_483_647n;
 const LONG_MAX = 9_223_372_036_854_775_807n;
 
@@ -110,7 +122,8 @@ class Namer {
 
   /** Makes a class for an object shape; `hint` is the key it was found under. */
   classFor(object: ObjectShape, hint: string): string {
-    const [name] = makeUnique([pascalCase(hint)], this.used);
+    const base = pascalCase(hint);
+    const [name] = makeUnique([BUILT_IN_TYPES.has(base.toLowerCase()) ? base + 'Model' : base], this.used);
     this.used.push(name);
     const model: ClassModel = { name, fields: [] };
     this.classes.push(model);

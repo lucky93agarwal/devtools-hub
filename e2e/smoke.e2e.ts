@@ -170,6 +170,18 @@ test('JSON to Code writes classes as you type and switches language', async ({ p
   expect((await download).suggestedFilename()).toBe('Root.ts');
 });
 
+test('JSON to Code writes Dart and Go from the sample', async ({ page }) => {
+  await page.goto('/json-to-code?to=dart');
+  await page.getByRole('button', { name: 'Sample JSON' }).click();
+  const output = page.locator('app-code-editor').nth(1);
+  await expect(output).toContainText('final String userName;');
+
+  await page.getByLabel('Convert to').selectOption('go');
+  await expect(output).toContainText('json:"user_name"');
+  await page.getByRole('checkbox', { name: 'Pointers for values that may be missing' }).uncheck();
+  await expect(page.getByRole('button', { name: 'Root.go' })).toBeEnabled();
+});
+
 test('the old JSON to model address opens JSON to Code', async ({ page }) => {
   await page.goto('/json-to-model');
   await expect(page.getByRole('heading', { level: 1 })).toHaveText('JSON to Code');

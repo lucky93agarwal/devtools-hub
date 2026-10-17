@@ -26,7 +26,9 @@ export const JSON_TO_CODE_CONTENT: ToolContent = {
   aboutHeading: 'About JSON to Code',
   about:
     'Paste a JSON response and get ready-to-use model classes: Kotlin data classes (plain, kotlinx.serialization, ' +
-    'Moshi, Gson or Jackson), Java POJOs and records (plain, Jackson or Gson) and TypeScript interfaces or types. ' +
+    'Moshi, Gson or Jackson), Java POJOs and records, TypeScript interfaces or types, Dart classes with fromJson and ' +
+    'toJson, Swift Codable structs, C# classes, Python dataclasses and Pydantic models, Go and Rust structs, and PHP ' +
+    'and Ruby classes. ' +
     'Every item of a list is checked, so keys that are missing from some items become optional and values that are ' +
     'sometimes null become nullable. Your JSON never leaves your browser.',
   steps: [
@@ -58,6 +60,12 @@ export const JSON_TO_CODE_CONTENT: ToolContent = {
       answer:
         'Kotlin and Java use camelCase names such as userName, with an annotation that keeps the original JSON key. ' +
         'TypeScript keeps the keys exactly as they are, because it reads the JSON directly.',
+    },
+    {
+      question: 'Does the Dart code work with Flutter?',
+      answer:
+        'Yes. The default style writes fromJson and toJson by hand, so it needs no packages. Choose json_serializable ' +
+        'to get the annotations for that code generator instead, then run build_runner.',
     },
     {
       question: 'Which library should I pick for Kotlin?',

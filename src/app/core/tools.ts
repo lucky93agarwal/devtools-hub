@@ -87,10 +87,10 @@ export const TOOLS: readonly ToolInfo[] = [
   {
     path: 'json-to-code',
     name: 'JSON to Code',
-    description: 'Turn JSON into Kotlin data classes, Java POJOs and TypeScript interfaces.',
-    seoTitle: 'JSON to Kotlin, Java and TypeScript Classes',
+    description: 'Turn JSON into model classes for Kotlin, Java, TypeScript, Dart, Swift, C#, Python, Go, Rust, PHP and Ruby.',
+    seoTitle: 'JSON to Code: Kotlin, Swift, Dart and More',
     metaDescription:
-      'Convert JSON to Kotlin data classes (kotlinx.serialization, Moshi, Gson), Java POJOs and TypeScript interfaces. Free, and your JSON never leaves your browser.',
+      'Convert JSON to Kotlin, Java, TypeScript, Dart, Swift, C#, Python, Pydantic, Go, Rust, PHP and Ruby classes. Free, and your JSON stays in your browser.',
     icon: 'M7 3h10a1 1 0 0 1 1 1v16a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1zM11 18h2',
     phase: 6,
     onHome: true,

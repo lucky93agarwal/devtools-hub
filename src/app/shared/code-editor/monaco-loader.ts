@@ -59,6 +59,14 @@ export function loadMonaco(): Promise<MonacoApi> {
       import('monaco-editor/languages/definitions/kotlin/register'),
       import('monaco-editor/languages/definitions/java/register'),
       import('monaco-editor/languages/definitions/typescript/register'),
+      import('monaco-editor/languages/definitions/dart/register'),
+      import('monaco-editor/languages/definitions/swift/register'),
+      import('monaco-editor/languages/definitions/csharp/register'),
+      import('monaco-editor/languages/definitions/python/register'),
+      import('monaco-editor/languages/definitions/go/register'),
+      import('monaco-editor/languages/definitions/rust/register'),
+      import('monaco-editor/languages/definitions/php/register'),
+      import('monaco-editor/languages/definitions/ruby/register'),
     ]);
 
     registerJson(monaco);
