@@ -1,3 +1,4 @@
+import { provideRouter } from '@angular/router';
 import { TestBed } from '@angular/core/testing';
 import { unzipSync } from 'fflate';
 import { ImageConverter } from './image-converter';
@@ -53,7 +54,7 @@ describe('ImageConverter', () => {
       const blob = new Blob(['x'.repeat(Math.max(1, Math.floor(file.size / 2)))], { type: `image/${format}` });
       return { blob, ...size, sourceWidth: 200, sourceHeight: 100 };
     });
-    TestBed.configureTestingModule({ providers: [{ provide: ImageEncoder, useValue: { convert } }] });
+    TestBed.configureTestingModule({ providers: [provideRouter([]), { provide: ImageEncoder, useValue: { convert } }] });
   });
 
   async function setup() {

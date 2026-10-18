@@ -73,6 +73,30 @@ export const TOOLS: readonly ToolInfo[] = [
     live: true,
   },
   {
+    path: 'image-resizer',
+    name: 'Image Resizer',
+    description: 'Resize images to an exact size, by percent or for social media, and keep files under a size limit.',
+    seoTitle: 'Resize Images Online: Exact Size or KB Limit',
+    metaDescription:
+      'Resize up to 15 images to an exact width and height, by percent or for Instagram and YouTube, and keep them under a KB limit. Nothing is uploaded.',
+    icon: 'M4 14v6h6M20 10V4h-6M4 20l7-7M20 4l-7 7',
+    phase: 2,
+    onHome: true,
+    live: true,
+  },
+  {
+    path: 'image-cropper',
+    name: 'Image Cropper',
+    description: 'Crop images with a free or fixed shape, rotate and flip them, or cut a circle.',
+    seoTitle: 'Crop Images Online, Free and Private',
+    metaDescription:
+      'Crop photos to 1:1, 4:5, 16:9 or any shape, rotate and flip them, or make a round profile picture. Your image never leaves your browser.',
+    icon: 'M6 2v14a2 2 0 0 0 2 2h14M18 22V8a2 2 0 0 0-2-2H2',
+    phase: 2,
+    onHome: true,
+    live: true,
+  },
+  {
     path: 'background-remover',
     name: 'Background Remover',
     description: 'Remove an image background on your own device and download a transparent PNG.',

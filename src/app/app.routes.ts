@@ -11,6 +11,8 @@ const toolComponents: Record<string, () => Promise<Type<unknown>>> = {
   'json-formatter': () => import('./tools/json-formatter/json-formatter').then((m) => m.JsonFormatter),
   'json-compare': () => import('./tools/json-compare/json-compare').then((m) => m.JsonCompare),
   'image-converter': () => import('./tools/image-converter/image-converter').then((m) => m.ImageConverter),
+  'image-resizer': () => import('./tools/image-resizer/image-resizer').then((m) => m.ImageResizer),
+  'image-cropper': () => import('./tools/image-cropper/image-cropper').then((m) => m.ImageCropper),
   jwt: () => import('./tools/jwt/jwt-tool').then((m) => m.JwtTool),
   'background-remover': () =>
     import('./tools/background-remover/background-remover').then((m) => m.BackgroundRemover),

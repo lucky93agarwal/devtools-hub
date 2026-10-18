@@ -236,6 +236,52 @@ test('App Icon Generator previews icons and downloads the ZIP', async ({ page })
   expect((await download).suggestedFilename()).toBe('app-icons.zip');
 });
 
+test('Image Resizer resizes a real image to a width and under a KB limit', async ({ page }) => {
+  await page.goto('/image-resizer');
+  const chooser = page.waitForEvent('filechooser');
+  await page.getByRole('button', { name: 'Choose images' }).click();
+  await (await chooser).setFiles('e2e/fixtures/photo.png');
+  await page.getByPlaceholder('Auto').first().fill('200');
+  await page.getByRole('button', { name: 'Resize 1 image' }).click();
+  await expect(page.getByText(/400×300 to 200×150/)).toBeVisible();
+
+  await page.getByLabel('Save as').selectOption('jpg');
+  await page.getByPlaceholder('No limit').fill('5');
+  await page.getByRole('button', { name: 'Resize 1 image' }).click();
+  await expect(page.getByText(/to \d+×\d+ · JPG · [0-9.]+ (KB|B)/)).toBeVisible();
+  const download = page.waitForEvent('download');
+  await page.getByRole('button', { name: /^Download photo-\d+x\d+\.jpg$/ }).click();
+  expect((await download).suggestedFilename()).toMatch(/^photo-\d+x\d+\.jpg$/);
+});
+
+test('Image Cropper crops with a dragged corner and a square shape', async ({ page }) => {
+  await page.goto('/image-cropper');
+  const chooser = page.waitForEvent('filechooser');
+  await page.getByRole('button', { name: 'Choose image' }).click();
+  await (await chooser).setFiles('e2e/fixtures/photo.png');
+  await expect(page.getByText('Image: 400×300 px')).toBeVisible();
+
+  // Drag the bottom-right corner up and left with the mouse.
+  const area = page.getByRole('group', { name: /Crop area/ });
+  await page.mouse.wheel(0, 300);
+  await area.scrollIntoViewIfNeeded();
+  const box = await area.boundingBox();
+  await page.mouse.move(box!.x + box!.width, box!.y + box!.height);
+  await page.mouse.down();
+  await page.mouse.move(box!.x + box!.width - 40, box!.y + box!.height - 40, { steps: 5 });
+  await page.mouse.up();
+  const width = Number(await page.getByLabel('width', { exact: true }).inputValue());
+  expect(width).toBeLessThan(320);
+
+  await page.getByRole('radio', { name: '1:1 square' }).click();
+  const value = (label: string) => page.getByLabel(label, { exact: true }).inputValue();
+  await expect.poll(async () => (await value('width')) === (await value('height'))).toBe(true);
+  const side = await value('width');
+  const download = page.waitForEvent('download');
+  await page.getByRole('button', { name: `Download ${side}×${side}` }).click();
+  expect((await download).suggestedFilename()).toBe(`photo-cropped-${side}x${side}.png`);
+});
+
 test('the old JSON to model address opens JSON to Code', async ({ page }) => {
   await page.goto('/json-to-model');
   await expect(page.getByRole('heading', { level: 1 })).toHaveText('JSON to Code');

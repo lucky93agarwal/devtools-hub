@@ -1,3 +1,4 @@
+import { provideRouter } from '@angular/router';
 import { TestBed } from '@angular/core/testing';
 import { Analytics } from '../../core/analytics';
 import { BackgroundRemover } from './background-remover';
@@ -38,6 +39,7 @@ describe('BackgroundRemover', () => {
     URL.revokeObjectURL = vi.fn();
     TestBed.configureTestingModule({
       providers: [
+        provideRouter([]),
         { provide: RemoverClient, useValue: client },
         { provide: Analytics, useValue: { track, load: vi.fn() } },
       ],

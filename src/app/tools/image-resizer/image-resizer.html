@@ -1,0 +1,267 @@
+<div class="container-tool pt-10 sm:pt-16">
+  <app-image-tools-nav />
+  <h1 class="mt-6 text-[28px] leading-9 sm:text-[40px] sm:leading-12">{{ tool.name }}</h1>
+  <p class="mt-3 text-muted">{{ tool.description }}</p>
+
+  <app-upload-box
+    class="mt-8 block"
+    [title]="full() ? 'The batch is full' : 'Drop up to ' + limits.maxImages + ' images here'"
+    buttonLabel="Choose images"
+    [hint]="'JPG, PNG, WebP, HEIC and more, up to ' + formatBytes(limits.maxImageBytes) + ' each.'"
+    [accept]="accept"
+    [multiple]="true"
+    [filter]="false"
+    [disabled]="full()"
+    (filesSelected)="addFiles($event)"
+  />
+
+  <div class="mt-4 min-h-6" aria-live="polite">
+    @if (notes().length) {
+      <div class="flex flex-col gap-1 rounded-xl border border-warning bg-warning/10 px-4 py-3 text-sm leading-5">
+        @for (note of notes(); track note) {
+          <p>{{ note }}</p>
+        }
+      </div>
+    }
+  </div>
+
+  <fieldset class="card mt-4 flex flex-col gap-4 p-4" [disabled]="working()">
+    <legend class="sr-only">Resize settings</legend>
+    <div class="flex flex-wrap gap-1" role="radiogroup" aria-label="Resize by">
+      @for (option of [
+        { value: 'size', label: 'Width and height' },
+        { value: 'percent', label: 'Percent' },
+        { value: 'preset', label: 'Social media size' }
+      ]; track option.value) {
+        <button
+          type="button"
+          role="radio"
+          class="rounded-full px-4 py-1.5 text-sm leading-5 font-semibold transition-colors"
+          [class]="mode() === option.value ? 'bg-brand text-on-brand' : 'border border-line text-muted hover:text-ink'"
+          [attr.aria-checked]="mode() === option.value"
+          (click)="mode.set($any(option.value)); changed()"
+        >
+          {{ option.label }}
+        </button>
+      }
+    </div>
+
+    @switch (mode()) {
+      @case ('size') {
+        <div class="flex flex-wrap items-end gap-3 text-sm leading-5">
+          <label class="flex flex-col gap-1">
+            <span class="font-semibold">Width (px)</span>
+            <input
+              type="number"
+              min="1"
+              class="w-28 rounded-xl border border-line bg-page px-3 py-2"
+              placeholder="Auto"
+              [value]="width() ?? ''"
+              (input)="width.set(numberOrNull($any($event.target).value)); changed()"
+            />
+          </label>
+          <span class="pb-2 text-muted">×</span>
+          <label class="flex flex-col gap-1">
+            <span class="font-semibold">Height (px)</span>
+            <input
+              type="number"
+              min="1"
+              class="w-28 rounded-xl border border-line bg-page px-3 py-2"
+              placeholder="Auto"
+              [value]="height() ?? ''"
+              (input)="height.set(numberOrNull($any($event.target).value)); changed()"
+            />
+          </label>
+          @if (bothSides()) {
+            <label class="flex flex-col gap-1">
+              <span class="font-semibold">Shape</span>
+              <select
+                class="rounded-xl border border-line bg-page px-3 py-2"
+                (change)="fit.set($any($event.target).value); changed()"
+              >
+                @for (option of fits; track option.value) {
+                  <option [value]="option.value" [selected]="fit() === option.value">{{ option.label }}</option>
+                }
+              </select>
+            </label>
+          }
+        </div>
+        <p class="text-sm leading-5 text-muted">
+          Leave one side empty to keep the shape. With both sides set, choose how the image fits.
+        </p>
+      }
+      @case ('percent') {
+        <label class="flex flex-col gap-2 text-sm leading-5">
+          <span class="flex justify-between"><span class="font-semibold">Scale</span>{{ percent() }}%</span>
+          <input
+            type="range"
+            min="5"
+            max="200"
+            step="5"
+            class="accent-brand"
+            [value]="percent()"
+            [attr.aria-valuetext]="percent() + ' percent'"
+            (input)="percent.set($any($event.target).valueAsNumber); changed()"
+          />
+        </label>
+      }
+      @case ('preset') {
+        <label class="flex flex-col gap-1 text-sm leading-5">
+          <span class="font-semibold">Size</span>
+          <select
+            class="rounded-xl border border-line bg-page px-3 py-2"
+            (change)="presetId.set($any($event.target).value); changed()"
+          >
+            @for (preset of presets; track preset.id) {
+              <option [value]="preset.id" [selected]="presetId() === preset.id">
+                {{ preset.label }} · {{ preset.width }}×{{ preset.height }}
+              </option>
+            }
+          </select>
+        </label>
+        <p class="text-sm leading-5 text-muted">The image fills the size; edges are cut where the shape differs.</p>
+      }
+    }
+
+    <div class="flex flex-wrap items-end gap-x-6 gap-y-3 border-t border-line pt-4 text-sm leading-5">
+      <label class="flex flex-col gap-1">
+        <span class="font-semibold">Save as</span>
+        <select
+          class="rounded-xl border border-line bg-page px-3 py-2"
+          (change)="output.set($any($event.target).value); changed()"
+        >
+          @for (option of outputs; track option.value) {
+            <option [value]="option.value" [selected]="output() === option.value">{{ option.label }}</option>
+          }
+        </select>
+      </label>
+      @if (lossy()) {
+        <label class="flex flex-col gap-1">
+          <span class="font-semibold">Quality {{ quality() }}%</span>
+          <input
+            type="range"
+            min="30"
+            max="100"
+            step="5"
+            class="w-40 accent-brand"
+            [value]="quality()"
+            [attr.aria-valuetext]="quality() + ' percent'"
+            (input)="quality.set($any($event.target).valueAsNumber); changed()"
+          />
+        </label>
+      }
+      <label class="flex flex-col gap-1">
+        <span class="font-semibold">Max file size (KB)</span>
+        <input
+          type="number"
+          min="5"
+          class="w-32 rounded-xl border border-line bg-page px-3 py-2"
+          placeholder="No limit"
+          [value]="maxKb() ?? ''"
+          (input)="maxKb.set(numberOrNull($any($event.target).value)); changed()"
+        />
+      </label>
+      <label class="flex items-center gap-2">
+        <span class="font-semibold">Background</span>
+        <input
+          type="color"
+          class="h-9 w-14 cursor-pointer rounded-lg border border-line"
+          aria-label="Background colour"
+          [value]="background()"
+          (input)="background.set($any($event.target).value); changed()"
+        />
+      </label>
+    </div>
+    <p class="text-sm leading-5 text-muted">
+      With a size limit, the quality is lowered first and the image is made smaller only if needed. The background fills
+      padding and transparent areas in JPG.
+    </p>
+  </fieldset>
+
+  @if (items().length) {
+    <div class="mt-4 flex flex-wrap items-center gap-x-4 gap-y-3">
+      <button type="button" class="btn-primary" [disabled]="working() || !pending()" (click)="resizeAll()">
+        @if (working()) {
+          Resizing…
+        } @else if (pending()) {
+          Resize {{ pending() === 1 ? '1 image' : pending() + ' images' }}
+        } @else {
+          All images resized
+        }
+      </button>
+      <button
+        type="button"
+        class="btn-secondary"
+        [disabled]="!doneItems().length || working() || zipping()"
+        (click)="downloadZip()"
+      >
+        <app-icon [path]="icons.download" [size]="20" />
+        {{ zipping() ? 'Making ZIP…' : 'Download all as ZIP' }}
+      </button>
+      <button type="button" class="btn-small" [disabled]="working()" (click)="clearAll()">Clear all</button>
+    </div>
+
+    <ul class="mt-4 flex flex-col divide-y divide-line rounded-xl border border-line">
+      @for (item of items(); track item.id) {
+        <li class="flex items-center gap-3 px-3 py-2">
+          <span class="checkerboard size-12 shrink-0 overflow-hidden rounded-lg border border-line">
+            <img
+              [src]="item.previewUrl"
+              alt=""
+              class="size-full object-contain"
+              (error)="$any($event.target).hidden = true"
+            />
+          </span>
+          <div class="min-w-0 flex-1">
+            <p class="truncate text-sm leading-5 font-semibold" [title]="item.file.name">{{ item.file.name }}</p>
+            <p class="text-sm leading-5 text-muted">
+              {{ formatBytes(item.file.size) }}
+              @if (item.state === 'working') {
+                <span class="text-ink"> → resizing…</span>
+              }
+              @if (item.result; as r) {
+                <span class="text-ink">
+                  → {{ r.sourceWidth }}×{{ r.sourceHeight }} to {{ r.width }}×{{ r.height }} · {{ formatLabel(item) }} ·
+                  {{ formatBytes(r.blob.size) }}
+                </span>
+              }
+            </p>
+            @if (item.result && !item.result.reachedLimit) {
+              <p class="text-sm leading-5 text-warning">Could not get under {{ maxKb() }} KB; this is the smallest it got.</p>
+            }
+            @if (item.error) {
+              <p class="text-sm leading-5 text-danger">{{ item.error }}</p>
+            }
+          </div>
+          @if (item.state === 'done') {
+            <button
+              type="button"
+              class="btn-small shrink-0"
+              [attr.aria-label]="'Download ' + item.result!.name"
+              (click)="download(item)"
+            >
+              <app-icon [path]="icons.download" [size]="16" />
+              <span class="hidden sm:inline">Download</span>
+            </button>
+          }
+          <button
+            type="button"
+            class="grid size-10 shrink-0 place-items-center rounded-full text-muted hover:bg-surface hover:text-ink disabled:opacity-40"
+            [attr.aria-label]="'Remove ' + item.file.name"
+            [disabled]="item.state === 'working'"
+            (click)="remove(item)"
+          >
+            <app-icon [path]="icons.close" [size]="18" />
+          </button>
+        </li>
+      }
+    </ul>
+  }
+
+  <p class="mt-4 flex items-center gap-2 text-sm text-muted">
+    <app-icon [path]="icons.lock" [size]="16" />
+    Your images are resized in your browser and never uploaded.
+  </p>
+
+  <app-tool-info [tool]="tool" [content]="content" />
+</div>

@@ -56,6 +56,25 @@ export function targetSize(width: number, height: number, resize: Resize): { wid
   return { width: Math.max(1, Math.round(width * factor)), height: Math.max(1, Math.round(height * factor)) };
 }
 
+/**
+ * The output format matching an uploaded file, so "keep the format" works.
+ * Formats the browser cannot write well fall back: HEIC and photos to JPG, SVG to PNG.
+ */
+export function sameFormat(file: File): ImageFormat {
+  const name = file.name.toLowerCase();
+  const type = file.type;
+  const is = (types: string[], extensions: string[]) =>
+    types.includes(type) || extensions.some((ext) => name.endsWith(ext));
+  if (is(['image/png'], ['.png'])) return 'png';
+  if (is(['image/webp'], ['.webp'])) return 'webp';
+  if (is(['image/avif'], ['.avif'])) return 'avif';
+  if (is(['image/gif'], ['.gif'])) return 'gif';
+  if (is(['image/bmp', 'image/x-ms-bmp'], ['.bmp'])) return 'bmp';
+  if (is(['image/tiff'], ['.tif', '.tiff'])) return 'tiff';
+  if (is(['image/svg+xml'], ['.svg']) || is(['image/x-icon', 'image/vnd.microsoft.icon'], ['.ico'])) return 'png';
+  return 'jpg';
+}
+
 /** "holiday.jpeg" converted to WebP becomes "holiday.webp", or "holiday-converted.webp" with a suffix. */
 export function outputName(fileName: string, format: ImageFormat, suffix = ''): string {
   return `${baseName(fileName)}${suffix}.${format}`;
@@ -141,8 +160,8 @@ export class ImageEncoder {
     }
   }
 
-  /** Opens any supported file as a bitmap. */
-  private async read(file: File): Promise<ImageBitmap> {
+  /** Opens any supported file as a bitmap. Also used by the resizer and the cropper. */
+  async read(file: File): Promise<ImageBitmap> {
     if (isSvg(file)) return this.readSvg(file);
     try {
       // Safari opens HEIC and TIFF itself, so try the browser first.
@@ -197,7 +216,8 @@ export class ImageEncoder {
     return canvas;
   }
 
-  private async write(
+  /** Saves a canvas in any output format. Also used by the resizer and the cropper. */
+  async write(
     canvas: HTMLCanvasElement,
     format: ImageFormat,
     quality: number,

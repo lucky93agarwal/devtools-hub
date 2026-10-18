@@ -4,6 +4,7 @@ import { LIMITS } from '../../core/app-config';
 import { TOOLS } from '../../core/tools';
 import { baseName, downloadBlob, formatBytes } from '../../shared/file-utils';
 import { ICONS, Icon } from '../../shared/icon/icon';
+import { ImageToolsNav } from '../../shared/image-tools-nav/image-tools-nav';
 import { ToolInfoSection } from '../../shared/tool-info/tool-info';
 import { UploadBox } from '../../shared/upload-box/upload-box';
 import { IMAGE_ACCEPT, isSupportedImage } from '../image-converter/image-list';
@@ -34,7 +35,7 @@ type State =
 
 @Component({
   selector: 'app-background-remover',
-  imports: [Icon, UploadBox, ToolInfoSection, BeforeAfter],
+  imports: [Icon, UploadBox, ToolInfoSection, BeforeAfter, ImageToolsNav],
   templateUrl: './background-remover.html',
 })
 export class BackgroundRemover {

@@ -3,6 +3,7 @@ import { Analytics } from '../../core/analytics';
 import { TOOLS } from '../../core/tools';
 import { downloadBlob, formatBytes } from '../../shared/file-utils';
 import { ICONS, Icon } from '../../shared/icon/icon';
+import { ImageToolsNav } from '../../shared/image-tools-nav/image-tools-nav';
 import { UploadBox } from '../../shared/upload-box/upload-box';
 import {
   ConvertError,
@@ -38,7 +39,7 @@ export type ResizeChoice = 'original' | '75' | '50' | '25' | 'width';
 
 @Component({
   selector: 'app-image-converter',
-  imports: [Icon, UploadBox, ToolInfoSection],
+  imports: [Icon, UploadBox, ToolInfoSection, ImageToolsNav],
   templateUrl: './image-converter.html',
 })
 export class ImageConverter {
