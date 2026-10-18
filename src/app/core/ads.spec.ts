@@ -93,6 +93,16 @@ describe('AdSlot', () => {
     expect(fill).toHaveBeenCalledTimes(1);
   });
 
+  it('shows a dashed preview box with ?ad-preview, without loading any ad', async () => {
+    history.replaceState(null, '', '/json-formatter?ad-preview');
+    const { el, fill } = await render(ADS);
+    expect(el.querySelector('aside')?.getAttribute('aria-label')).toBe('Advertisement preview');
+    expect(el.textContent).toContain('Ad space preview: belowTool');
+    expect(el.querySelector('ins')).toBeNull();
+    expect(fill).not.toHaveBeenCalled();
+    history.replaceState(null, '', '/');
+  });
+
   it('skips a place that has no ad unit', async () => {
     const { el, fill } = await render(ON, 'beforeFaq');
     expect(el.querySelector('aside')).toBeNull();

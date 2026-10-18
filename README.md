@@ -81,6 +81,8 @@ npx wrangler dev
 ## Turning on ads (Google AdSense)
 
 Ads are built in but stay off until the AdSense IDs are added. AdSense needs the site on its own domain first.
+AdSense has no test IDs for websites, so to see where ads will go before then, add `?ad-preview` to any tool address
+(for example `/json-formatter?ad-preview`): dashed boxes mark the ad spaces and nothing is loaded from Google.
 
 1. In AdSense, add the site, then copy the publisher ID (`ca-pub-` and 16 digits).
 2. Create two display ad units (Ads, By ad unit) and copy their IDs.
