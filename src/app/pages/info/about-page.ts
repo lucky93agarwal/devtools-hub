@@ -1,6 +1,7 @@
-import { Component } from '@angular/core';
+import { Component, inject } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { REPO_URL, SITE_NAME } from '../../core/app-config';
+import { ADS_CONFIG, adsEnabled } from '../../core/ads';
 import { TOOLS } from '../../core/tools';
 import { InfoPage } from './info-page';
 
@@ -18,8 +19,9 @@ import { InfoPage } from './info-page';
       <p>
         Many online tools ask you to upload your files or paste your data into a form that goes to someone else's server.
         That is a poor fit for API responses, config files, private photos or security tokens. Every tool here runs inside
-        your browser instead, so your data never leaves your device. You do not need an account, and the site does not use
-        cookies.
+        your browser instead, so your data never leaves your device. You do not need an account{{
+          adsOn ? '. The site is free because it shows ads, which never see what you put into the tools.' : ', and the site does not use cookies.'
+        }}
       </p>
 
       <h2>The tools</h2>
@@ -54,6 +56,7 @@ import { InfoPage } from './info-page';
 export class AboutPage {
   protected readonly siteName = SITE_NAME;
   protected readonly repoUrl = REPO_URL;
+  protected readonly adsOn = adsEnabled(inject(ADS_CONFIG));
   /** Tools that are built; "coming soon" ones are described in the text instead. */
   protected readonly liveTools = TOOLS.filter((tool) => tool.live);
 }

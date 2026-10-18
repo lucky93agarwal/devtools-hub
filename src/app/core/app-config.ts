@@ -20,6 +20,23 @@ export const ANALYTICS = {
   umamiWebsiteId: '',
 } as const;
 
+/**
+ * Google AdSense. adsenseClient is the publisher ID from the AdSense account
+ * ("ca-pub-" and 16 digits); each slot is the ID of a display ad unit made in
+ * AdSense (Ads, By ad unit). While adsenseClient is empty, no ad script loads,
+ * no ad space is shown, no ads.txt is published and the privacy policy says
+ * there are no ads. A slot left empty is simply not shown.
+ */
+export const ADS = {
+  adsenseClient: '',
+  slots: {
+    /** Below the tool, at the start of its explanation. */
+    belowTool: '',
+    /** Between the "How to use it" steps and the FAQ. */
+    beforeFaq: '',
+  },
+} as const;
+
 /** Google Search Console "HTML tag" verification code (only the content value). Empty adds no tag. */
 export const GOOGLE_SITE_VERIFICATION = '';
 

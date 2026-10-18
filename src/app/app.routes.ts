@@ -1,6 +1,7 @@
 import { Type } from '@angular/core';
 import { Routes } from '@angular/router';
 import { TOOLS } from './core/tools';
+import { adsEnabled } from './core/ads';
 
 const placeholder = () =>
   import('./pages/placeholder/placeholder-page').then((m) => m.PlaceholderPage);
@@ -46,7 +47,11 @@ const infoRoutes: Routes = [
     path: 'privacy',
     title: 'Privacy policy',
     loadComponent: () => import('./pages/info/privacy-page').then((m) => m.PrivacyPage),
-    data: { description: 'How DevTools Hub handles your data: tools run in your browser, with no accounts and no cookies.' },
+    data: {
+      description: adsEnabled()
+        ? 'How DevTools Hub handles your data: tools run in your browser, with no accounts. Ads are served by Google AdSense.'
+        : 'How DevTools Hub handles your data: tools run in your browser, with no accounts and no cookies.',
+    },
   },
   {
     path: 'terms',

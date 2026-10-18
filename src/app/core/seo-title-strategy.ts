@@ -1,7 +1,8 @@
 import { DOCUMENT, Injectable, inject } from '@angular/core';
 import { Meta, Title } from '@angular/platform-browser';
 import { RouterStateSnapshot, TitleStrategy } from '@angular/router';
-import { GOOGLE_SITE_VERIFICATION, SITE_NAME, SITE_URL } from './app-config';
+import { ADS, GOOGLE_SITE_VERIFICATION, SITE_NAME, SITE_URL } from './app-config';
+import { adsEnabled } from './ads';
 
 /**
  * Sets the search and sharing tags for each page from its route: the title
@@ -39,6 +40,8 @@ export class SeoTitleStrategy extends TitleStrategy {
     if (GOOGLE_SITE_VERIFICATION) {
       this.meta.updateTag({ name: 'google-site-verification', content: GOOGLE_SITE_VERIFICATION });
     }
+    // Lets AdSense confirm that this site belongs to the account.
+    if (adsEnabled()) this.meta.updateTag({ name: 'google-adsense-account', content: ADS.adsenseClient });
 
     this.setCanonical(url);
   }

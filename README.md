@@ -77,3 +77,14 @@ The build output is in `dist/devtools-hub/browser`. To preview it the way Cloudf
 ```bash
 npx wrangler dev
 ```
+
+## Turning on ads (Google AdSense)
+
+Ads are built in but stay off until the AdSense IDs are added. AdSense needs the site on its own domain first.
+
+1. In AdSense, add the site, then copy the publisher ID (`ca-pub-` and 16 digits).
+2. Create two display ad units (Ads, By ad unit) and copy their IDs.
+3. In AdSense, Privacy & messaging, create and publish the European regulations message (Google's consent form).
+4. Put the three IDs in `ADS` in `src/app/core/app-config.ts` and push.
+
+The build then adds the `google-adsense-account` tag, publishes `ads.txt`, shows labelled ad space below each tool, loads the ad script only after the page is idle, and switches the privacy policy and About page to describe the ads.

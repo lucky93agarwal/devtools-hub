@@ -5,6 +5,7 @@
 //    link gives its address, so the site URL is only set in one place (app-config.ts).
 //    Pages marked noindex (such as "coming soon" tools) are left out of the sitemap.
 // 3. Publishes the licences of the libraries in the site at /third-party-licenses.txt.
+// 4. Writes ads.txt when an AdSense publisher ID is set in app-config.ts.
 import { copyFileSync, readFileSync, writeFileSync } from 'node:fs';
 
 const out = 'dist/devtools-hub/browser';
@@ -34,6 +35,13 @@ const bundled = readFileSync('dist/devtools-hub/3rdpartylicenses.txt', 'utf8');
 const copied = readFileSync('scripts/licenses-extra.txt', 'utf8');
 writeFileSync(`${out}/third-party-licenses.txt`, `${bundled}\n${copied}`);
 console.log(`Created ${out}/third-party-licenses.txt`);
+
+// Same rule as adsEnabled() in src/app/core/ads.ts.
+const client = /adsenseClient:\s*'(ca-pub-\d{10,20})'/.exec(readFileSync('src/app/core/app-config.ts', 'utf8'))?.[1];
+if (client) {
+  writeFileSync(`${out}/ads.txt`, `google.com, ${client.replace(/^ca-/, '')}, DIRECT, f08c47fec0942fa0\n`);
+  console.log(`Created ${out}/ads.txt for ${client}`);
+}
 
 const today = new Date().toISOString().slice(0, 10);
 const urls = [];

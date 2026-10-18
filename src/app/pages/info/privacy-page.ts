@@ -1,18 +1,23 @@
-import { Component } from '@angular/core';
+import { Component, inject } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { REPO_URL, SITE_NAME } from '../../core/app-config';
 import { analyticsEnabled } from '../../core/analytics';
+import { ADS_CONFIG, adsEnabled } from '../../core/ads';
 import { InfoPage } from './info-page';
 
 @Component({
   selector: 'app-privacy-page',
   imports: [InfoPage, RouterLink],
   template: `
-    <app-info-page heading="Privacy policy" updated="16 October 2026">
+    <app-info-page heading="Privacy policy" updated="18 October 2026">
       <p>
         {{ siteName }} is a set of developer tools that run in your web browser. This page explains what happens to your
-        data when you use the site. In short: the tools do not send your input anywhere, there are no accounts, and the
-        site does not use cookies.
+        data when you use the site. In short: the tools do not send your input anywhere, there are no accounts,
+        @if (adsOn) {
+          and the only cookies are those Google uses to show ads, as described below.
+        } @else {
+          and the site does not use cookies.
+        }
       </p>
 
       <h2>Your files and text stay on your device</h2>
@@ -22,11 +27,12 @@ import { InfoPage } from './info-page';
         the page, they are gone.
       </p>
 
-      <h2>No accounts and no cookies</h2>
+      <h2>No accounts{{ adsOn ? '' : ' and no cookies' }}</h2>
       <p>
-        You do not need an account to use any tool. The site does not set cookies. It may save small preferences, such as
-        the light or dark theme, in your browser's local storage; these never leave your device and you can clear them in
-        your browser settings.
+        You do not need an account to use any tool. The site itself does not set cookies{{
+          adsOn ? '; the advertising cookies described below come from Google' : ''
+        }}. It may save small preferences, such as the light or dark theme, in your browser's local storage; these never
+        leave your device and you can clear them in your browser settings.
       </p>
 
       <h2>Hosting and server logs</h2>
@@ -62,11 +68,34 @@ import { InfoPage } from './info-page';
       }
 
       <h2>Advertising</h2>
-      <p>
-        The site does not currently show ads. If ads are added, this page will be updated first and will say which
-        services are used and what they collect. Where the law requires consent, it will be asked for before anything is
-        collected.
-      </p>
+      @if (adsOn) {
+        <p>
+          The site is free because it shows ads from Google AdSense, below each tool. Google and its partners use cookies
+          and similar technology to show ads, to limit how often you see the same ad, to measure how ads perform and,
+          where you allow it, to choose ads based on your earlier visits to this and other websites.
+        </p>
+        <p>
+          Ads never receive anything you type, paste or open in the tools. They are loaded after the page is ready, in
+          their own space, and blocking them does not stop any tool from working.
+        </p>
+        <p>
+          If you are in the European Economic Area, the United Kingdom or Switzerland, a consent message from Google
+          asks for your choice before any advertising cookies are used, and you can change it later from the link it
+          shows. Anyone can turn off personalised ads in
+          <a href="https://adssettings.google.com" target="_blank" rel="noopener">Google's ad settings</a> or at
+          <a href="https://www.aboutads.info" target="_blank" rel="noopener">aboutads.info</a>. Google explains how it
+          uses this data in
+          <a href="https://policies.google.com/technologies/partner-sites" target="_blank" rel="noopener"
+            >How Google uses information from sites that use its services</a
+          >.
+        </p>
+      } @else {
+        <p>
+          The site does not currently show ads. If ads are added, this page will be updated first and will say which
+          services are used and what they collect. Where the law requires consent, it will be asked for before anything
+          is collected.
+        </p>
+      }
 
       <h2>Children</h2>
       <p>The site is meant for developers and is not aimed at children.</p>
@@ -86,4 +115,5 @@ export class PrivacyPage {
   protected readonly siteName = SITE_NAME;
   protected readonly repoUrl = REPO_URL;
   protected readonly analyticsOn = analyticsEnabled();
+  protected readonly adsOn = adsEnabled(inject(ADS_CONFIG));
 }

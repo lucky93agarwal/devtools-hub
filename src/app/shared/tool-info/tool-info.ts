@@ -1,6 +1,7 @@
 import { Component, DOCUMENT, OnDestroy, OnInit, inject, input } from '@angular/core';
 import { SITE_NAME, SITE_URL } from '../../core/app-config';
 import { ToolInfo } from '../../core/tools';
+import { AdSlot } from '../ad-slot/ad-slot';
 
 export interface FaqItem {
   question: string;
@@ -24,11 +25,15 @@ const SCRIPT_ID = 'tool-structured-data';
  */
 @Component({
   selector: 'app-tool-info',
+  imports: [AdSlot],
   template: `
     <section
       class="mt-16 flex flex-col gap-10 border-t border-line pt-10"
       aria-labelledby="about-heading"
     >
+      <!-- Ads sit in the explanation below the tool, never inside it. -->
+      <app-ad-slot placement="belowTool" />
+
       <div>
         <h2 id="about-heading" class="text-2xl leading-8 sm:text-[28px] sm:leading-9">
           {{ content().aboutHeading }}
@@ -46,6 +51,8 @@ const SCRIPT_ID = 'tool-structured-data';
       </div>
 
       <ng-content />
+
+      <app-ad-slot placement="beforeFaq" />
 
       <div>
         <h2 class="text-2xl leading-8 sm:text-[28px] sm:leading-9">Frequently asked questions</h2>
