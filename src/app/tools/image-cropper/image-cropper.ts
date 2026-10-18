@@ -82,6 +82,7 @@ export class ImageCropper {
       return;
     }
     if (file.size > LIMITS.MAX_IMAGE_BYTES) {
+      this.analytics.limitHit('image-cropper', 'file-size');
       this.error.set(`This image is ${formatBytes(file.size)}. The limit is ${this.maxSize}.`);
       return;
     }

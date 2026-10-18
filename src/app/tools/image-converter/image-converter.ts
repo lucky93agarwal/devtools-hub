@@ -15,7 +15,7 @@ import {
   labelOf,
   outputName,
 } from './image-encoder';
-import { CONVERTER_ACCEPT, DEFAULT_IMAGE_LIMITS, describePlan, planAdd } from './image-list';
+import { CONVERTER_ACCEPT, DEFAULT_IMAGE_LIMITS, describePlan, limitsHit, planAdd } from './image-list';
 import { buildZip } from './zip';
 import { IMAGE_CONTENT } from './content';
 import { ToolInfoSection } from '../../shared/tool-info/tool-info';
@@ -118,6 +118,7 @@ export class ImageConverter {
     }));
     this.items.update((items) => [...items, ...added]);
     this.notes.set(describePlan(plan, this.limits));
+    for (const limit of limitsHit(plan)) this.analytics.limitHit('image-converter', limit);
   }
 
   protected setFormat(format: ImageFormat): void {

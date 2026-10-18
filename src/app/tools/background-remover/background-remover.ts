@@ -103,6 +103,7 @@ export class BackgroundRemover {
       return;
     }
     if (file.size > LIMITS.MAX_IMAGE_BYTES) {
+      this.analytics.limitHit('background-remover', 'file-size');
       this.fail(`This image is ${formatBytes(file.size)}. The limit is ${this.maxSize}.`);
       return;
     }

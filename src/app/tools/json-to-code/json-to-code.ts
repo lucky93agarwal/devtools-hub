@@ -128,6 +128,7 @@ export class JsonToCode {
     element.value = '';
     if (!file) return;
     if (file.size > LIMITS.MAX_JSON_BYTES) {
+      this.analytics.limitHit('json-to-code', 'file-size');
       this.problem.set(`${file.name} is ${formatBytes(file.size)}. The limit is ${formatBytes(LIMITS.MAX_JSON_BYTES)}.`);
       return;
     }

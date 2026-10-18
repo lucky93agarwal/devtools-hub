@@ -7,7 +7,7 @@ import { ImageToolsNav } from '../../shared/image-tools-nav/image-tools-nav';
 import { ToolInfoSection } from '../../shared/tool-info/tool-info';
 import { UploadBox } from '../../shared/upload-box/upload-box';
 import { ConvertError, ImageFormat, labelOf, sameFormat } from '../image-converter/image-encoder';
-import { CONVERTER_ACCEPT, DEFAULT_IMAGE_LIMITS, describePlan, planAdd } from '../image-converter/image-list';
+import { CONVERTER_ACCEPT, DEFAULT_IMAGE_LIMITS, describePlan, limitsHit, planAdd } from '../image-converter/image-list';
 import { buildZip } from '../image-converter/zip';
 import { IMAGE_RESIZER_CONTENT } from './content';
 import { FitMode, PRESETS, SizeSpec } from './resize-math';
@@ -102,6 +102,7 @@ export class ImageResizer {
     );
     this.items.update((items) => [...items, ...added]);
     this.notes.set(describePlan(plan, this.limits));
+    for (const limit of limitsHit(plan)) this.analytics.limitHit('image-resizer', limit);
   }
 
   /** Reads a number input; empty means "not set". */

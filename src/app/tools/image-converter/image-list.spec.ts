@@ -1,4 +1,4 @@
-import { CONVERTER_ACCEPT, CONVERTER_TYPES, ImageLimits, describePlan, isSupportedImage, planAdd } from './image-list';
+import { CONVERTER_ACCEPT, CONVERTER_TYPES, ImageLimits, describePlan, isSupportedImage, limitsHit, planAdd } from './image-list';
 
 const MB = 1024 * 1024;
 const limits: ImageLimits = { maxImages: 15, maxImageBytes: 20 * MB, maxBatchBytes: 150 * MB };
@@ -105,5 +105,13 @@ describe('planAdd', () => {
     expect(describePlan(planAdd([], texts, limits), limits)[0]).toBe(
       'Skipped because they are not images this tool can open: n0.txt, n1.txt, n2.txt and 2 more.',
     );
+  });
+});
+
+describe('limitsHit', () => {
+  it('names each limit a batch ran into, for counting demand for higher limits', () => {
+    const plan = planAdd(many(14), [...many(2, 14), image('huge.png', 21 * MB)], limits);
+    expect(limitsHit(plan)).toEqual(['count', 'file-size']);
+    expect(limitsHit(planAdd([], many(2), limits))).toEqual([]);
   });
 });

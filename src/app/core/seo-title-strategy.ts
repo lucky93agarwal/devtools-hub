@@ -3,6 +3,7 @@ import { Meta, Title } from '@angular/platform-browser';
 import { RouterStateSnapshot, TitleStrategy } from '@angular/router';
 import { ADS, GOOGLE_SITE_VERIFICATION, SITE_NAME, SITE_URL } from './app-config';
 import { adsEnabled } from './ads';
+import { TOOLS } from './tools';
 
 /**
  * Sets the search and sharing tags for each page from its route: the title
@@ -36,7 +37,15 @@ export class SeoTitleStrategy extends TitleStrategy {
     this.meta.updateTag({ property: 'og:title', content: fullTitle });
     this.meta.updateTag({ property: 'og:description', content: description });
     this.meta.updateTag({ property: 'og:url', content: url });
-    this.meta.updateTag({ name: 'twitter:card', content: 'summary' });
+    // Share card made by scripts/make-images.mjs: the tool's own, or the general one.
+    const tool = TOOLS.find((t) => snapshot.url.split(/[?#]/)[0] === `/${t.path}`);
+    const image = `${SITE_URL}/og/${tool ? tool.path : 'default'}.jpg`;
+    this.meta.updateTag({ property: 'og:image', content: image });
+    this.meta.updateTag({ property: 'og:image:width', content: '1200' });
+    this.meta.updateTag({ property: 'og:image:height', content: '630' });
+    this.meta.updateTag({ property: 'og:image:alt', content: tool ? `${tool.name}, ${SITE_NAME}` : SITE_NAME });
+    this.meta.updateTag({ name: 'twitter:card', content: 'summary_large_image' });
+    this.meta.updateTag({ name: 'twitter:image', content: image });
     if (GOOGLE_SITE_VERIFICATION) {
       this.meta.updateTag({ name: 'google-site-verification', content: GOOGLE_SITE_VERIFICATION });
     }

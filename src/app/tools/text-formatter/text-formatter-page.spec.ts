@@ -10,7 +10,7 @@ describe('TextFormatter', () => {
   async function setup(path: 'xml-formatter' | 'yaml-validator') {
     TestBed.configureTestingModule({
       providers: [
-        { provide: Analytics, useValue: { track: vi.fn(), load: vi.fn() } },
+        { provide: Analytics, useValue: { track: vi.fn(), load: vi.fn(), limitHit: vi.fn() } },
         { provide: ActivatedRoute, useValue: { snapshot: { routeConfig: { path } } } },
       ],
     });

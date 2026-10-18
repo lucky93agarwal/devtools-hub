@@ -9,6 +9,9 @@ interface UmamiWindow {
   umami?: { track(event: string, data?: EventData): void };
 }
 
+/** Which free limit was reached. */
+export type LimitKind = 'count' | 'file-size' | 'batch-size';
+
 /** True when both Umami values are set in app-config.ts. */
 export const analyticsEnabled = () => Boolean(ANALYTICS.umamiScriptUrl && ANALYTICS.umamiWebsiteId);
 
@@ -33,6 +36,14 @@ export class Analytics {
     script.dataset['domains'] = new URL(SITE_URL).hostname;
     script.dataset['doNotTrack'] = 'true';
     this.document.head.appendChild(script);
+  }
+
+  /**
+   * Someone hit one of the free limits (too many images, a file too large…).
+   * Counted to see whether a paid plan with higher limits is worth building.
+   */
+  limitHit(tool: string, limit: LimitKind): void {
+    this.track('limit-hit', { tool, limit });
   }
 
   /** Records a custom event. Does nothing when analytics is off or blocked. */

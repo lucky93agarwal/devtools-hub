@@ -1,3 +1,4 @@
+import type { LimitKind } from '../../core/analytics';
 import { LIMITS } from '../../core/app-config';
 import { formatBytes } from '../../shared/file-utils';
 
@@ -92,6 +93,15 @@ export function planAdd(existing: readonly File[], incoming: readonly File[], li
     }
   }
   return plan;
+}
+
+/** The limits a batch ran into, for counting how often people need more. */
+export function limitsHit(plan: AddPlan): LimitKind[] {
+  const hit: LimitKind[] = [];
+  if (plan.overLimit.length) hit.push('count');
+  if (plan.tooLarge.length) hit.push('file-size');
+  if (plan.overBatch.length) hit.push('batch-size');
+  return hit;
 }
 
 /** Plain-language notes about files that were not added. Empty when everything was added. */

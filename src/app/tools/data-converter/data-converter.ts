@@ -150,6 +150,7 @@ export class DataConverter {
     element.value = '';
     if (!file) return;
     if (file.size > LIMITS.MAX_JSON_BYTES) {
+      this.analytics.limitHit('data-converter', 'file-size');
       this.problem.set(`${file.name} is ${formatBytes(file.size)}. The limit is ${formatBytes(LIMITS.MAX_JSON_BYTES)}.`);
       return;
     }

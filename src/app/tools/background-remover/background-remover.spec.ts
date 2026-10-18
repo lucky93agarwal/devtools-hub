@@ -30,10 +30,12 @@ class FakeClient {
 describe('BackgroundRemover', () => {
   let client: FakeClient;
   let track: ReturnType<typeof vi.fn>;
+  let limitHit: ReturnType<typeof vi.fn>;
 
   beforeEach(() => {
     client = new FakeClient();
     track = vi.fn();
+    limitHit = vi.fn();
     let n = 0;
     URL.createObjectURL = vi.fn(() => `blob:${++n}`);
     URL.revokeObjectURL = vi.fn();
@@ -41,7 +43,7 @@ describe('BackgroundRemover', () => {
       providers: [
         provideRouter([]),
         { provide: RemoverClient, useValue: client },
-        { provide: Analytics, useValue: { track, load: vi.fn() } },
+        { provide: Analytics, useValue: { track, load: vi.fn(), limitHit } },
       ],
     });
   });
@@ -139,6 +141,7 @@ describe('BackgroundRemover', () => {
     Object.defineProperty(big, 'size', { value: 21 * 1024 * 1024 });
     await choose(big);
     expect(text()).toContain('This image is 21 MB. The limit is 20 MB.');
+    expect(limitHit).toHaveBeenCalledWith('background-remover', 'file-size');
     expect(client.files).toHaveLength(0);
   });
 

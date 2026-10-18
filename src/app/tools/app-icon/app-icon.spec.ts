@@ -67,7 +67,7 @@ describe('AppIconGenerator', () => {
     TestBed.configureTestingModule({
       providers: [
         { provide: IconRenderer, useValue: renderer },
-        { provide: Analytics, useValue: { track: vi.fn(), load: vi.fn() } },
+        { provide: Analytics, useValue: { track: vi.fn(), load: vi.fn(), limitHit: vi.fn() } },
       ],
     });
     const fixture = TestBed.createComponent(AppIconGenerator);

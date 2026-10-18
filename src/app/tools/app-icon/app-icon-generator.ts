@@ -76,6 +76,7 @@ export class AppIconGenerator {
     this.error.set('');
     this.note.set('');
     if (file.size > LIMITS.MAX_IMAGE_BYTES) {
+      this.analytics.limitHit('app-icon-generator', 'file-size');
       this.error.set(`This image is ${formatBytes(file.size)}. The limit is ${this.maxSize}.`);
       return;
     }

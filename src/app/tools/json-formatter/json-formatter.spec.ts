@@ -273,7 +273,7 @@ describe('JsonFormatter', () => {
 
   it('reports what was done without any of the JSON', async () => {
     const track = vi.fn();
-    TestBed.configureTestingModule({ providers: [{ provide: Analytics, useValue: { track, load: vi.fn() } }] });
+    TestBed.configureTestingModule({ providers: [{ provide: Analytics, useValue: { track, load: vi.fn(), limitHit: vi.fn() } }] });
     const { type, click } = await setup();
     await type('{"secret":"do-not-send"}');
     await click('Format');

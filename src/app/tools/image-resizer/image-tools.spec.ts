@@ -38,7 +38,7 @@ describe('ImageResizer', () => {
       providers: [
         provideRouter([]),
         { provide: Resizer, useValue: { resize } },
-        { provide: Analytics, useValue: { track: vi.fn(), load: vi.fn() } },
+        { provide: Analytics, useValue: { track: vi.fn(), load: vi.fn(), limitHit: vi.fn() } },
       ],
     });
     const fixture = TestBed.createComponent(ImageResizer);
@@ -114,7 +114,7 @@ describe('ImageCropper', () => {
       providers: [
         provideRouter([]),
         { provide: CropCanvas, useValue: fake },
-        { provide: Analytics, useValue: { track: vi.fn(), load: vi.fn() } },
+        { provide: Analytics, useValue: { track: vi.fn(), load: vi.fn(), limitHit: vi.fn() } },
       ],
     });
     const fixture = TestBed.createComponent(ImageCropper);

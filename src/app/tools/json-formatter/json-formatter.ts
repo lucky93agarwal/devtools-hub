@@ -117,6 +117,7 @@ export class JsonFormatter {
     if (!file) return;
 
     if (file.size > LIMITS.MAX_JSON_BYTES) {
+      this.analytics.limitHit('json-formatter', 'file-size');
       this.status.set({
         kind: 'problem',
         message: `${file.name} is ${formatBytes(file.size)}. The limit is ${formatBytes(LIMITS.MAX_JSON_BYTES)}.`,

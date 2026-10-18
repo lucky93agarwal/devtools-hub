@@ -14,7 +14,7 @@ describe('JsonToCode', () => {
     TestBed.configureTestingModule({
       providers: [
         provideRouter([]),
-        { provide: Analytics, useValue: { track, load: vi.fn() } },
+        { provide: Analytics, useValue: { track, load: vi.fn(), limitHit: vi.fn() } },
         { provide: ActivatedRoute, useValue: { snapshot: { queryParamMap: convertToParamMap(query) } } },
       ],
     });
