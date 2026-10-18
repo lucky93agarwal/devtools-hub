@@ -1,9 +1,9 @@
-// Draws the share cards (public/og/*.jpg, 1200x630) and the home screen icons
-// (public/icons/*.png) with the Chromium that Playwright already installs.
+// Draws the share cards (public/og/*.jpg, 1200x630), the home screen icons
+// (public/icons/*.png) and the browser tab icon (public/favicon.ico) with the Chromium that Playwright already installs.
 // Run after adding a tool or changing a tool's name: `node scripts/make-images.mjs`.
 // The images are committed, so the normal build does not need a browser.
 import { chromium } from '@playwright/test';
-import { mkdirSync, readFileSync } from 'node:fs';
+import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 
 // Embedded as data URLs: a page made with setContent may not load file:// fonts.
@@ -28,9 +28,29 @@ function readTools() {
 
 const escape = (text) => text.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
 
-const logo = (size) => `
+// Tiny tab icons get bigger braces so they stay readable at 16 px.
+const logo = (size, glyph = 0.42, weight = 700) => `
   <div style="width:${size}px;height:${size}px;border-radius:${size * 0.22}px;background:${BRAND};display:grid;place-items:center;
-    color:#fff;font-family:Mono;font-weight:700;font-size:${size * 0.42}px;letter-spacing:-0.04em">{}</div>`;
+    color:#fff;font-family:Mono;font-weight:${weight};font-size:${size * glyph}px;letter-spacing:-0.06em">{}</div>`;
+
+/** An .ico holding one PNG per size, which every current browser reads. */
+function ico(pngs) {
+  const header = Buffer.alloc(6 + pngs.length * 16);
+  header.writeUInt16LE(1, 2);
+  header.writeUInt16LE(pngs.length, 4);
+  let offset = header.length;
+  pngs.forEach(({ size, data }, i) => {
+    const entry = 6 + i * 16;
+    header[entry] = size >= 256 ? 0 : size;
+    header[entry + 1] = size >= 256 ? 0 : size;
+    header.writeUInt16LE(1, entry + 4);
+    header.writeUInt16LE(32, entry + 6);
+    header.writeUInt32LE(data.length, entry + 8);
+    header.writeUInt32LE(offset, entry + 12);
+    offset += data.length;
+  });
+  return Buffer.concat([header, ...pngs.map((png) => png.data)]);
+}
 
 function card(title, description) {
   return `<!doctype html><html><head><style>${FONTS}
@@ -78,5 +98,17 @@ for (const [name, size] of [['apple-touch-icon', 180], ['icon-192', 192], ['icon
   await page.evaluate(() => document.fonts.ready);
   await page.screenshot({ path: `public/icons/${name}.png` });
 }
+// Tab icon: rounded, on a transparent background.
+const favicons = [];
+for (const size of [16, 32, 48]) {
+  await page.setViewportSize({ width: size, height: size });
+  await page.setContent(
+    `<!doctype html><html><head><style>${FONTS} * { margin: 0 } html, body { background: transparent; }</style></head>` +
+      `<body>${logo(size, size <= 16 ? 0.62 : 0.5, 800)}</body></html>`,
+  );
+  await page.evaluate(() => document.fonts.ready);
+  favicons.push({ size, data: await page.screenshot({ omitBackground: true }) });
+}
+writeFileSync('public/favicon.ico', ico(favicons));
 await browser.close();
-console.log(`Made ${cards.length} share cards and 3 icons`);
+console.log(`Made ${cards.length} share cards, 3 icons and favicon.ico`);
