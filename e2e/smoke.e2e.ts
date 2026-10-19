@@ -301,6 +301,36 @@ test('API Client sends a real request and shows the response', async ({ page }) 
   await expect(page.getByText('Saved in a collection')).toBeVisible();
 });
 
+test('API Client params support descriptions, bulk edit and hiding columns', async ({ page }) => {
+  await page.goto('/api-client');
+  await page.getByLabel('URL').fill('https://api.example.com/users?page=2');
+  await page.getByLabel('Description 1').fill('Page number');
+  await page.getByRole('button', { name: 'Bulk Edit' }).click();
+  await expect(page.getByLabel('Keys as text')).toHaveValue('page:2');
+  await page.getByLabel('Keys as text').fill('page:3\n//debug:true');
+  await expect(page.getByLabel('URL')).toHaveValue('https://api.example.com/users?page=3');
+  await page.getByRole('button', { name: 'Key-Value Edit' }).click();
+  await expect(page.getByLabel('Description 1')).toHaveValue('Page number');
+
+  await page.getByRole('button', { name: 'Table options' }).first().click();
+  await page.getByRole('group', { name: 'Show columns' }).getByLabel('Description').uncheck();
+  await expect(page.getByLabel('Description 1')).toHaveCount(0);
+});
+
+test('API Client offers every auth type and signs AWS requests', async ({ page }) => {
+  await page.goto('/api-client');
+  await page.getByLabel('URL').fill('https://abc.execute-api.us-east-1.amazonaws.com/prod/items');
+  await page.getByRole('tab', { name: /Authorization/ }).click();
+  const type = page.locator('app-auth-editor select').first();
+  await expect(type.locator('option')).toHaveCount(14);
+  await type.selectOption('aws');
+  await page.getByLabel('Access key', { exact: true }).fill('AKIDEXAMPLE');
+  await page.getByLabel('Secret key', { exact: true }).fill('wJalrXUtnFEMI/K7MDENG+bPxRfiCYEXAMPLEKEY');
+  await page.getByRole('button', { name: 'Code', exact: true }).click();
+  await expect(page.locator('pre').first()).toContainText('Authorization: AWS4-HMAC-SHA256 Credential=AKIDEXAMPLE/');
+  await expect(page.locator('pre').first()).toContainText('X-Amz-Date: ');
+});
+
 test('API Client explains a request the browser cannot complete', async ({ page }) => {
   await page.goto('/api-client');
   // Nothing listens on port 9, so the browser gets no response, as with a CORS refusal.

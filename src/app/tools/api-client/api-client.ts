@@ -1,15 +1,18 @@
-import { Component, DestroyRef, computed, inject, signal } from '@angular/core';
+import { Component, DestroyRef, computed, effect, inject, signal } from '@angular/core';
 import { Analytics } from '../../core/analytics';
 import { TOOLS } from '../../core/tools';
 import { CodeEditor } from '../../shared/code-editor/code-editor';
 import { copyText, downloadBlob, downloadText, formatBytes } from '../../shared/file-utils';
 import { ICONS, Icon } from '../../shared/icon/icon';
 import { ToolInfoSection } from '../../shared/tool-info/tool-info';
-import { paramsFromUrl, prepareRequest, urlWithParams, variableMap } from './build';
+import { mergeUrlParams, prepareRequest, resolveVariables, urlWithParams, variableMap } from './build';
 import { API_CLIENT_CONTENT, SAMPLE_REQUEST } from './content';
 import { nameFromUrl, parseCurl, toCurl, toFetchCode } from './curl';
 import { KvTable } from './kv-table';
-import { ApiRequest, Auth, BodyMode, Collection, Folder, KeyValue, METHODS, Method, cloneRequest, newRequest } from './model';
+import { AuthEditor } from './auth-editor';
+import { Auth } from './auth';
+import { AuthError, signRequest } from './sign';
+import { ApiRequest, BodyMode, Collection, Folder, KeyValue, METHODS, Method, cloneRequest, newRequest } from './model';
 import { exportPostman, importPostman } from './postman';
 import { ApiResponse, ApiSender, RequestFailure } from './sender';
 import { ApiStore, HistoryEntry } from './store';
@@ -44,7 +47,7 @@ const METHOD_COLOURS: Record<string, string> = {
 
 @Component({
   selector: 'app-api-client',
-  imports: [Icon, CodeEditor, ToolInfoSection, KvTable],
+  imports: [Icon, CodeEditor, ToolInfoSection, KvTable, AuthEditor],
   templateUrl: './api-client.html',
 })
 export class ApiClient {
@@ -79,8 +82,13 @@ export class ApiClient {
   protected readonly confirmDelete = signal<string | null>(null);
 
   protected readonly variables = computed(() => variableMap(...this.store.variables()));
-  protected readonly prepared = computed(() => prepareRequest(this.draft(), this.variables()));
-  protected readonly params = computed(() => paramsFromUrl(this.draft().url));
+  protected readonly prepared = computed(() => prepareRequest(this.draft(), this.variables(), this.store.effectiveAuth()));
+  /** The request as it will be sent, signatures included, for the Code panel. */
+  protected readonly signedPreview = signal<{ curl: string; fetch: string; note: string }>({ curl: '', fetch: '', note: '' });
+  /** Which collection's auth settings are open in the sidebar. */
+  protected readonly collectionAuthOpen = signal<string | null>(null);
+  protected readonly tokenState = signal<'idle' | 'working'>('idle');
+  protected readonly params = computed(() => this.draft().params);
   protected readonly headerCount = computed(() => this.draft().headers.filter((h) => h.enabled && h.key).length);
   protected readonly response = computed(() => {
     const result = this.result();
@@ -123,6 +131,22 @@ export class ApiClient {
   private copyTimer?: ReturnType<typeof setTimeout>;
 
   constructor() {
+    // The Code panel shows signed requests, which take a moment to work out.
+    effect(() => {
+      if (this.panel() !== 'code') return;
+      const prepared = this.prepared();
+      signRequest(prepared)
+        .then((signed) =>
+          this.signedPreview.set({
+            curl: toCurl(signed),
+            fetch: toFetchCode(signed),
+            note: prepared.signWith ? 'This request is signed with the current time, so copied code works for a few minutes only.' : '',
+          }),
+        )
+        .catch((e) =>
+          this.signedPreview.set({ curl: toCurl(prepared), fetch: toFetchCode(prepared), note: e instanceof Error ? e.message : '' }),
+        );
+    });
     inject(DestroyRef).onDestroy(() => {
       this.controller?.abort();
       this.releaseImage();
@@ -137,31 +161,72 @@ export class ApiClient {
   }
 
   protected setUrl(url: string): void {
-    this.store.update({ url });
+    this.store.update({ url, params: mergeUrlParams(url, this.draft().params) });
   }
 
   protected setParams(params: KeyValue[]): void {
-    this.store.update({ url: urlWithParams(this.draft().url, params) });
+    this.store.update({ params, url: urlWithParams(this.draft().url, params) });
   }
 
   protected setHeaders(headers: KeyValue[]): void {
     this.store.update({ headers });
   }
 
-  protected setAuthType(type: Auth['type']): void {
-    const auth: Auth =
-      type === 'bearer'
-        ? { type, token: '' }
-        : type === 'basic'
-          ? { type, username: '', password: '' }
-          : type === 'api-key'
-            ? { type, key: 'X-API-Key', value: '', addTo: 'header' }
-            : { type: 'none' };
+  protected setAuth(auth: Auth): void {
     this.store.update({ auth });
   }
 
-  protected setAuth(changes: Record<string, string>): void {
-    this.store.update({ auth: { ...this.draft().auth, ...changes } as Auth });
+  /** OAuth 2.0: asks the token URL for a new access token (client credentials or password grant). */
+  protected async getAccessToken(): Promise<void> {
+    const auth = this.draft().auth;
+    if (auth.type !== 'oauth2' || this.tokenState() === 'working') return;
+    const value = (text: string) => resolveVariables(text, this.variables());
+    if (!auth.tokenUrl.trim()) {
+      this.note.set('Enter the access token URL first.');
+      return;
+    }
+    const form = new URLSearchParams({ grant_type: auth.grantType });
+    if (auth.scope) form.set('scope', value(auth.scope));
+    if (auth.grantType === 'password') {
+      form.set('username', value(auth.username));
+      form.set('password', value(auth.password));
+    }
+    const headers: [string, string][] = [
+      ['Content-Type', 'application/x-www-form-urlencoded'],
+      ['Accept', 'application/json'],
+    ];
+    if (auth.clientAuth === 'header') {
+      headers.push(['Authorization', `Basic ${btoa(`${value(auth.clientId)}:${value(auth.clientSecret)}`)}`]);
+    } else {
+      form.set('client_id', value(auth.clientId));
+      form.set('client_secret', value(auth.clientSecret));
+    }
+    this.tokenState.set('working');
+    try {
+      const body = form.toString();
+      const response = await this.sender.send(
+        { method: 'POST', url: value(auth.tokenUrl.trim()), headers, body, bodyText: body, formFields: [], dropped: [], unresolved: [] },
+        new AbortController().signal,
+      );
+      const data = JSON.parse(response.text ?? '{}') as { access_token?: string; error?: string; error_description?: string };
+      if (data.access_token) {
+        this.setAuth({ ...auth, accessToken: data.access_token });
+        this.note.set('');
+        this.flash('New access token added');
+      } else {
+        this.note.set(`The token URL answered ${response.status} without an access_token${data.error ? `: ${data.error_description ?? data.error}` : '.'}`);
+      }
+    } catch (e) {
+      this.note.set(
+        e instanceof RequestFailure && e.kind === 'blocked'
+          ? 'The token URL could not be reached from the browser (often CORS). Get the token with Postman or curl, then paste it into Access token.'
+          : e instanceof Error
+            ? e.message
+            : 'The token could not be fetched.',
+      );
+    } finally {
+      this.tokenState.set('idle');
+    }
   }
 
   protected setBodyMode(mode: BodyMode): void {
@@ -198,11 +263,16 @@ export class ApiClient {
       return;
     }
     this.note.set('');
-    const prepared = this.prepared();
     this.controller = new AbortController();
     this.releaseImage();
     this.result.set({ kind: 'sending' });
     try {
+      let prepared = this.prepared();
+      try {
+        prepared = await signRequest(prepared);
+      } catch (e) {
+        throw new RequestFailure('auth', e instanceof AuthError ? e.message : 'The request could not be signed.');
+      }
       const response = await this.sender.send(prepared, this.controller.signal);
       if (/^image\//i.test(response.contentType)) this.imageUrl.set(URL.createObjectURL(response.blob));
       this.result.set({ kind: 'done', response });
@@ -365,9 +435,18 @@ export class ApiClient {
     return hours < 24 ? `${hours} h ago` : new Date(at).toLocaleDateString();
   }
 
-  protected asAuth<T extends Auth['type']>(type: T): Extract<Auth, { type: T }> | null {
+  protected collectionAuth(collection: Collection): Auth {
+    return collection.auth ?? { type: 'none' };
+  }
+
+  protected oauth2(): Extract<Auth, { type: 'oauth2' }> | null {
     const auth = this.draft().auth;
-    return auth.type === type ? (auth as Extract<Auth, { type: T }>) : null;
+    return auth.type === 'oauth2' ? auth : null;
+  }
+
+  protected setOauth2(changes: Partial<Extract<Auth, { type: 'oauth2' }>>): void {
+    const auth = this.oauth2();
+    if (auth) this.setAuth({ ...auth, ...changes });
   }
 
   private flash(message: string): void {

@@ -1,4 +1,7 @@
 import { Injectable, computed, effect, signal } from '@angular/core';
+import { paramsFromUrl } from './build';
+import type { KvColumns } from './kv-table';
+import { Auth, authLabel } from './auth';
 import { ApiRequest, Collection, Environment, Folder, KeyValue, cloneRequest, newId, newRequest } from './model';
 
 /** One sent request, kept so it can be opened again. */
@@ -19,6 +22,16 @@ interface Saved {
   draft: ApiRequest;
   /** The saved request the draft came from, so Save updates it. */
   draftSource: { collectionId: string; requestId: string } | null;
+  columns?: KvColumns;
+}
+
+/**
+ * Fills in params for requests made before params were stored separately, or
+ * made from a URL alone (cURL, Postman without a query list).
+ */
+export function withParams(request: ApiRequest): ApiRequest {
+  if (request.params?.length || !request.url.includes('?')) return { ...request, params: request.params ?? [] };
+  return { ...request, params: paramsFromUrl(request.url) };
 }
 
 const STORAGE_KEY = 'dth-api-client';
@@ -48,6 +61,30 @@ export function findRequest(collections: Collection[], requestId: string): Locat
   return null;
 }
 
+/** The folders from the collection down to the one holding the request. */
+export function folderPath(collection: Collection, requestId: string): Folder[] | null {
+  const walk = (folder: Folder, path: Folder[]): Folder[] | null => {
+    const here = [...path, folder];
+    if (folder.requests.some((r) => r.id === requestId)) return here;
+    for (const child of folder.folders) {
+      const found = walk(child, here);
+      if (found) return found;
+    }
+    return null;
+  };
+  return walk(collection, []);
+}
+
+/** The auth a request set to "Inherit" gets: the nearest folder's, then the collection's. */
+export function inheritedAuth(collection: Collection | undefined, requestId: string | undefined): { auth: Auth; from: string } | null {
+  if (!collection || !requestId) return null;
+  const path = folderPath(collection, requestId) ?? [collection];
+  for (const folder of [...path].reverse()) {
+    if (folder.auth && folder.auth.type !== 'inherit') return { auth: folder.auth, from: folder.name };
+  }
+  return null;
+}
+
 function findFolder(root: Folder, folderId: string): Folder | null {
   if (root.id === folderId) return root;
   for (const child of root.folders) {
@@ -69,12 +106,30 @@ export class ApiStore {
   readonly history = signal<HistoryEntry[]>([]);
   readonly draft = signal<ApiRequest>(newRequest());
   readonly draftSource = signal<{ collectionId: string; requestId: string } | null>(null);
+  /** Optional table columns, shown or hidden for every table. */
+  readonly columns = signal<KvColumns>({ value: true, description: true });
   /** False when the browser refuses storage (some private windows); work is then lost on reload. */
   readonly persistent = signal(true);
 
   readonly activeEnvironment = computed(
     () => this.environments().find((e) => e.id === this.activeEnvironmentId()) ?? null,
   );
+  /** Where an inheriting request gets its auth, for the Authorization tab. */
+  readonly inherited = computed(() => {
+    const source = this.draftSource();
+    const collection = source ? this.collections().find((c) => c.id === source.collectionId) : undefined;
+    return inheritedAuth(collection, source?.requestId);
+  });
+  /** The auth actually sent with the open request. */
+  readonly effectiveAuth = computed<Auth>(() => {
+    const auth = this.draft().auth;
+    if (auth.type !== 'inherit') return auth;
+    return this.inherited()?.auth ?? { type: 'none' };
+  });
+  readonly inheritedSummary = computed(() => {
+    const inherited = this.inherited();
+    return inherited ? `${authLabel(inherited.auth.type)} from ${inherited.from}` : null;
+  });
   /** Variables for the open request: its collection's, then the environment's (which win). */
   readonly variables = computed<KeyValue[][]>(() => {
     const source = this.draftSource();
@@ -90,12 +145,12 @@ export class ApiStore {
   // Open request
 
   open(request: ApiRequest, source: { collectionId: string; requestId: string } | null): void {
-    this.draft.set(cloneRequest(request, { id: request.id }));
+    this.draft.set(withParams(cloneRequest(request, { id: request.id })));
     this.draftSource.set(source);
   }
 
   openNew(request = newRequest()): void {
-    this.draft.set(request);
+    this.draft.set(withParams(request));
     this.draftSource.set(null);
   }
 
@@ -146,6 +201,10 @@ export class ApiStore {
 
   renameCollection(id: string, name: string): void {
     this.collections.update((list) => list.map((c) => (c.id === id ? { ...c, name: name.trim() || c.name } : c)));
+  }
+
+  setCollectionAuth(id: string, auth: Auth): void {
+    this.collections.update((list) => list.map((c) => (c.id === id ? { ...c, auth } : c)));
   }
 
   setCollectionVariables(id: string, variables: KeyValue[]): void {
@@ -228,7 +287,8 @@ export class ApiStore {
       this.environments.set(saved.environments ?? []);
       this.activeEnvironmentId.set(saved.activeEnvironmentId ?? null);
       this.history.set(saved.history ?? []);
-      if (saved.draft) this.draft.set(saved.draft);
+      if (saved.draft) this.draft.set(withParams(saved.draft));
+      if (saved.columns) this.columns.set(saved.columns);
       this.draftSource.set(saved.draftSource ?? null);
     } catch {
       // Unreadable or blocked storage: start empty.
@@ -244,6 +304,7 @@ export class ApiStore {
       history: this.history(),
       draft: this.draft(),
       draftSource: this.draftSource(),
+      columns: this.columns(),
     };
     if (typeof localStorage === 'undefined') return;
     try {

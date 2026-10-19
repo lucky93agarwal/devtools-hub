@@ -8,13 +8,12 @@ export interface KeyValue {
   key: string;
   value: string;
   enabled: boolean;
+  /** A note for people reading the request; never sent. */
+  description?: string;
 }
 
-export type Auth =
-  | { type: 'none' }
-  | { type: 'bearer'; token: string }
-  | { type: 'basic'; username: string; password: string }
-  | { type: 'api-key'; key: string; value: string; addTo: 'header' | 'query' };
+import type { Auth } from './auth';
+export type { Auth } from './auth';
 
 export type BodyMode = 'none' | 'json' | 'text' | 'urlencoded' | 'form-data';
 
@@ -30,8 +29,10 @@ export interface ApiRequest {
   id: string;
   name: string;
   method: Method;
-  /** As typed, query string included; may contain {{variables}}. */
+  /** As typed, query string included; may contain {{variables}}. Holds only the ticked params. */
   url: string;
+  /** All query params, ticked or not, with descriptions; the URL holds the ticked ones. */
+  params: KeyValue[];
   headers: KeyValue[];
   auth: Auth;
   body: RequestBody;
@@ -40,6 +41,8 @@ export interface ApiRequest {
 export interface Folder {
   id: string;
   name: string;
+  /** Auth for requests inside set to "Inherit auth from parent"; missing means inherit further up. */
+  auth?: Auth;
   requests: ApiRequest[];
   folders: Folder[];
 }
@@ -68,6 +71,7 @@ export function newRequest(changes: Partial<ApiRequest> = {}): ApiRequest {
     name: 'New request',
     method: 'GET',
     url: '',
+    params: [],
     headers: [],
     auth: { type: 'none' },
     body: { mode: 'none', raw: '', fields: [] },

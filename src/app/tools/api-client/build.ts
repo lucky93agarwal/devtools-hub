@@ -1,3 +1,4 @@
+import { Auth, SIGNED_TYPES, authText, mapAuthText } from './auth';
 import { ApiRequest, KeyValue, isForbiddenHeader } from './model';
 
 /** Splitting the URL into editable params and back, {{variables}}, and the final fetch() call. */
@@ -21,6 +22,22 @@ export function urlWithParams(url: string, params: KeyValue[]): string {
     .map((p) => (p.value === '' ? encodeLoosely(p.key) : `${encodeLoosely(p.key)}=${encodeLoosely(p.value)}`))
     .join('&');
   return base + (query ? `?${query}` : '') + (hash.length ? `#${hash.join('#')}` : '');
+}
+
+/**
+ * Params after the URL was edited: the URL's params (keeping each one's
+ * description where the key matches), followed by the unticked rows, which the
+ * URL does not hold.
+ */
+export function mergeUrlParams(url: string, previous: KeyValue[]): KeyValue[] {
+  const fromUrl = paramsFromUrl(url);
+  const pool = previous.filter((p) => p.enabled);
+  const merged = fromUrl.map((param) => {
+    const index = pool.findIndex((p) => p.key === param.key);
+    const description = index >= 0 ? pool.splice(index, 1)[0].description : undefined;
+    return description ? { ...param, description } : param;
+  });
+  return [...merged, ...previous.filter((p) => !p.enabled)];
 }
 
 /** Encodes for a query string but leaves {{variables}} readable. */
@@ -68,10 +85,20 @@ export interface PreparedRequest {
   dropped: string[];
   /** {{names}} with no value. */
   unresolved: string[];
+  /** Auth to add when sending (see sign.ts), with variables filled in. */
+  signWith?: Auth;
 }
 
-/** Everything fetch() needs, with variables filled in and auth applied. */
-export function prepareRequest(request: ApiRequest, variables: Map<string, string>): PreparedRequest {
+/**
+ * Everything fetch() needs, with variables filled in and simple auth applied.
+ * `auth` is the auth that applies (a folder's or collection's when the request
+ * inherits); auth that must be signed is left in `signWith` for sending.
+ */
+export function prepareRequest(
+  request: ApiRequest,
+  variables: Map<string, string>,
+  auth: Auth = request.auth,
+): PreparedRequest {
   const fill = (text: string) => resolveVariables(text, variables);
   const unresolved = new Set<string>();
   const track = (text: string) => unresolvedVariables(text, variables).forEach((name) => unresolved.add(name));
@@ -92,17 +119,21 @@ export function prepareRequest(request: ApiRequest, variables: Map<string, strin
     addHeader(fill(row.key.trim()), fill(row.value));
   }
 
-  const auth = request.auth;
-  if (auth.type === 'bearer' && auth.token) {
-    track(auth.token);
-    addHeader('Authorization', `Bearer ${fill(auth.token)}`);
-  } else if (auth.type === 'basic' && (auth.username || auth.password)) {
-    track(auth.username + auth.password);
-    addHeader('Authorization', `Basic ${base64(`${fill(auth.username)}:${fill(auth.password)}`)}`);
-  } else if (auth.type === 'api-key' && auth.key) {
-    track(auth.key + auth.value);
-    if (auth.addTo === 'header') addHeader(fill(auth.key), fill(auth.value));
-    else url = appendQuery(url, fill(auth.key), fill(auth.value));
+  track(authText(auth));
+  const filled = mapAuthText(auth, fill);
+  let signWith: Auth | undefined;
+  if (filled.type === 'bearer' && filled.token) {
+    addHeader('Authorization', `Bearer ${filled.token}`);
+  } else if (filled.type === 'basic' && (filled.username || filled.password)) {
+    addHeader('Authorization', `Basic ${base64(`${filled.username}:${filled.password}`)}`);
+  } else if (filled.type === 'api-key' && filled.key) {
+    if (filled.addTo === 'header') addHeader(filled.key, filled.value);
+    else url = appendQuery(url, filled.key, filled.value);
+  } else if (filled.type === 'oauth2' && filled.accessToken) {
+    if (filled.addTo === 'header') addHeader('Authorization', `${filled.headerPrefix} ${filled.accessToken}`.trim());
+    else url = appendQuery(url, 'access_token', filled.accessToken);
+  } else if (SIGNED_TYPES.includes(filled.type) || filled.type === 'ntlm') {
+    signWith = filled;
   }
 
   const has = (name: string) => headers.some(([key]) => key.toLowerCase() === name);
@@ -133,7 +164,7 @@ export function prepareRequest(request: ApiRequest, variables: Map<string, strin
     }
   }
 
-  return { method: request.method, url, headers, body, bodyText, formFields, dropped, unresolved: [...unresolved] };
+  return { method: request.method, url, headers, body, bodyText, formFields, dropped, unresolved: [...unresolved], signWith };
 }
 
 function appendQuery(url: string, key: string, value: string): string {

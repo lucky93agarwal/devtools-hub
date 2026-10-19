@@ -16,7 +16,7 @@ export interface ApiResponse {
   redirected: boolean;
 }
 
-export type FailureKind = 'mixed-content' | 'offline' | 'blocked' | 'timeout' | 'cancelled' | 'invalid-url';
+export type FailureKind = 'mixed-content' | 'offline' | 'blocked' | 'timeout' | 'cancelled' | 'invalid-url' | 'auth';
 
 export class RequestFailure extends Error {
   constructor(
