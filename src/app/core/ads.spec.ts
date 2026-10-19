@@ -132,9 +132,9 @@ describe('policy text', () => {
     expect(privacy).toContain('ads from Google AdSense');
     expect(privacy).toContain('a consent message from Google asks for your choice');
     expect(privacy).toContain("Google's ad settings");
-    expect(privacy).not.toContain('does not use cookies');
+    expect(privacy).not.toContain('the site does not use cookies');
     const about = await page(AboutPage, ON);
     expect(about).toContain('The site is free because it shows ads');
-    expect(about).not.toContain('does not use cookies');
+    expect(about).not.toContain('the site does not use cookies');
   });
 });

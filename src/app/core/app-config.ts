@@ -5,7 +5,7 @@
 export const SITE_NAME = 'DevTools Hub';
 
 /** Public address of the site, without a trailing slash. Used for canonical links and the sitemap. */
-export const SITE_URL = 'https://devtools-hub.agarwal-lucky93.workers.dev';
+export const SITE_URL = 'https://devtools24.in';
 
 /** Source code and the place to report bugs or ask for tools. */
 export const REPO_URL = 'https://github.com/lucky93agarwal/devtools-hub';
@@ -16,8 +16,8 @@ export const REPO_URL = 'https://github.com/lucky93agarwal/devtools-hub';
  * loads and the privacy policy says so.
  */
 export const ANALYTICS = {
-  umamiScriptUrl: '',
-  umamiWebsiteId: '',
+  umamiScriptUrl: 'https://cloud.umami.is/script.js',
+  umamiWebsiteId: 'bf4bcdb4-c125-4482-a8d5-1ac888e88da2',
 } as const;
 
 /**

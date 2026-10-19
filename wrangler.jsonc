@@ -3,6 +3,12 @@
 {
   "name": "devtools-hub",
   "compatibility_date": "2026-10-01",
+  // The site's own domain. Cloudflare creates the DNS records and certificates;
+  // the zone must be active in this Cloudflare account first.
+  "routes": [
+    { "pattern": "devtools24.in", "custom_domain": true },
+    { "pattern": "www.devtools24.in", "custom_domain": true }
+  ],
   "assets": {
     "directory": "./dist/devtools-hub/browser",
     // Unknown URLs get 404.html with a 404 status (see scripts/postbuild.mjs).

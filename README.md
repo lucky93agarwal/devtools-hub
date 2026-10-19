@@ -4,25 +4,25 @@
 
 Free, privacy-first developer tools that run entirely in the browser. Nothing you paste or upload is sent to a server.
 
-**Live site:** https://devtools-hub.agarwal-lucky93.workers.dev
+**Live site:** https://devtools24.in
 
 ## Tools
 
 | Tool | Status |
 |---|---|
-| [JSON Formatter and Validator](https://devtools-hub.agarwal-lucky93.workers.dev/json-formatter) | Live |
-| [JSON Compare](https://devtools-hub.agarwal-lucky93.workers.dev/json-compare) | Live |
-| [Image Converter](https://devtools-hub.agarwal-lucky93.workers.dev/image-converter) | Live |
-| [Image Resizer](https://devtools-hub.agarwal-lucky93.workers.dev/image-resizer) | Live (exact size, percent, social presets, KB limit) |
-| [Image Cropper](https://devtools-hub.agarwal-lucky93.workers.dev/image-cropper) | Live (shapes, rotate, flip, circle) |
-| [JWT Decoder and Verifier](https://devtools-hub.agarwal-lucky93.workers.dev/jwt) | Live (decode, verify and create) |
-| [Background Remover](https://devtools-hub.agarwal-lucky93.workers.dev/background-remover) | Live |
-| [JSON to Code](https://devtools-hub.agarwal-lucky93.workers.dev/json-to-code) | Live (Kotlin, Java, TypeScript, Dart, Swift, C#, Python, Pydantic, Go, Rust, PHP, Ruby, JSON Schema, Protobuf, GraphQL, SQL) |
-| [Data Converter](https://devtools-hub.agarwal-lucky93.workers.dev/data-converter) | Live (JSON, YAML, XML, CSV both ways) |
-| [API Client](https://devtools-hub.agarwal-lucky93.workers.dev/api-client) | Live (HTTP, GraphQL with schema explorer, WebSocket and Socket.IO requests, collections, environments, all Postman auth types, cURL and Postman import, raw/binary/GraphQL bodies and form-data files, response search, JSON tree with copy, type, JWT and link previews) |
-| [XML Formatter and Validator](https://devtools-hub.agarwal-lucky93.workers.dev/xml-formatter) | Live |
-| [YAML Validator and Formatter](https://devtools-hub.agarwal-lucky93.workers.dev/yaml-validator) | Live |
-| [App Icon Generator](https://devtools-hub.agarwal-lucky93.workers.dev/app-icon-generator) | Live (Android and iOS) |
+| [JSON Formatter and Validator](https://devtools24.in/json-formatter) | Live |
+| [JSON Compare](https://devtools24.in/json-compare) | Live |
+| [Image Converter](https://devtools24.in/image-converter) | Live |
+| [Image Resizer](https://devtools24.in/image-resizer) | Live (exact size, percent, social presets, KB limit) |
+| [Image Cropper](https://devtools24.in/image-cropper) | Live (shapes, rotate, flip, circle) |
+| [JWT Decoder and Verifier](https://devtools24.in/jwt) | Live (decode, verify and create) |
+| [Background Remover](https://devtools24.in/background-remover) | Live |
+| [JSON to Code](https://devtools24.in/json-to-code) | Live (Kotlin, Java, TypeScript, Dart, Swift, C#, Python, Pydantic, Go, Rust, PHP, Ruby, JSON Schema, Protobuf, GraphQL, SQL) |
+| [Data Converter](https://devtools24.in/data-converter) | Live (JSON, YAML, XML, CSV both ways) |
+| [API Client](https://devtools24.in/api-client) | Live (HTTP, GraphQL with schema explorer, WebSocket and Socket.IO requests, collections, environments, all Postman auth types, cURL and Postman import, raw/binary/GraphQL bodies and form-data files, response search, JSON tree with copy, type, JWT and link previews) |
+| [XML Formatter and Validator](https://devtools24.in/xml-formatter) | Live |
+| [YAML Validator and Formatter](https://devtools24.in/yaml-validator) | Live |
+| [App Icon Generator](https://devtools24.in/app-icon-generator) | Live (Android and iOS) |
 | App Icon Generator | Planned |
 
 ## Deployment
@@ -31,7 +31,7 @@ Every push to `main` is tested and deployed automatically.
 
 | What | Where |
 |---|---|
-| Live site | https://devtools-hub.agarwal-lucky93.workers.dev |
+| Live site | https://devtools24.in |
 | Deployment dashboard (Cloudflare Workers) | https://dash.cloudflare.com/909829c17e0b4061fb4da72309180706/workers/services/view/devtools-hub/production/deployments |
 | CI runs (tests and build) | https://github.com/lucky93agarwal/devtools-hub/actions |
 

@@ -9,7 +9,7 @@ import { InfoPage } from './info-page';
   selector: 'app-privacy-page',
   imports: [InfoPage, RouterLink],
   template: `
-    <app-info-page heading="Privacy policy" updated="18 October 2026">
+    <app-info-page heading="Privacy policy" updated="19 October 2026">
       <p>
         {{ siteName }} is a set of developer tools that run in your web browser. This page explains what happens to your
         data when you use the site. In short: the tools do not send your input anywhere, there are no accounts,
