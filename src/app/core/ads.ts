@@ -1,6 +1,7 @@
 import { DOCUMENT, Injectable, InjectionToken, PLATFORM_ID, inject } from '@angular/core';
 import { isPlatformBrowser } from '@angular/common';
-import { ADS } from './app-config';
+import { ADS, SITE_URL } from './app-config';
+import { PAGE_HOST } from './analytics';
 
 export type AdPlacement = keyof typeof ADS.slots;
 
@@ -39,11 +40,13 @@ export class Ads {
   private readonly config = inject(ADS_CONFIG);
   private readonly document = inject(DOCUMENT);
   private readonly browser = isPlatformBrowser(inject(PLATFORM_ID));
+  private readonly pageHost = inject(PAGE_HOST);
   private scheduled = false;
 
   /** Fills an <ins class="adsbygoogle"> that is already in the page. */
   fill(): void {
-    if (!this.browser || !adsEnabled(this.config)) return;
+    // Google serves ads only on the approved site, so local copies and tests load nothing.
+    if (!this.browser || !adsEnabled(this.config) || this.pageHost !== new URL(SITE_URL).hostname) return;
     const view = this.document.defaultView as (Window & AdsWindow) | null;
     if (!view) return;
     // Requests made before the script arrives are queued and served once it loads.

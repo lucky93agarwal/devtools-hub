@@ -1,3 +1,5 @@
+import { PAGE_HOST } from './analytics';
+import { SITE_URL } from './app-config';
 import { Type } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
@@ -17,6 +19,7 @@ describe('ads settings', () => {
     // The shipped config has the publisher ID (for verification and ads.txt) before any ad unit.
     expect(adsEnabled(ADS)).toBe(true);
     expect(adSlot('belowTool', { ...ADS, slots: { belowTool: '', beforeFaq: '' } })).toBeNull();
+    expect(adSlot('belowTool', ADS)).toMatch(/^\d+$/);
   });
 
   it('needs a real publisher ID and numeric slot IDs', () => {
@@ -35,7 +38,12 @@ describe('Ads', () => {
   });
 
   const setup = (config: AdsConfig) => {
-    TestBed.configureTestingModule({ providers: [{ provide: ADS_CONFIG, useValue: config }] });
+    TestBed.configureTestingModule({
+      providers: [
+        { provide: ADS_CONFIG, useValue: config },
+        { provide: PAGE_HOST, useValue: new URL(SITE_URL).hostname },
+      ],
+    });
     return TestBed.inject(Ads);
   };
 
@@ -82,7 +90,7 @@ describe('AdSlot', () => {
   };
 
   it('renders nothing while ads are off', async () => {
-    const { el, fill } = await render(ADS);
+    const { el, fill } = await render(OFF);
     expect(el.innerHTML.replace(/<!--[^>]*-->/g, '').trim()).toBe('');
     expect(fill).not.toHaveBeenCalled();
   });
@@ -99,7 +107,7 @@ describe('AdSlot', () => {
 
   it('shows a dashed preview box with ?ad-preview, without loading any ad', async () => {
     history.replaceState(null, '', '/json-formatter?ad-preview');
-    const { el, fill } = await render(ADS);
+    const { el, fill } = await render(OFF);
     expect(el.querySelector('aside')?.getAttribute('aria-label')).toBe('Advertisement preview');
     expect(el.textContent).toContain('Ad space preview: belowTool');
     expect(el.querySelector('ins')).toBeNull();

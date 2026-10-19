@@ -31,9 +31,9 @@ export const ADS = {
   adsenseClient: 'ca-pub-7468871768869194',
   slots: {
     /** Below the tool, at the start of its explanation. */
-    belowTool: '',
+    belowTool: '1529008897',
     /** Between the "How to use it" steps and the FAQ. */
-    beforeFaq: '',
+    beforeFaq: '4304090909',
   },
 } as const;
 
