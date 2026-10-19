@@ -350,3 +350,12 @@ describe('Body types', () => {
     ]);
   });
 });
+
+describe('status text', () => {
+  it('names status codes that HTTP/2 sends without words', async () => {
+    const { reasonPhrase } = await import('./sender');
+    expect(reasonPhrase(200)).toBe('OK');
+    expect(reasonPhrase(404)).toBe('Not Found');
+    expect(reasonPhrase(299)).toBe('');
+  });
+});
