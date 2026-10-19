@@ -71,8 +71,48 @@ export function normalizeBody(body: Partial<RequestBody> & { mode?: string } = {
   return { ...base, graphql: { ...emptyBody().graphql, ...body.graphql } };
 }
 
+/** What a request talks to: HTTP, or a live WebSocket or Socket.IO connection. */
+export type RequestKind = 'http' | 'websocket' | 'socketio';
+
+export const REQUEST_KINDS: { value: RequestKind; label: string; badge: string }[] = [
+  { value: 'http', label: 'HTTP', badge: 'HTTP' },
+  { value: 'websocket', label: 'WebSocket', badge: 'WS' },
+  { value: 'socketio', label: 'Socket.IO', badge: 'SIO' },
+];
+
+/** Settings for WebSocket and Socket.IO requests. */
+export interface RealtimeSettings {
+  /** The message being written, as text or JSON. */
+  message: string;
+  format: 'text' | 'json';
+  /** Socket.IO: the event to emit, and whether to wait for the server's acknowledgement. */
+  event: string;
+  ack: boolean;
+  /** WebSocket: subprotocols, comma-separated. */
+  protocols: string;
+  /** Socket.IO: the server's path, and the handshake auth as JSON. */
+  path: string;
+  auth: string;
+  /** Messages kept for sending again, as Postman's saved messages. */
+  saved: { name: string; message: string; format: 'text' | 'json'; event: string }[];
+}
+
+export const defaultRealtime = (): RealtimeSettings => ({
+  message: '',
+  format: 'text',
+  event: 'message',
+  ack: false,
+  protocols: '',
+  path: '/socket.io',
+  auth: '',
+  saved: [],
+});
+
 export interface ApiRequest {
   id: string;
+  /** Missing on requests saved before other kinds existed, which are HTTP. */
+  kind?: RequestKind;
+  realtime?: RealtimeSettings;
   name: string;
   method: Method;
   /** As typed, query string included; may contain {{variables}}. Holds only the ticked params. */

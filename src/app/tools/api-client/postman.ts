@@ -456,12 +456,17 @@ function writeFolder(folder: Folder): PostmanItem[] {
       const auth = writeAuth(child.auth);
       return { name: child.name, item: writeFolder(child), ...(auth ? { auth } : {}) };
     }),
-    ...folder.requests.map(writeRequest),
+    // Postman keeps WebSocket and Socket.IO requests outside the v2.1 collection format.
+    ...folder.requests.filter((request) => (request.kind ?? 'http') === 'http').map(writeRequest),
   ];
 }
 
-/** A Postman v2.1 collection file. */
-export function exportPostman(collection: Collection): string {
+const countRealtime = (folder: Folder): number =>
+  folder.requests.filter((request) => (request.kind ?? 'http') !== 'http').length +
+  folder.folders.reduce((sum, child) => sum + countRealtime(child), 0);
+
+/** A Postman v2.1 collection file, and how many live-connection requests it could not hold. */
+export function exportPostman(collection: Collection): { text: string; left: number } {
   const auth = writeAuth(collection.auth);
   const data = {
     info: { name: collection.name, schema: POSTMAN_SCHEMA },
@@ -469,5 +474,5 @@ export function exportPostman(collection: Collection): string {
     item: writeFolder(collection),
     variable: writeRows(collection.variables),
   };
-  return JSON.stringify(data, null, 2) + '\n';
+  return { text: JSON.stringify(data, null, 2) + '\n', left: countRealtime(collection) };
 }

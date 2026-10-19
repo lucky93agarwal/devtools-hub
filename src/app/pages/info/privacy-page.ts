@@ -38,7 +38,8 @@ import { InfoPage } from './info-page';
 
       <h2>Requests you send with the API Client</h2>
       <p>
-        When you send a request with the API Client, your browser sends it directly to the address you entered. It does
+        When you send a request with the API Client, or open a WebSocket or Socket.IO connection with it, your browser
+        sends it directly to the address you entered. It does
         not pass through this site. That service receives the request, including any tokens or data in it, under its own
         privacy policy. When you hover or open a link in a response to preview or download it, your browser loads that
         file straight from the server it points to.

@@ -222,7 +222,7 @@ describe('Postman import and export of every auth type', () => {
     const requests = types.map((type) => newRequest({ name: type, url: 'https://x.dev', auth: defaultAuth(type) }));
     requests.push(newRequest({ name: 'inherits', auth: { type: 'inherit' } }));
     const collection = { id: 'c', name: 'All', requests, folders: [], variables: [], auth: { type: 'bearer' as const, token: 't' } };
-    const back = importPostman(exportPostman(collection));
+    const back = importPostman(exportPostman(collection).text);
     expect(back.skipped).toEqual([]);
     expect(back.collection.auth).toEqual({ type: 'bearer', token: 't' });
     expect(back.collection.requests.map((r) => r.auth)).toEqual(requests.map((r) => r.auth));
@@ -236,7 +236,7 @@ describe('Postman import and export of every auth type', () => {
         { key: 'debug', value: 'true', enabled: false },
       ],
     });
-    const back = importPostman(exportPostman({ id: 'c', name: 'P', requests: [request], folders: [], variables: [] }));
+    const back = importPostman(exportPostman({ id: 'c', name: 'P', requests: [request], folders: [], variables: [] }).text);
     expect(back.collection.requests[0].params).toEqual(request.params);
   });
 });

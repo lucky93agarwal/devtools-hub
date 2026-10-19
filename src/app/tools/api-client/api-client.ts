@@ -7,7 +7,7 @@ import { copyText, downloadBlob, downloadText, formatBytes } from '../../shared/
 import { ICONS, Icon } from '../../shared/icon/icon';
 import { ToolInfoSection } from '../../shared/tool-info/tool-info';
 import { mergeUrlParams, prepareRequest, resolveVariables, urlWithParams, variableMap } from './build';
-import { API_CLIENT_CONTENT, SAMPLE_PATH, SAMPLE_REQUEST } from './content';
+import { API_CLIENT_CONTENT, SAMPLE_PATH, SAMPLE_REQUEST, WEBSOCKET_SAMPLE_URL } from './content';
 import { nameFromUrl, parseCurl, toCurl, toFetchCode } from './curl';
 import { KvTable } from './kv-table';
 import { JsonView } from './json-view';
@@ -25,7 +25,24 @@ import { parseTree } from '../json-formatter/json-tree';
 import { AuthEditor } from './auth-editor';
 import { Auth } from './auth';
 import { AuthError, signRequest } from './sign';
-import { ApiRequest, BodyMode, Collection, Folder, KeyValue, METHODS, Method, RAW_LANGUAGES, RawLanguage, RequestBody, cloneRequest, newRequest } from './model';
+import {
+  ApiRequest,
+  BodyMode,
+  Collection,
+  Folder,
+  KeyValue,
+  METHODS,
+  Method,
+  RAW_LANGUAGES,
+  REQUEST_KINDS,
+  RawLanguage,
+  RequestBody,
+  RequestKind,
+  cloneRequest,
+  defaultRealtime,
+  newRequest,
+} from './model';
+import { RealtimePanel } from './realtime-panel';
 import { fileFor, keepFile } from './body-files';
 import { exportPostman, importPostman } from './postman';
 import { ApiResponse, ApiSender, RequestFailure } from './sender';
@@ -45,9 +62,14 @@ interface TreeRow {
   id: string;
   name: string;
   depth: number;
-  method?: Method;
+  /** The method, or WS / SIO for live connections. */
+  method?: string;
   collectionId: string;
 }
+
+/** What the sidebar shows before a request's name. */
+const badgeOf = (request: ApiRequest) =>
+  request.kind && request.kind !== 'http' ? (REQUEST_KINDS.find((k) => k.value === request.kind)?.badge ?? 'WS') : request.method;
 
 const METHOD_COLOURS: Record<string, string> = {
   GET: 'text-success',
@@ -57,12 +79,14 @@ const METHOD_COLOURS: Record<string, string> = {
   DELETE: 'text-danger',
   HEAD: 'text-muted',
   OPTIONS: 'text-muted',
+  WS: 'text-warning',
+  SIO: 'text-warning',
 };
 
 @Component({
   selector: 'app-api-client',
   host: { '(document:click)': 'closeMenus($event)' },
-  imports: [Icon, CodeEditor, ToolInfoSection, KvTable, AuthEditor, JsonView, SearchBox],
+  imports: [Icon, CodeEditor, ToolInfoSection, KvTable, AuthEditor, JsonView, SearchBox, RealtimePanel],
   templateUrl: './api-client.html',
 })
 export class ApiClient {
@@ -133,6 +157,14 @@ export class ApiClient {
   });
   protected readonly formatOption = computed(() => RESPONSE_FORMATS.find((f) => f.value === this.responseFormat())!);
   protected readonly formatMenu = signal(false);
+  protected readonly newMenu = signal(false);
+  protected readonly requestKinds = REQUEST_KINDS;
+  protected readonly kindHints: Record<RequestKind, string> = {
+    http: 'REST and other HTTP APIs',
+    websocket: 'A live two-way connection',
+    socketio: 'Events with a Socket.IO server',
+  };
+  protected readonly isHttp = computed(() => (this.draft().kind ?? 'http') === 'http');
   protected readonly previewKind = computed(() => {
     const response = this.response();
     return response ? previewKind(response.contentType, response.text !== null) : 'none';
@@ -469,7 +501,9 @@ export class ApiClient {
 
   /** Closes the format menu on a click anywhere else. */
   protected closeMenus(event: MouseEvent): void {
-    if (this.formatMenu() && !(event.target as HTMLElement).closest('[data-format-menu]')) this.formatMenu.set(false);
+    const target = event.target as HTMLElement;
+    if (this.formatMenu() && !target.closest('[data-format-menu]')) this.formatMenu.set(false);
+    if (this.newMenu() && !target.closest('[data-new-menu]')) this.newMenu.set(false);
   }
 
   protected stepSearch(direction: 1 | -1): void {
@@ -516,10 +550,25 @@ export class ApiClient {
     this.result.set({ kind: 'idle' });
   }
 
-  protected newRequest(): void {
-    this.store.openNew();
+  protected newRequest(kind: RequestKind = 'http'): void {
+    this.newMenu.set(false);
+    this.panel.set(null);
+    this.store.openNew(
+      kind === 'http' ? newRequest() : newRequest({ kind, name: `New ${kind === 'websocket' ? 'WebSocket' : 'Socket.IO'} request`, realtime: defaultRealtime() }),
+    );
     this.result.set({ kind: 'idle' });
     this.requestTab.set('params');
+  }
+
+  protected loadWebSocketSample(): void {
+    this.store.openNew(
+      newRequest({
+        kind: 'websocket',
+        name: 'Echo server',
+        url: WEBSOCKET_SAMPLE_URL,
+        realtime: { ...defaultRealtime(), format: 'json', message: '{\n  "type": "hello",\n  "text": "Hi from DevTools Hub"\n}' },
+      }),
+    );
   }
 
   protected loadSample(): void {
@@ -575,7 +624,11 @@ export class ApiClient {
   }
 
   protected exportCollection(collection: Collection): void {
-    downloadText(exportPostman(collection), `${collection.name.replace(/[^\w.-]+/g, '-')}.postman_collection.json`);
+    const { text, left } = exportPostman(collection);
+    downloadText(text, `${collection.name.replace(/[^\w.-]+/g, '-')}.postman_collection.json`);
+    this.note.set(
+      left ? `${left} WebSocket or Socket.IO ${left === 1 ? 'request was' : 'requests were'} left out: Postman's collection file only holds HTTP requests.` : '',
+    );
   }
 
   protected rename(kind: 'collection' | 'request', id: string, current: string, value: string): void {
@@ -660,7 +713,7 @@ function flatten(collection: Collection): TreeRow[] {
       walk(child, depth + 1);
     }
     for (const request of folder.requests) {
-      rows.push({ kind: 'request', id: request.id, name: request.name, depth, method: request.method, collectionId: collection.id });
+      rows.push({ kind: 'request', id: request.id, name: request.name, depth, method: badgeOf(request), collectionId: collection.id });
     }
   };
   walk(collection, 0);

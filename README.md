@@ -19,7 +19,7 @@ Free, privacy-first developer tools that run entirely in the browser. Nothing yo
 | [Background Remover](https://devtools-hub.agarwal-lucky93.workers.dev/background-remover) | Live |
 | [JSON to Code](https://devtools-hub.agarwal-lucky93.workers.dev/json-to-code) | Live (Kotlin, Java, TypeScript, Dart, Swift, C#, Python, Pydantic, Go, Rust, PHP, Ruby, JSON Schema, Protobuf, GraphQL, SQL) |
 | [Data Converter](https://devtools-hub.agarwal-lucky93.workers.dev/data-converter) | Live (JSON, YAML, XML, CSV both ways) |
-| [API Client](https://devtools-hub.agarwal-lucky93.workers.dev/api-client) | Live (collections, environments, all Postman auth types, cURL and Postman import, raw/binary/GraphQL bodies and form-data files, response search, JSON tree with copy, type, JWT and link previews) |
+| [API Client](https://devtools-hub.agarwal-lucky93.workers.dev/api-client) | Live (HTTP, WebSocket and Socket.IO requests, collections, environments, all Postman auth types, cURL and Postman import, raw/binary/GraphQL bodies and form-data files, response search, JSON tree with copy, type, JWT and link previews) |
 | [XML Formatter and Validator](https://devtools-hub.agarwal-lucky93.workers.dev/xml-formatter) | Live |
 | [YAML Validator and Formatter](https://devtools-hub.agarwal-lucky93.workers.dev/yaml-validator) | Live |
 | [App Icon Generator](https://devtools-hub.agarwal-lucky93.workers.dev/app-icon-generator) | Live (Android and iOS) |

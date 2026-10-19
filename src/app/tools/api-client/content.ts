@@ -8,6 +8,8 @@ import { ApiRequest } from './model';
  * to try the tree's hover previews on. The URL is made absolute when it is loaded.
  */
 export const SAMPLE_PATH = '/samples/api-demo.json';
+/** A public WebSocket server that sends every message back. */
+export const WEBSOCKET_SAMPLE_URL = 'wss://echo.websocket.org';
 export const SAMPLE_REQUEST: Partial<ApiRequest> = {
   name: 'Sample response',
   method: 'GET',

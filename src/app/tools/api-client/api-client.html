@@ -207,6 +207,7 @@
         }
       </div>
 
+      @if (isHttp()) {
       <form class="flex flex-wrap gap-2 sm:flex-nowrap" (submit)="$event.preventDefault(); send()">
         <div
           class="flex min-w-0 flex-1 basis-full overflow-hidden rounded-xl border border-line bg-surface focus-within:border-brand sm:basis-auto"
@@ -239,12 +240,44 @@
         }
         <button type="button" class="btn-secondary" (click)="startSave()">Save</button>
       </form>
+      }
 
       <div class="flex flex-wrap items-center gap-2">
-        <button type="button" class="btn-small" (click)="newRequest()">New</button>
-        <button type="button" class="btn-small" (click)="panel.set(panel() === 'curl' ? null : 'curl')">Import cURL</button>
-        <button type="button" class="btn-small" (click)="panel.set(panel() === 'code' ? null : 'code')">Code</button>
-        <button type="button" class="btn-small" (click)="loadSample()">Sample request</button>
+        <div class="relative" data-new-menu>
+          <button
+            type="button"
+            class="btn-small"
+            aria-haspopup="menu"
+            [attr.aria-expanded]="newMenu()"
+            (click)="newMenu.set(!newMenu())"
+          >
+            New
+            <svg viewBox="0 0 24 24" class="size-4" aria-hidden="true"><path d="M6 9l6 6 6-6" fill="none" stroke="currentColor" stroke-width="2" /></svg>
+          </button>
+          @if (newMenu()) {
+            <div class="absolute top-full left-0 z-30 mt-1 flex w-60 flex-col rounded-xl border border-line bg-page p-1 text-sm shadow-lg" role="menu" aria-label="New request">
+              @for (kind of requestKinds; track kind.value) {
+                <button type="button" role="menuitem" class="flex items-center gap-3 rounded-lg px-2 py-1.5 text-left hover:bg-surface" (click)="newRequest(kind.value)">
+                  <span class="w-9 font-mono text-xs font-bold text-brand">{{ kind.badge }}</span>
+                  <span class="flex flex-col">
+                    <span class="font-semibold">{{ kind.label }}</span>
+                    <span class="text-xs text-muted">{{ kindHints[kind.value] }}</span>
+                  </span>
+                </button>
+              }
+            </div>
+          }
+        </div>
+        @if (isHttp()) {
+          <button type="button" class="btn-small" (click)="panel.set(panel() === 'curl' ? null : 'curl')">Import cURL</button>
+          <button type="button" class="btn-small" (click)="panel.set(panel() === 'code' ? null : 'code')">Code</button>
+          <button type="button" class="btn-small" (click)="loadSample()">Sample request</button>
+        } @else {
+          <button type="button" class="btn-small" (click)="startSave()">Save</button>
+          @if (draft().kind === 'websocket') {
+            <button type="button" class="btn-small" (click)="loadWebSocketSample()">Sample request</button>
+          }
+        }
         @if (copied()) {
           <span class="text-sm font-semibold text-success" aria-live="polite">{{ copied() }}</span>
         }
@@ -334,6 +367,7 @@
         }
       </div>
 
+      @if (isHttp()) {
       <!-- Request settings -->
       <div class="flex flex-col gap-3">
         <div class="flex flex-wrap gap-1 border-b border-line" role="tablist" aria-label="Request settings">
@@ -823,6 +857,15 @@
           }
         }
       </section>
+      } @else {
+        <app-realtime-panel
+          [request]="draft()"
+          [variables]="variables()"
+          [columns]="store.columns()"
+          (columnsChange)="store.columns.set($event)"
+          (requestChange)="store.update($event)"
+        />
+      }
     </section>
   </div>
 

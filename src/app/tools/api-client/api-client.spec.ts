@@ -125,6 +125,13 @@ describe('ApiClient', () => {
       input.dispatchEvent(new Event(event));
       await settle();
     };
+    /** Opens the New menu and picks a request kind. */
+    const newOf = async (label: string) => {
+      [...el.querySelectorAll<HTMLButtonElement>('button')].find((b) => b.textContent!.trim() === 'New')!.click();
+      await settle();
+      [...el.querySelectorAll<HTMLButtonElement>('[role=menuitem]')].find((b) => b.textContent!.includes(label))!.click();
+      await settle();
+    };
     /** Opens the response format menu and picks a format. */
     const chooseFormat = async (label: string) => {
       el.querySelector<HTMLButtonElement>('button[aria-label^="Format: "]')!.click();
@@ -136,7 +143,7 @@ describe('ApiClient', () => {
       await settle();
     };
     const editors = () => fixture.debugElement.queryAll(By.directive(FakeCodeEditor)).map((d) => d.componentInstance as FakeCodeEditor);
-    return { fixture, el, settle, text, click, type, editors, chooseFormat, store: TestBed.inject(ApiStore) };
+    return { fixture, el, settle, text, click, type, editors, chooseFormat, newOf, store: TestBed.inject(ApiStore) };
   }
 
   it('sends a request and shows the status, time, size and the body in each format', async () => {
@@ -310,13 +317,13 @@ describe('ApiClient', () => {
   });
 
   it('saves a request into a collection and opens it from the sidebar', async () => {
-    const { el, click, type, store, text } = await setup();
+    const { el, click, type, store, text, newOf } = await setup();
     await type('input[aria-label=URL]', 'https://x.dev/users');
     await click('Save');
     await click('Save request');
     expect(store.collections()[0].requests[0].name).toBe('GET /users');
     expect(text()).toContain('Saved in a collection');
-    await click('New');
+    await newOf('HTTP');
     expect(store.draft().url).toBe('');
     [...el.querySelectorAll('aside button')].find((b) => b.textContent?.includes('GET /users'))!.dispatchEvent(new Event('click'));
     await new Promise((resolve) => setTimeout(resolve));
@@ -328,7 +335,7 @@ describe('ApiClient', () => {
     const collection = { id: 'c', name: 'Shop', requests: [newRequest({ name: 'Orders', url: '{{base}}/orders' })], folders: [], variables: [] };
     const input = el.querySelector<HTMLInputElement>('aside input[type=file]')!;
     Object.defineProperty(input, 'files', {
-      value: [new File([exportPostman(collection)], 'shop.postman_collection.json', { type: 'application/json' })],
+      value: [new File([exportPostman(collection).text], 'shop.postman_collection.json', { type: 'application/json' })],
       configurable: true,
     });
     input.dispatchEvent(new Event('change'));

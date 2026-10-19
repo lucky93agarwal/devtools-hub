@@ -361,6 +361,53 @@ test('API Client sends raw, GraphQL and binary bodies', async ({ page }) => {
   await expect(page.locator('pre').first()).toContainText(`--form 'avatar=@"cat.png"'`);
 });
 
+test('API Client talks to a WebSocket server', async ({ page }) => {
+  // A stand-in echo server, so the test does not depend on the internet.
+  await page.routeWebSocket('wss://echo.test/', (ws) => {
+    ws.onMessage((message) => ws.send(`echo: ${message}`));
+  });
+  await page.goto('/api-client');
+  await page.getByRole('button', { name: 'New', exact: true }).click();
+  await page.getByRole('menuitem', { name: /WebSocket/ }).click();
+  await page.getByLabel('URL').fill('wss://echo.test/');
+  await page.getByRole('button', { name: 'Connect' }).click();
+  await expect(page.getByText('Connected', { exact: true })).toBeVisible();
+  await typeInEditor(page, 'Message', 'hello');
+  await page.getByRole('button', { name: 'Send', exact: true }).click();
+  const log = page.getByRole('list', { name: 'Message log' });
+  await expect(log).toContainText('echo: hello');
+  await page.getByRole('button', { name: 'Disconnect' }).click();
+  await expect(log).toContainText('Disconnected: 1000');
+});
+
+test('API Client emits and receives Socket.IO events', async ({ page }) => {
+  // Speaks just enough of the Engine.IO 4 and Socket.IO 5 protocol for one exchange.
+  await page.routeWebSocket(/sio\.test\/socket\.io\//, (ws) => {
+    ws.send('0{"sid":"s1","upgrades":[],"pingInterval":25000,"pingTimeout":20000,"maxPayload":1000000}');
+    ws.onMessage((message) => {
+      const text = String(message);
+      if (text.startsWith('40')) ws.send('40{"sid":"n1"}');
+      else if (text.startsWith('42')) {
+        const [event, data] = JSON.parse(text.slice(2));
+        ws.send(`42${JSON.stringify(['reply', { got: event, data }])}`);
+      }
+    });
+  });
+  await page.goto('/api-client');
+  await page.getByRole('button', { name: 'New', exact: true }).click();
+  await page.getByRole('menuitem', { name: /Socket\.IO/ }).click();
+  await page.getByLabel('URL').fill('https://sio.test');
+  await page.getByRole('button', { name: 'Connect' }).click();
+  await expect(page.getByText('Connected', { exact: true })).toBeVisible();
+  await page.getByLabel('Event name').fill('chat');
+  await page.getByLabel('Message format').selectOption('json');
+  await typeInEditor(page, 'Message', '{"text": "hi"}');
+  await page.getByRole('button', { name: 'Send', exact: true }).click();
+  const log = page.getByRole('list', { name: 'Message log' });
+  await expect(log.getByText('reply', { exact: true })).toBeVisible();
+  await expect(log).toContainText('"got": "chat"');
+});
+
 test('API Client params support descriptions, bulk edit and hiding columns', async ({ page }) => {
   await page.goto('/api-client');
   await page.getByLabel('URL').fill('https://api.example.com/users?page=2');

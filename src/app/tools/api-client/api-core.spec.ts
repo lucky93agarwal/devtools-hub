@@ -237,13 +237,13 @@ describe('Postman collections', () => {
 
   it('exports v2.1 that imports back the same', () => {
     const { collection } = importPostman(JSON.stringify(postman));
-    const again = importPostman(exportPostman(collection)).collection;
+    const again = importPostman(exportPostman(collection).text).collection;
     expect(again.folders[0].requests.map((r) => [r.name, r.method, r.url, r.auth.type])).toEqual([
       ['userinfo', 'GET', '{{base}}/oauth/userinfo', 'inherit'],
       ['token', 'POST', '{{base}}/oauth/token', 'none'],
     ]);
     expect(again.auth).toEqual({ type: 'bearer', token: '{{token}}' });
-    expect(JSON.parse(exportPostman(collection)).info.schema).toContain('v2.1.0');
+    expect(JSON.parse(exportPostman(collection).text).info.schema).toContain('v2.1.0');
   });
 });
 
@@ -340,7 +340,7 @@ describe('Body types', () => {
     expect(bin.body).toMatchObject({ mode: 'binary', file: { name: 'report.pdf' } });
     expect(form.body.fields[0]).toMatchObject({ key: 'photo', type: 'file', file: { name: 'cat.png' } });
 
-    const again = importPostman(exportPostman(imported.collection)).collection.requests;
+    const again = importPostman(exportPostman(imported.collection).text).collection.requests;
     expect(again.map((r) => r.body.mode)).toEqual(['raw', 'graphql', 'binary', 'form-data']);
     expect(again[0].body.language).toBe('xml');
     expect(again[2].body.file?.name).toBe('report.pdf');
