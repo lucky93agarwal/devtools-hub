@@ -6,9 +6,11 @@ import { copyText, downloadBlob, downloadText, formatBytes } from '../../shared/
 import { ICONS, Icon } from '../../shared/icon/icon';
 import { ToolInfoSection } from '../../shared/tool-info/tool-info';
 import { mergeUrlParams, prepareRequest, resolveVariables, urlWithParams, variableMap } from './build';
-import { API_CLIENT_CONTENT, SAMPLE_REQUEST } from './content';
+import { API_CLIENT_CONTENT, SAMPLE_PATH, SAMPLE_REQUEST } from './content';
 import { nameFromUrl, parseCurl, toCurl, toFetchCode } from './curl';
 import { KvTable } from './kv-table';
+import { JsonView } from './json-view';
+import { parseTree } from '../json-formatter/json-tree';
 import { AuthEditor } from './auth-editor';
 import { Auth } from './auth';
 import { AuthError, signRequest } from './sign';
@@ -47,7 +49,7 @@ const METHOD_COLOURS: Record<string, string> = {
 
 @Component({
   selector: 'app-api-client',
-  imports: [Icon, CodeEditor, ToolInfoSection, KvTable, AuthEditor],
+  imports: [Icon, CodeEditor, ToolInfoSection, KvTable, AuthEditor, JsonView],
   templateUrl: './api-client.html',
 })
 export class ApiClient {
@@ -71,6 +73,8 @@ export class ApiClient {
   protected readonly sideTab = signal<SideTab>('collections');
   protected readonly responseTab = signal<'body' | 'headers'>('body');
   protected readonly pretty = signal(true);
+  /** JSON bodies show as a tree, or as text in the editor. */
+  protected readonly bodyView = signal<'tree' | 'raw'>('tree');
   protected readonly result = signal<Result>({ kind: 'idle' });
   protected readonly note = signal('');
   protected readonly copied = signal('');
@@ -111,6 +115,17 @@ export class ApiClient {
       }
     }
     return response.text;
+  });
+  /** The JSON body as a tree, or null when the body is not valid JSON. */
+  protected readonly responseTree = computed(() => {
+    const text = this.response()?.text;
+    if (!text || this.responseLanguage() !== 'json') return null;
+    try {
+      JSON.parse(text);
+      return parseTree(text);
+    } catch {
+      return null;
+    }
   });
   protected readonly responseLanguage = computed(() => {
     const type = this.response()?.contentType ?? '';
@@ -335,8 +350,9 @@ export class ApiClient {
   }
 
   protected loadSample(): void {
-    this.store.openNew(newRequest(SAMPLE_REQUEST));
+    this.store.openNew(newRequest({ ...SAMPLE_REQUEST, url: new URL(SAMPLE_PATH, location.href).href }));
     this.result.set({ kind: 'idle' });
+    void this.send();
   }
 
   // cURL and code

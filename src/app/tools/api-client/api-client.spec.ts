@@ -136,10 +136,58 @@ describe('ApiClient', () => {
     expect(sent[0]).toMatchObject({ method: 'GET', url: 'https://api.example.com/posts/1?x=1' });
     expect(text()).toContain('200 OK');
     expect(text()).toContain('42 ms');
+    // JSON opens as a tree; Raw shows the text in the editor.
+    expect(el.querySelector('app-json-view')!.textContent).toContain('"title": "Hello"');
+    await click('raw');
     expect(editors().at(-1)!.value()).toBe('{\n  "id": 1,\n  "title": "Hello"\n}');
     expect(track).toHaveBeenCalledWith('api-send', { method: 'GET', status: '2xx' });
     // The URL's params show in the Params tab.
     expect([...el.querySelectorAll<HTMLInputElement>('app-kv-table input[type=text]')].map((i) => i.value)).toContain('x');
+  });
+
+  it('copies any part of a JSON response and shows a key\'s type on hover', async () => {
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true });
+    const { el, click, type, settle, text } = await setup();
+    reply = async () => okResponse({ text: '{"user":{"id":7,"name":"Asha"},"list":[1,2]}' });
+    await type('input[aria-label=URL]', 'https://api.example.com/me');
+    await click('Send');
+    el.querySelector<HTMLButtonElement>('button[aria-label="Copy $.user"]')!.click();
+    await settle();
+    expect(writeText).toHaveBeenCalledWith('{\n  "id": 7,\n  "name": "Asha"\n}');
+    expect(text()).toContain('"user" copied');
+
+    el.querySelector<HTMLButtonElement>('button[aria-label="Collapse $.user"]')!.click();
+    await settle();
+    expect(text()).toContain('{…}');
+    expect(text()).not.toContain('"Asha"');
+
+    el.querySelector<HTMLElement>('[aria-label="Type of $.list"]')!.dispatchEvent(new Event('focus'));
+    await settle();
+    const popover = el.querySelector('[role=dialog]')!;
+    expect(popover.textContent).toContain('array');
+    expect(popover.textContent).toContain('2 items, all numbers');
+  });
+
+  it('decodes a JWT in a response when it is clicked', async () => {
+    const { el, click, type, settle } = await setup();
+    const token =
+      'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiaWF0IjoxNTE2MjM5MDIyfQ.' +
+      'SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c';
+    reply = async () => okResponse({ text: `{"token":"${token}","photo":"https://x.dev/a.png"}` });
+    await type('input[aria-label=URL]', 'https://api.example.com/login');
+    await click('Send');
+    el.querySelector<HTMLElement>('[aria-label="Decode token at $.token"]')!.click();
+    await settle();
+    const popover = el.querySelector('[role=dialog]')!;
+    expect(popover.textContent).toContain('HS256');
+    expect(popover.textContent).toContain('"name": "John Doe"');
+    expect(popover.textContent).toContain('No expiry');
+
+    el.querySelector<HTMLElement>('[aria-label="Preview link at $.photo"]')!.click();
+    await settle();
+    expect(el.querySelector('[role=dialog] img')!.getAttribute('src')).toBe('https://x.dev/a.png');
+    expect(el.querySelector('[role=dialog]')!.textContent).toContain('Download');
   });
 
   it('explains a blocked request and offers cURL', async () => {

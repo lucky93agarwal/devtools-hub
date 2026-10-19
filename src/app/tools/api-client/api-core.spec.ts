@@ -194,7 +194,14 @@ describe('Postman collections', () => {
           },
         ],
       },
-      { name: 'oauth2 one', request: { method: 'GET', url: 'https://x.dev', auth: { type: 'oauth2' } } },
+      {
+        name: 'oauth2 one',
+        request: {
+          method: 'GET',
+          url: 'https://x.dev',
+          auth: { type: 'oauth2', oauth2: [{ key: 'grant_type', value: 'authorization_code', type: 'string' }] },
+        },
+      },
     ],
   };
 
@@ -204,13 +211,16 @@ describe('Postman collections', () => {
     expect(requests).toBe(3);
     expect(collection.variables).toEqual([{ key: 'base', value: 'https://sso.example.com', enabled: true }]);
     const [userinfo, token] = collection.folders[0].requests;
-    expect(userinfo).toMatchObject({ name: 'userinfo', method: 'GET', url: '{{base}}/oauth/userinfo', auth: { type: 'bearer', token: '{{token}}' } });
+    // A request without its own auth inherits the collection's, as in Postman.
+    expect(userinfo).toMatchObject({ name: 'userinfo', method: 'GET', url: '{{base}}/oauth/userinfo', auth: { type: 'inherit' } });
+    expect(collection.auth).toEqual({ type: 'bearer', token: '{{token}}' });
     expect(token.auth).toEqual({ type: 'none' });
     expect(token.body.fields).toEqual([
       { key: 'grant_type', value: 'password', enabled: true },
       { key: 'scope', value: 'x', enabled: false },
     ]);
-    expect(skipped).toEqual(['oauth2 auth']);
+    // The browser cannot run the authorization code flow, so the import says so.
+    expect(skipped).toEqual(['OAuth 2.0 "authorization_code" token flow']);
   });
 
   it('reads v2.0 auth written as an object', () => {
@@ -227,9 +237,10 @@ describe('Postman collections', () => {
     const { collection } = importPostman(JSON.stringify(postman));
     const again = importPostman(exportPostman(collection)).collection;
     expect(again.folders[0].requests.map((r) => [r.name, r.method, r.url, r.auth.type])).toEqual([
-      ['userinfo', 'GET', '{{base}}/oauth/userinfo', 'bearer'],
+      ['userinfo', 'GET', '{{base}}/oauth/userinfo', 'inherit'],
       ['token', 'POST', '{{base}}/oauth/token', 'none'],
     ]);
+    expect(again.auth).toEqual({ type: 'bearer', token: '{{token}}' });
     expect(JSON.parse(exportPostman(collection)).info.schema).toContain('v2.1.0');
   });
 });

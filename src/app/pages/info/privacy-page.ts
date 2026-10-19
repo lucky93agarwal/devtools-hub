@@ -40,7 +40,8 @@ import { InfoPage } from './info-page';
       <p>
         When you send a request with the API Client, your browser sends it directly to the address you entered. It does
         not pass through this site. That service receives the request, including any tokens or data in it, under its own
-        privacy policy.
+        privacy policy. When you hover or open a link in a response to preview or download it, your browser loads that
+        file straight from the server it points to.
       </p>
 
       <h2>Hosting and server logs</h2>

@@ -289,6 +289,8 @@ test('API Client sends a real request and shows the response', async ({ page }) 
   await page.getByLabel('URL').fill(`${new URL(page.url()).origin}/site.webmanifest?v=1`);
   await page.getByRole('button', { name: 'Send', exact: true }).click();
   await expect(page.getByText('200 OK')).toBeVisible();
+  await expect(page.locator('app-json-view')).toContainText('"name": "DevTools Hub"');
+  await page.getByRole('button', { name: 'raw', exact: true }).click();
   await expect(page.locator('app-code-editor').last()).toContainText('"name": "DevTools Hub"');
   await page.getByRole('tab', { name: /Headers \(\d+\)/ }).click();
   await expect(page.getByRole('cell', { name: 'content-type' })).toBeVisible();
@@ -299,6 +301,31 @@ test('API Client sends a real request and shows the response', async ({ page }) 
   await page.getByRole('button', { name: 'Save', exact: true }).click();
   await page.getByRole('button', { name: 'Save request' }).click();
   await expect(page.getByText('Saved in a collection')).toBeVisible();
+});
+
+test('API Client sample response shows types, tokens and copies any part', async ({ page, context }) => {
+  await context.grantPermissions(['clipboard-read', 'clipboard-write']);
+  await page.goto('/api-client');
+  await page.getByRole('button', { name: 'Sample request' }).click();
+  await expect(page.getByText('200 OK')).toBeVisible();
+  const tree = page.locator('app-json-view');
+
+  await tree.getByLabel('Type of $.user.roles', { exact: true }).hover();
+  await expect(page.getByRole('dialog')).toContainText('2 items, all strings');
+
+  await tree.getByLabel('Decode token at $.auth.accessToken', { exact: true }).click();
+  const token = page.getByRole('dialog', { name: 'Decoded token' });
+  await expect(token).toContainText('"name": "Asha Verma"');
+  await expect(token).toContainText('Active');
+  // A clicked popover stays open while the mouse moves away.
+  await page.mouse.move(5, 5);
+  await expect(token).toBeVisible();
+  await token.getByRole('button', { name: 'Close' }).click();
+  await expect(token).toBeHidden();
+
+  await tree.getByRole('button', { name: 'Copy $.user.address', exact: true }).click();
+  await expect(tree).toContainText('"address" copied');
+  expect(await page.evaluate(() => navigator.clipboard.readText())).toContain('"city": "Jaipur"');
 });
 
 test('API Client params support descriptions, bulk edit and hiding columns', async ({ page }) => {

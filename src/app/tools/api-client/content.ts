@@ -2,11 +2,15 @@
 import { ToolContent } from '../../shared/tool-info/tool-info';
 import { ApiRequest } from './model';
 
-/** A free public test API that allows calls from browsers. */
+/**
+ * A response served by this site (public/samples/api-demo.json), so it always works.
+ * It holds tokens, links to images, a PDF, video and audio, dates and nested data
+ * to try the tree's hover previews on. The URL is made absolute when it is loaded.
+ */
+export const SAMPLE_PATH = '/samples/api-demo.json';
 export const SAMPLE_REQUEST: Partial<ApiRequest> = {
-  name: 'Get a post',
+  name: 'Sample response',
   method: 'GET',
-  url: 'https://jsonplaceholder.typicode.com/posts/1',
   headers: [{ key: 'Accept', value: 'application/json', enabled: true }],
 };
 

@@ -582,7 +582,29 @@
                     {{ tab.label }}
                   </button>
                 }
-                @if (responseTab() === 'body' && responseLanguage() === 'json') {
+                @if (responseTab() === 'body' && responseTree()) {
+                  <div class="ml-auto flex items-center gap-3">
+                    <div class="flex rounded-full border border-line p-0.5 text-sm" role="group" aria-label="Body view">
+                      @for (view of ['tree', 'raw']; track view) {
+                        <button
+                          type="button"
+                          class="rounded-full px-3 py-0.5 font-semibold capitalize"
+                          [class]="bodyView() === view ? 'bg-brand text-on-brand' : 'text-muted hover:text-ink'"
+                          [attr.aria-pressed]="bodyView() === view"
+                          (click)="bodyView.set($any(view))"
+                        >
+                          {{ view }}
+                        </button>
+                      }
+                    </div>
+                    @if (bodyView() === 'raw') {
+                      <label class="flex items-center gap-2 text-sm">
+                        <input type="checkbox" class="size-4 accent-brand" [checked]="pretty()" (change)="pretty.set($any($event.target).checked)" />
+                        Pretty
+                      </label>
+                    }
+                  </div>
+                } @else if (responseTab() === 'body' && responseLanguage() === 'json') {
                   <label class="ml-auto flex items-center gap-2 text-sm">
                     <input type="checkbox" class="size-4 accent-brand" [checked]="pretty()" (change)="pretty.set($any($event.target).checked)" />
                     Pretty
@@ -599,6 +621,8 @@
                   </p>
                 } @else if (!r.text) {
                   <p class="text-sm text-muted">The response has no body.</p>
+                } @else if (bodyView() === 'tree' && responseTree(); as root) {
+                  <app-json-view [root]="root" />
                 } @else {
                   <app-code-editor
                     class="h-96"
