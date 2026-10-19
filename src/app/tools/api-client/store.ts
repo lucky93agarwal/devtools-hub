@@ -2,7 +2,7 @@ import { Injectable, computed, effect, signal } from '@angular/core';
 import { paramsFromUrl } from './build';
 import type { KvColumns } from './kv-table';
 import { Auth, authLabel } from './auth';
-import { ApiRequest, Collection, Environment, Folder, KeyValue, cloneRequest, newId, newRequest } from './model';
+import { ApiRequest, Collection, Environment, Folder, KeyValue, cloneRequest, newId, newRequest, normalizeBody } from './model';
 
 /** One sent request, kept so it can be opened again. */
 export interface HistoryEntry {
@@ -30,8 +30,10 @@ interface Saved {
  * made from a URL alone (cURL, Postman without a query list).
  */
 export function withParams(request: ApiRequest): ApiRequest {
-  if (request.params?.length || !request.url.includes('?')) return { ...request, params: request.params ?? [] };
-  return { ...request, params: paramsFromUrl(request.url) };
+  // Requests saved before raw, binary and GraphQL bodies existed are brought up to date too.
+  const body = normalizeBody(request.body);
+  if (request.params?.length || !request.url.includes('?')) return { ...request, body, params: request.params ?? [] };
+  return { ...request, body, params: paramsFromUrl(request.url) };
 }
 
 const STORAGE_KEY = 'dth-api-client';

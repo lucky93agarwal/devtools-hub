@@ -1,5 +1,6 @@
 import { Auth, SIGNED_TYPES, authText, mapAuthText } from './auth';
-import { ApiRequest, KeyValue, isForbiddenHeader } from './model';
+import { fileFor } from './body-files';
+import { ApiRequest, KeyValue, RAW_LANGUAGES, isForbiddenHeader, normalizeBody } from './model';
 
 /** Splitting the URL into editable params and back, {{variables}}, and the final fetch() call. */
 
@@ -81,6 +82,14 @@ export interface PreparedRequest {
   /** Body as text, for cURL and code; null for none, '<form-data>' fields listed separately. */
   bodyText: string | null;
   formFields: [string, string][];
+  /** form-data file fields as [name, file name], for cURL and code. */
+  formFiles?: [string, string][];
+  /** The file name of a binary body, for cURL and code. */
+  bodyFile?: string;
+  /** Files that were chosen before a reload and must be chosen again. */
+  missingFiles?: string[];
+  /** Why the body cannot be sent, such as GraphQL variables that are not valid JSON. */
+  bodyError?: string;
   /** Header names the browser will not let a page set. */
   dropped: string[];
   /** {{names}} with no value. */
@@ -137,34 +146,86 @@ export function prepareRequest(
   }
 
   const has = (name: string) => headers.some(([key]) => key.toLowerCase() === name);
+  const contentType = (value: string) => {
+    if (!has('content-type')) headers.push(['Content-Type', value]);
+  };
   let body: BodyInit | null = null;
   let bodyText: string | null = null;
   const formFields: [string, string][] = [];
+  const formFiles: [string, string][] = [];
+  const missingFiles: string[] = [];
+  let bodyFile: string | undefined;
+  let bodyError: string | undefined;
   const sendsBody = request.method !== 'GET' && request.method !== 'HEAD';
-  const { mode, raw, fields } = request.body;
-  if (sendsBody && (mode === 'json' || mode === 'text')) {
+  const { mode, raw, language, fields, file, graphql } = normalizeBody(request.body);
+  if (sendsBody && mode === 'raw') {
     track(raw);
     bodyText = fill(raw);
     body = bodyText;
-    if (!has('content-type')) headers.push(['Content-Type', mode === 'json' ? 'application/json' : 'text/plain']);
+    contentType(RAW_LANGUAGES.find((item) => item.value === language)?.contentType ?? 'text/plain');
+  } else if (sendsBody && mode === 'graphql') {
+    track(graphql.query + graphql.variables);
+    const variablesText = fill(graphql.variables).trim();
+    let variables: unknown;
+    try {
+      variables = variablesText ? JSON.parse(variablesText) : undefined;
+    } catch {
+      bodyError = 'The GraphQL variables are not valid JSON.';
+    }
+    bodyText = JSON.stringify(variables === undefined ? { query: fill(graphql.query) } : { query: fill(graphql.query), variables });
+    body = bodyText;
+    contentType('application/json');
+  } else if (sendsBody && mode === 'binary') {
+    const chosen = fileFor(file);
+    if (file && !chosen) missingFiles.push(file.name);
+    if (chosen) {
+      body = chosen;
+      bodyFile = chosen.name;
+      contentType(chosen.type || 'application/octet-stream');
+    }
   } else if (sendsBody && (mode === 'urlencoded' || mode === 'form-data')) {
+    const form = new FormData();
     for (const field of fields) {
       if (!field.enabled || !field.key) continue;
+      if (mode === 'form-data' && field.type === 'file') {
+        const chosen = fileFor(field.file);
+        if (!chosen) {
+          missingFiles.push(field.file?.name ?? field.key);
+          continue;
+        }
+        track(field.key);
+        form.append(fill(field.key), chosen, chosen.name);
+        formFiles.push([fill(field.key), chosen.name]);
+        continue;
+      }
       track(field.key + field.value);
       formFields.push([fill(field.key), fill(field.value)]);
+      form.append(fill(field.key), fill(field.value));
     }
     if (mode === 'urlencoded') {
       bodyText = new URLSearchParams(formFields).toString();
       body = bodyText;
-      if (!has('content-type')) headers.push(['Content-Type', 'application/x-www-form-urlencoded']);
+      contentType('application/x-www-form-urlencoded');
     } else {
-      const form = new FormData();
-      for (const [key, value] of formFields) form.append(key, value);
       body = form;
     }
   }
 
-  return { method: request.method, url, headers, body, bodyText, formFields, dropped, unresolved: [...unresolved], signWith };
+  return {
+    method: request.method,
+    url,
+    headers,
+    body,
+    bodyText,
+    formFields,
+    formFiles,
+    bodyFile,
+    missingFiles,
+    bodyError,
+    dropped,
+    unresolved: [...unresolved],
+    signWith,
+  };
 }
 
 function appendQuery(url: string, key: string, value: string): string {

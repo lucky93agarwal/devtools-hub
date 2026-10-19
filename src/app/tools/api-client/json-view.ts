@@ -1,4 +1,19 @@
-import { Component, ElementRef, OnDestroy, computed, inject, input, linkedSignal, signal, viewChild } from '@angular/core';
+import { NgTemplateOutlet } from '@angular/common';
+import {
+  Component,
+  ElementRef,
+  Injector,
+  OnDestroy,
+  afterNextRender,
+  computed,
+  effect,
+  inject,
+  input,
+  linkedSignal,
+  signal,
+  untracked,
+  viewChild,
+} from '@angular/core';
 import { DomSanitizer, SafeResourceUrl } from '@angular/platform-browser';
 import { JsonNode } from '../json-formatter/json-tree';
 import { decodeJwt, timeClaims, tokenTiming } from '../jwt/jwt-tools';
@@ -12,6 +27,8 @@ import {
   copyTextFor,
   defaultCollapsed,
   fileNameFromUrl,
+  searchTree,
+  splitMatches,
   summary,
   typeInfo,
   urlKind,
@@ -45,7 +62,7 @@ const TIMING_TEXT = {
  */
 @Component({
   selector: 'app-json-view',
-  imports: [Icon],
+  imports: [Icon, NgTemplateOutlet],
   host: {
     '(document:click)': 'closeOnOutsideClick($event)',
     '(document:keydown.escape)': 'close()',
@@ -61,7 +78,12 @@ const TIMING_TEXT = {
       </span>
       <span class="text-sm font-semibold text-success" aria-live="polite">{{ message() }}</span>
     </div>
+    <!-- Text with search matches marked; kept on one line so no spaces creep in. -->
+    <ng-template #marked let-text
+      >@for (part of mark(text); track $index) {@if (part.hit) {<mark class="rounded-sm bg-warning/40 text-inherit">{{ part.text }}</mark>} @else {<ng-container>{{ part.text }}</ng-container>}}</ng-template
+    >
     <div
+      #treeBox
       class="mt-2 max-h-[32rem] overflow-auto rounded-xl border border-line py-2 font-mono text-[13px] leading-6"
       aria-label="Response body tree"
       role="region"
@@ -69,7 +91,9 @@ const TIMING_TEXT = {
     >
       @for (row of rows(); track row.id) {
         <div
-          class="group flex min-w-0 items-start gap-1 pr-2 hover:bg-surface"
+          class="group flex min-w-0 items-start gap-1 pr-2"
+          [class]="row.id === currentMatchId() ? 'bg-warning/15 outline outline-1 -outline-offset-1 outline-warning' : 'hover:bg-surface'"
+          [attr.data-row]="row.id"
           [style.padding-left.px]="8 + row.depth * 16"
         >
           @switch (row.kind) {
@@ -109,7 +133,7 @@ const TIMING_TEXT = {
                     (focus)="hover(row, 'key', $event)"
                     (click)="pin(row, 'key', $event)"
                     (keydown.enter)="pin(row, 'key', $event)"
-                    >{{ row.isIndex ? row.key : '"' + row.key + '"' }}</span
+                    >@if (row.isIndex) {<ng-container>{{ row.key }}</ng-container>} @else {"<ng-container *ngTemplateOutlet="marked; context: { $implicit: row.key }" />"}</span
                   ><span class="text-muted">: </span>
                 }
                 @if (row.kind === 'open') {
@@ -133,10 +157,11 @@ const TIMING_TEXT = {
                     (focus)="hover(row, 'value', $event)"
                     (click)="pin(row, 'value', $event)"
                     (keydown.enter)="pin(row, 'value', $event)"
-                    >{{ row.node.kind === 'raw' ? row.node.text : '' }}</span
+                    ><ng-container *ngTemplateOutlet="marked; context: { $implicit: leafText(row) }" /></span
                   >{{ row.comma ? ',' : '' }}
                 } @else {
-                  <span [class]="valueClass[row.valueKind]">{{ row.node.kind === 'raw' ? row.node.text : '' }}</span
+                  <span [class]="valueClass[row.valueKind]"
+                    ><ng-container *ngTemplateOutlet="marked; context: { $implicit: leafText(row) }" /></span
                   >{{ row.comma ? ',' : '' }}
                 }
               </span>
@@ -285,6 +310,10 @@ const TIMING_TEXT = {
 })
 export class JsonView implements OnDestroy {
   readonly root = input.required<JsonNode>();
+  /** Text to find in keys and values; the page's search box sets it. */
+  readonly query = input('');
+  /** Which match to show, counted from 0; it wraps around past the last one. */
+  readonly current = input(0);
 
   protected readonly icons = ICONS;
   protected readonly page = PAGE;
@@ -298,6 +327,15 @@ export class JsonView implements OnDestroy {
   protected readonly collapsed = linkedSignal(() => defaultCollapsed(this.root()));
   protected readonly shown = linkedSignal<JsonNode, Map<string, number>>({ source: this.root, computation: () => new Map() });
   protected readonly rows = computed(() => buildRows(this.root(), this.collapsed(), this.shown()));
+
+  private readonly matches = computed(() => searchTree(this.root(), this.query()));
+  /** How many keys and values match the search, for the page's "3 of 12". */
+  readonly matchCount = computed(() => this.matches().length);
+  private readonly currentMatch = computed(() => {
+    const matches = this.matches();
+    return matches.length ? matches[((this.current() % matches.length) + matches.length) % matches.length] : null;
+  });
+  protected readonly currentMatchId = computed(() => this.currentMatch()?.id ?? null);
 
   protected readonly popover = signal<Popover | null>(null);
   protected readonly busy = signal(false);
@@ -328,6 +366,8 @@ export class JsonView implements OnDestroy {
   });
 
   private readonly sanitizer = inject(DomSanitizer);
+  private readonly injector = inject(Injector);
+  private readonly treeBox = viewChild<ElementRef<HTMLElement>>('treeBox');
   private readonly box = viewChild<ElementRef<HTMLElement>>('popoverBox');
   private openTimer?: ReturnType<typeof setTimeout>;
   private closeTimer?: ReturnType<typeof setTimeout>;
@@ -335,7 +375,50 @@ export class JsonView implements OnDestroy {
   private pdfUrl: string | null = null;
   private messageTimer?: ReturnType<typeof setTimeout>;
 
+  constructor() {
+    // Open the folded parts and pages that hide the current match, then scroll to it.
+    effect(() => {
+      const match = this.currentMatch();
+      if (match) untracked(() => this.reveal(match.id, match.ancestors));
+    });
+  }
+
   protected summaryOf = summary;
+
+  protected mark(text: string) {
+    return splitMatches(text, this.query());
+  }
+
+  protected leafText(row: TreeRow): string {
+    return row.node.kind === 'raw' ? row.node.text : '';
+  }
+
+  private reveal(id: string, ancestors: { id: string; index: number }[]): void {
+    const folded = ancestors.filter((ancestor) => this.collapsed().has(ancestor.id));
+    if (folded.length) {
+      this.collapsed.update((set) => {
+        const next = new Set(set);
+        folded.forEach((ancestor) => next.delete(ancestor.id));
+        return next;
+      });
+    }
+    const hidden = ancestors.filter((ancestor) => ancestor.index >= (this.shown().get(ancestor.id) ?? PAGE));
+    if (hidden.length) {
+      this.shown.update((map) => {
+        const next = new Map(map);
+        hidden.forEach((ancestor) => next.set(ancestor.id, Math.ceil((ancestor.index + 1) / PAGE) * PAGE));
+        return next;
+      });
+    }
+    afterNextRender(
+      () => {
+        const row = this.treeBox()?.nativeElement.querySelector(`[data-row="${CSS.escape(id)}"]`);
+        // Optional call: test DOMs have no scrolling.
+        row?.scrollIntoView?.({ block: 'nearest' });
+      },
+      { injector: this.injector },
+    );
+  }
   protected typeOf = typeInfo;
 
   protected toggle(row: TreeRow): void {

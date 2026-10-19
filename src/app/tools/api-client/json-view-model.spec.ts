@@ -6,6 +6,8 @@ import {
   copyTextFor,
   defaultCollapsed,
   fileNameFromUrl,
+  searchTree,
+  splitMatches,
   stringFormat,
   typeInfo,
   urlKind,
@@ -110,5 +112,34 @@ describe('json view values', () => {
     expect(fileNameFromUrl('https://x.dev/files/my%20report.pdf')).toBe('my report.pdf');
     expect(fileNameFromUrl('https://x.dev/u/9919?v=4', 'image/png')).toBe('9919.png');
     expect(fileNameFromUrl('https://x.dev/', 'image/jpeg')).toBe('download.jpg');
+  });
+});
+
+describe('json view search', () => {
+  it('finds keys and values, ignoring case, with the path to open', () => {
+    const root = parseTree('{"Name":"Ada","list":[{"x":"name tag"}],"n":10}');
+    expect(searchTree(root, 'name')).toEqual([
+      { id: '0/0', ancestors: [{ id: '0', index: 0 }] },
+      {
+        id: '0/1/0/0',
+        ancestors: [
+          { id: '0', index: 1 },
+          { id: '0/1', index: 0 },
+          { id: '0/1/0', index: 0 },
+        ],
+      },
+    ]);
+    expect(searchTree(root, '10').map((m) => m.id)).toEqual(['0/2']);
+    expect(searchTree(root, '')).toEqual([]);
+  });
+
+  it('splits text around matches', () => {
+    expect(splitMatches('"Aba ab"', 'AB')).toEqual([
+      { text: '"', hit: false },
+      { text: 'Ab', hit: true },
+      { text: 'a ', hit: false },
+      { text: 'ab', hit: true },
+      { text: '"', hit: false },
+    ]);
   });
 });

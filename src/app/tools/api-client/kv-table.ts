@@ -1,5 +1,6 @@
 import { Component, ElementRef, computed, inject, input, output, signal } from '@angular/core';
-import { KeyValue } from './model';
+import { fileFor, keepFile } from './body-files';
+import { BodyFile, KeyValue } from './model';
 
 /** Which optional columns a table shows; shared by every table, like Postman. */
 export interface KvColumns {
@@ -28,8 +29,12 @@ export function fromBulk(text: string, previous: KeyValue[]): KeyValue[] {
       const key = (colon >= 0 ? body.slice(0, colon) : body).trim();
       const value = colon >= 0 ? body.slice(colon + 1).trim() : '';
       const index = pool.findIndex((row) => row.key === key);
-      const description = index >= 0 ? pool.splice(index, 1)[0].description : undefined;
-      return description ? { key, value, enabled, description } : { key, value, enabled };
+      const before = index >= 0 ? pool.splice(index, 1)[0] : undefined;
+      const row: KeyValue = { key, value, enabled };
+      if (before?.description) row.description = before.description;
+      // A file row keeps its file; bulk text only shows its key.
+      if (before?.type === 'file') Object.assign(row, { value: '', type: 'file', file: before.file ?? null });
+      return row;
     });
 }
 
@@ -134,19 +139,51 @@ export function fromBulk(text: string, previous: KeyValue[]): KeyValue[] {
                   </td>
                 }
                 <td class="px-1 py-1">
-                  <input
-                    type="text"
-                    class="w-full rounded-lg bg-transparent px-2 py-1.5 font-mono text-[13px] outline-none focus:bg-page"
-                    spellcheck="false"
-                    autocomplete="off"
-                    [class.text-muted]="!row.enabled"
-                    [placeholder]="last ? keyLabel() : ''"
-                    [attr.aria-label]="keyLabel() + ' ' + (i + 1)"
-                    [value]="row.key"
-                    (input)="set(i, 'key', $any($event.target).value)"
-                  />
+                  <div class="flex items-center gap-1">
+                    <input
+                      type="text"
+                      class="w-full min-w-0 rounded-lg bg-transparent px-2 py-1.5 font-mono text-[13px] outline-none focus:bg-page"
+                      spellcheck="false"
+                      autocomplete="off"
+                      [class.text-muted]="!row.enabled"
+                      [placeholder]="last ? keyLabel() : ''"
+                      [attr.aria-label]="keyLabel() + ' ' + (i + 1)"
+                      [value]="row.key"
+                      (input)="set(i, 'key', $any($event.target).value)"
+                    />
+                    @if (files()) {
+                      <select
+                        class="shrink-0 rounded-lg bg-transparent py-1 pl-1 text-xs font-semibold text-muted"
+                        [attr.aria-label]="'Type of ' + keyLabel().toLowerCase() + ' ' + (i + 1)"
+                        (change)="setType(i, $any($event.target).value)"
+                      >
+                        <option value="text" [selected]="row.type !== 'file'">Text</option>
+                        <option value="file" [selected]="row.type === 'file'">File</option>
+                      </select>
+                    }
+                  </div>
                 </td>
-                @if (columns().value) {
+                @if (columns().value && row.type === 'file') {
+                  <td class="px-1 py-1">
+                    <div class="flex min-w-0 items-center gap-2 px-2 py-1.5 text-[13px]">
+                      @if (row.file; as file) {
+                        <span class="truncate font-mono" [title]="file.name">{{ file.name }}</span>
+                        @if (!ready(file)) {
+                          <span class="shrink-0 text-xs text-warning">choose again</span>
+                        }
+                      }
+                      <label class="shrink-0 cursor-pointer text-xs font-semibold text-brand hover:underline">
+                        {{ row.file ? 'Change' : 'Select file' }}
+                        <input
+                          type="file"
+                          class="sr-only"
+                          [attr.aria-label]="'File ' + (i + 1)"
+                          (change)="chooseFile(i, $any($event.target))"
+                        />
+                      </label>
+                    </div>
+                  </td>
+                } @else if (columns().value) {
                   <td class="px-1 py-1">
                     <input
                       [type]="secret() && !last ? 'password' : 'text'"
@@ -203,6 +240,8 @@ export class KvTable {
   /** Hide values like passwords. */
   readonly secret = input(false);
   readonly columns = input<KvColumns>({ value: true, description: true });
+  /** Let rows send a file instead of text (form-data). */
+  readonly files = input(false);
   readonly rowsChange = output<KeyValue[]>();
   readonly columnsChange = output<KvColumns>();
 
@@ -217,9 +256,29 @@ export class KvTable {
   }
 
   protected set(index: number, field: keyof KeyValue, value: string | boolean): void {
+    this.patch(index, { [field]: value });
+  }
+
+  protected setType(index: number, type: 'text' | 'file'): void {
+    const row = this.rows()[index];
+    this.patch(index, type === 'file' ? { type, value: '', file: row?.file ?? null } : { type, file: undefined });
+  }
+
+  protected chooseFile(index: number, element: HTMLInputElement): void {
+    const file = element.files?.[0];
+    element.value = '';
+    if (file) this.patch(index, { type: 'file', value: '', file: keepFile(file) });
+  }
+
+  /** False when the file was chosen before a reload and must be chosen again. */
+  protected ready(file: BodyFile): boolean {
+    return !!fileFor(file);
+  }
+
+  private patch(index: number, changes: Partial<KeyValue>): void {
     const rows = [...this.rows()];
     if (index === rows.length) rows.push({ key: '', value: '', enabled: true });
-    rows[index] = { ...rows[index], [field]: value };
+    rows[index] = { ...rows[index], ...changes };
     this.rowsChange.emit(rows);
   }
 

@@ -18,6 +18,8 @@ import { MonacoApi, loadMonaco, whenUserActive } from './monaco-loader';
 
 /** How long the highlight animation runs after jumping to an error, in ms. */
 const FLASH_MS = 1800;
+/** Highlighting more matches than this slows the editor; the count still says how many there are. */
+const MAX_SEARCH_MATCHES = 5000;
 
 /**
  * Code editor with line numbers, folding and search, built on Monaco.
@@ -65,6 +67,9 @@ export class CodeEditor {
   private errorDecorations?: Monaco.editor.IEditorDecorationsCollection;
   private flashDecorations?: Monaco.editor.IEditorDecorationsCollection;
   private flashTimer?: ReturnType<typeof setTimeout>;
+  private searchDecorations?: Monaco.editor.IEditorDecorationsCollection;
+  /** The last search, applied again once Monaco loads or the text changes. */
+  private lastSearch: { query: string; index: number } | null = null;
   private pendingError?: AfterRenderRef;
   private queuedError?: { line: number; column: number; message: string };
   private readonly injector = inject(Injector);
@@ -100,7 +105,9 @@ export class CodeEditor {
     // Keep Monaco in sync when the parent changes the text (for example Clear).
     effect(() => {
       this.value();
-      if (this.ready()) this.syncText();
+      if (!this.ready()) return;
+      this.syncText();
+      if (this.lastSearch) this.applySearch(false);
     });
 
     // The JSON to Code tool switches the output language without a new editor.
@@ -148,6 +155,34 @@ export class CodeEditor {
       ]);
       this.flashTimer = setTimeout(() => this.flashDecorations?.clear(), FLASH_MS);
     });
+  }
+
+  /**
+   * Highlights every match of the text (ignoring case) and scrolls to the one at
+   * index, counted from 0. An empty query clears the highlights.
+   */
+  search(query: string, index: number): void {
+    this.lastSearch = query ? { query, index } : null;
+    this.applySearch(true);
+  }
+
+  private applySearch(reveal: boolean): void {
+    if (!this.editor || !this.textModel) return;
+    this.searchDecorations ??= this.editor.createDecorationsCollection();
+    const search = this.lastSearch;
+    if (!search) {
+      this.searchDecorations.clear();
+      return;
+    }
+    const matches = this.textModel.findMatches(search.query, false, false, false, null, false, MAX_SEARCH_MATCHES);
+    const current = matches.length ? ((search.index % matches.length) + matches.length) % matches.length : -1;
+    this.searchDecorations.set(
+      matches.map((match, i) => ({
+        range: match.range,
+        options: { inlineClassName: i === current ? 'code-search-current' : 'code-search-match' },
+      })),
+    );
+    if (reveal && current >= 0) this.editor.revealRangeInCenterIfOutsideViewport(matches[current].range);
   }
 
   clearError(): void {
@@ -232,6 +267,7 @@ export class CodeEditor {
     this.ready.set(true);
     if (this.focusWhenReady && !this.readOnly()) this.editor.focus();
 
+    if (this.lastSearch) this.applySearch(true);
     if (this.queuedError) {
       const { line, column, message } = this.queuedError;
       this.queuedError = undefined;

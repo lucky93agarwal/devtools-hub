@@ -10,13 +10,19 @@ export function toCurl(prepared: PreparedRequest): string {
   const lines = [`curl --request ${prepared.method} ${shellQuote(prepared.url)}`];
   for (const [name, value] of prepared.headers) lines.push(`--header ${shellQuote(`${name}: ${value}`)}`);
   if (prepared.bodyText !== null) lines.push(`--data-raw ${shellQuote(prepared.bodyText)}`);
-  else for (const [name, value] of prepared.formFields) lines.push(`--form ${shellQuote(`${name}=${value}`)}`);
+  else if (prepared.bodyFile) lines.push(`--data-binary ${shellQuote(`@${prepared.bodyFile}`)}`);
+  else {
+    for (const [name, value] of prepared.formFields) lines.push(`--form ${shellQuote(`${name}=${value}`)}`);
+    for (const [name, file] of prepared.formFiles ?? []) lines.push(`--form ${shellQuote(`${name}=@"${file}"`)}`);
+  }
   return lines.join(' \\\n  ');
 }
 
 export function toFetchCode(prepared: PreparedRequest): string {
   const options: string[] = [`  method: ${JSON.stringify(prepared.method)},`];
-  const headers = prepared.headers.filter(([name]) => !(prepared.formFields.length && /^content-type$/i.test(name)));
+  const formFiles = prepared.formFiles ?? [];
+  const isForm = prepared.bodyText === null && (prepared.formFields.length > 0 || formFiles.length > 0);
+  const headers = prepared.headers.filter(([name]) => !(isForm && /^content-type$/i.test(name)));
   if (headers.length) {
     options.push('  headers: {');
     for (const [name, value] of headers) options.push(`    ${JSON.stringify(name)}: ${JSON.stringify(value)},`);
@@ -25,10 +31,16 @@ export function toFetchCode(prepared: PreparedRequest): string {
   let before = '';
   if (prepared.bodyText !== null) {
     options.push(`  body: ${JSON.stringify(prepared.bodyText)},`);
-  } else if (prepared.formFields.length) {
+  } else if (prepared.bodyFile) {
+    before = `// ${prepared.bodyFile}: pick it with <input type="file" id="file">\nconst file = document.getElementById('file').files[0];\n\n`;
+    options.push('  body: file,');
+  } else if (isForm) {
     before =
       'const form = new FormData();\n' +
-      prepared.formFields.map(([n, v]) => `form.append(${JSON.stringify(n)}, ${JSON.stringify(v)});`).join('\n') +
+      [
+        ...prepared.formFields.map(([n, v]) => `form.append(${JSON.stringify(n)}, ${JSON.stringify(v)});`),
+        ...formFiles.map(([n, f]) => `form.append(${JSON.stringify(n)}, fileInput.files[0]); // ${f}`),
+      ].join('\n') +
       '\n\n';
     options.push('  body: form,');
   }
@@ -155,7 +167,14 @@ export function parseCurl(command: string): ApiRequest {
       case '--form':
       case '--form-string': {
         const at = value!.indexOf('=');
-        form.push({ key: value!.slice(0, at), value: value!.slice(at + 1), enabled: true });
+        const fieldValue = value!.slice(at + 1);
+        // -F 'photo=@cat.png' sends a file; the page cannot read it from disk, so it is chosen again.
+        if (flag !== '--form-string' && fieldValue.startsWith('@')) {
+          const name = fieldValue.slice(1).split(';')[0].replace(/^"|"$/g, '').split(/[\\/]/).pop() ?? '';
+          form.push({ key: value!.slice(0, at), value: '', enabled: true, type: 'file', file: { id: '', name, size: 0, type: '' } });
+        } else {
+          form.push({ key: value!.slice(0, at), value: fieldValue, enabled: true });
+        }
         break;
       }
       case '-u':
@@ -180,21 +199,22 @@ export function parseCurl(command: string): ApiRequest {
   request.method = (METHODS as readonly string[]).includes(method ?? '') ? (method as Method) : fallback;
 
   if (form.length) {
-    request.body = { mode: 'form-data', raw: '', fields: form };
+    request.body = { ...request.body, mode: 'form-data', fields: form };
   } else if (data.length) {
     const raw = data.join('&');
     const type = headers.find((h) => h.key.toLowerCase() === 'content-type')?.value ?? '';
     const isJson = /json/i.test(type) || looksLikeJson(raw);
     if (isJson) {
-      request.body = { mode: 'json', raw: prettyJson(raw), fields: [] };
+      request.body = { ...request.body, mode: 'raw', language: 'json', raw: prettyJson(raw) };
     } else if (!type || /x-www-form-urlencoded/i.test(type)) {
       request.body = {
+        ...request.body,
         mode: 'urlencoded',
-        raw: '',
         fields: [...new URLSearchParams(raw)].map(([key, value]) => ({ key, value, enabled: true })),
       };
     } else {
-      request.body = { mode: 'text', raw, fields: [] };
+      const language = /xml/i.test(type) ? 'xml' : /html/i.test(type) ? 'html' : /javascript/i.test(type) ? 'javascript' : 'text';
+      request.body = { ...request.body, mode: 'raw', language, raw };
     }
   }
   if (user !== null) {

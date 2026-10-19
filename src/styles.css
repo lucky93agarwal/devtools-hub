@@ -176,6 +176,17 @@
   }
 }
 
+/* Search matches in a read-only editor (API Client response search). */
+.code-search-match {
+  background: color-mix(in srgb, var(--warning) 30%, transparent);
+  border-radius: 2px;
+}
+.code-search-current {
+  background: color-mix(in srgb, var(--warning) 75%, transparent);
+  border-radius: 2px;
+  outline: 1px solid var(--warning);
+}
+
 /* Moving bar for work whose progress cannot be measured, such as one image encode. */
 .progress-indeterminate > div {
   animation: progress-indeterminate 1.1s ease-in-out infinite;

@@ -73,6 +73,9 @@ export function loadMonaco(): Promise<MonacoApi> {
       // Data Converter
       import('monaco-editor/languages/definitions/yaml/register'),
       import('monaco-editor/languages/definitions/xml/register'),
+      // API Client raw bodies
+      import('monaco-editor/languages/definitions/javascript/register'),
+      import('monaco-editor/languages/definitions/html/register'),
     ]);
 
     registerJson(monaco);

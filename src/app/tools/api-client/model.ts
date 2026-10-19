@@ -10,19 +10,65 @@ export interface KeyValue {
   enabled: boolean;
   /** A note for people reading the request; never sent. */
   description?: string;
+  /** form-data rows can send a file instead of text. */
+  type?: 'text' | 'file';
+  file?: BodyFile | null;
+}
+
+/**
+ * A file chosen for a body. Only these details are saved; the file itself stays in
+ * memory (see body-files.ts), so after a reload it has to be chosen again, as in Postman.
+ */
+export interface BodyFile {
+  id: string;
+  name: string;
+  size: number;
+  type: string;
 }
 
 import type { Auth } from './auth';
 export type { Auth } from './auth';
 
-export type BodyMode = 'none' | 'json' | 'text' | 'urlencoded' | 'form-data';
+/** Postman's body types. */
+export type BodyMode = 'none' | 'form-data' | 'urlencoded' | 'raw' | 'binary' | 'graphql';
+
+export const RAW_LANGUAGES = [
+  { value: 'text', label: 'Text', contentType: 'text/plain', editor: 'plaintext' },
+  { value: 'javascript', label: 'JavaScript', contentType: 'application/javascript', editor: 'javascript' },
+  { value: 'json', label: 'JSON', contentType: 'application/json', editor: 'json' },
+  { value: 'html', label: 'HTML', contentType: 'text/html', editor: 'html' },
+  { value: 'xml', label: 'XML', contentType: 'application/xml', editor: 'xml' },
+] as const;
+export type RawLanguage = (typeof RAW_LANGUAGES)[number]['value'];
 
 export interface RequestBody {
   mode: BodyMode;
-  /** Text for json and text. */
+  /** Text for raw. */
   raw: string;
+  /** What the raw text is; sets the Content-Type unless a header does. */
+  language: RawLanguage;
   /** Fields for urlencoded and form-data. */
   fields: KeyValue[];
+  /** The file for binary. */
+  file: BodyFile | null;
+  graphql: { query: string; variables: string };
+}
+
+export const emptyBody = (): RequestBody => ({
+  mode: 'none',
+  raw: '',
+  language: 'json',
+  fields: [],
+  file: null,
+  graphql: { query: '', variables: '' },
+});
+
+/** Fills in fields added later and turns the old "json" and "text" modes into raw. */
+export function normalizeBody(body: Partial<RequestBody> & { mode?: string } = {}): RequestBody {
+  const base = { ...emptyBody(), ...body } as RequestBody;
+  const mode = body.mode as string | undefined;
+  if (mode === 'json' || mode === 'text') return { ...base, mode: 'raw', language: mode };
+  return { ...base, graphql: { ...emptyBody().graphql, ...body.graphql } };
 }
 
 export interface ApiRequest {
@@ -74,7 +120,7 @@ export function newRequest(changes: Partial<ApiRequest> = {}): ApiRequest {
     params: [],
     headers: [],
     auth: { type: 'none' },
-    body: { mode: 'none', raw: '', fields: [] },
+    body: emptyBody(),
     ...changes,
   };
 }

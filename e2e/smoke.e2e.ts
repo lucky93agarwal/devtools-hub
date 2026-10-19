@@ -323,9 +323,40 @@ test('API Client sample response shows types, tokens and copies any part', async
   await token.getByRole('button', { name: 'Close' }).click();
   await expect(token).toBeHidden();
 
+  await page.getByLabel('Search response body').fill('jaipur');
+  await expect(page.getByText('1 of 1')).toBeVisible();
+  await expect(tree.locator('mark')).toHaveText('Jaipur');
+  await page.getByLabel('Search response body').fill('');
+
   await tree.getByRole('button', { name: 'Copy $.user.address', exact: true }).click();
   await expect(tree).toContainText('"address" copied');
   expect(await page.evaluate(() => navigator.clipboard.readText())).toContain('"city": "Jaipur"');
+});
+
+test('API Client sends raw, GraphQL and binary bodies', async ({ page }) => {
+  await page.goto('/api-client');
+  await page.getByLabel('URL').fill('https://api.example.com/graphql');
+  await page.getByLabel('Method').selectOption('POST');
+  await page.getByRole('tab', { name: /Body/ }).click();
+  for (const mode of ['none', 'form-data', 'x-www-form-urlencoded', 'raw', 'binary', 'GraphQL']) {
+    await expect(page.getByRole('radio', { name: mode, exact: true })).toBeVisible();
+  }
+  await page.getByRole('radio', { name: 'raw', exact: true }).check();
+  await page.getByLabel('Raw body type').selectOption('xml');
+  await page.getByRole('button', { name: 'Code', exact: true }).click();
+  await expect(page.locator('pre').first()).toContainText('Content-Type: application/xml');
+  await page.getByRole('button', { name: 'Code', exact: true }).click();
+
+  await page.getByRole('radio', { name: 'binary', exact: true }).check();
+  await page.getByLabel('Binary body file').setInputFiles({ name: 'photo.png', mimeType: 'image/png', buffer: Buffer.from('png') });
+  await expect(page.getByText('photo.png')).toBeVisible();
+
+  await page.getByRole('radio', { name: 'form-data', exact: true }).check();
+  await page.getByLabel('Key 1', { exact: true }).fill('avatar');
+  await page.getByLabel('Type of key 1').selectOption('file');
+  await page.getByLabel('File 1').setInputFiles({ name: 'cat.png', mimeType: 'image/png', buffer: Buffer.from('cat') });
+  await page.getByRole('button', { name: 'Code', exact: true }).click();
+  await expect(page.locator('pre').first()).toContainText(`--form 'avatar=@"cat.png"'`);
 });
 
 test('API Client params support descriptions, bulk edit and hiding columns', async ({ page }) => {

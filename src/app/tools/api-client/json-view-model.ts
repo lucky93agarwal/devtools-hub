@@ -254,3 +254,43 @@ export function copyTextFor(row: TreeRow): string {
 export function summary(row: TreeRow): string {
   return row.valueKind === 'object' ? plural(row.count, 'key') : plural(row.count, 'item');
 }
+
+/** A search hit: the row's id, and each container above it with the child index that leads there. */
+export interface TreeMatch {
+  id: string;
+  ancestors: { id: string; index: number }[];
+}
+
+/** Every key or value containing the query (ignoring case), in the order they are drawn. */
+export function searchTree(root: JsonNode, query: string): TreeMatch[] {
+  const needle = query.toLowerCase();
+  if (!needle) return [];
+  const matches: TreeMatch[] = [];
+  const hit = (text: string) => text.toLowerCase().includes(needle);
+
+  const visit = (node: JsonNode, id: string, key: string | null, ancestors: TreeMatch['ancestors']) => {
+    const valueText = node.kind === 'raw' ? (node.text.startsWith('"') ? (JSON.parse(node.text) as string) : node.text) : '';
+    if ((key !== null && hit(key)) || (node.kind === 'raw' && hit(valueText))) matches.push({ id, ancestors });
+    if (node.kind === 'raw') return;
+    const children = node.kind === 'object' ? node.members.map((m) => [JSON.parse(m.rawKey) as string, m.value] as const) : node.items.map((item, n) => [null, item] as const);
+    children.forEach(([childKey, child], n) => visit(child, `${id}/${n}`, childKey, [...ancestors, { id, index: n }]));
+  };
+  visit(root, '0', null, []);
+  return matches;
+}
+
+/** Splits text around matches of the query, so the matches can be marked. */
+export function splitMatches(text: string, query: string): { text: string; hit: boolean }[] {
+  if (!query) return [{ text, hit: false }];
+  const parts: { text: string; hit: boolean }[] = [];
+  const lower = text.toLowerCase();
+  const needle = query.toLowerCase();
+  let from = 0;
+  for (let at = lower.indexOf(needle); at >= 0; at = lower.indexOf(needle, from)) {
+    if (at > from) parts.push({ text: text.slice(from, at), hit: false });
+    parts.push({ text: text.slice(at, at + needle.length), hit: true });
+    from = at + needle.length;
+  }
+  if (from < text.length) parts.push({ text: text.slice(from), hit: false });
+  return parts;
+}

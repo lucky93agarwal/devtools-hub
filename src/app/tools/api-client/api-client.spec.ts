@@ -169,6 +169,46 @@ describe('ApiClient', () => {
     expect(popover.textContent).toContain('2 items, all numbers');
   });
 
+  it('searches the response tree, raw text and headers', async () => {
+    const { el, click, type, settle, text, editors } = await setup();
+    const items = Array.from({ length: 150 }, (_, i) => ({ id: i, name: i === 140 ? 'needle' : `item ${i}` }));
+    reply = async () =>
+      okResponse({
+        text: JSON.stringify({ deep: { inner: { word: 'Needle here' } }, items }),
+        headers: [
+          ['content-type', 'application/json'],
+          ['x-request-id', 'abc'],
+        ],
+      });
+    await type('input[aria-label=URL]', 'https://api.example.com/search');
+    await click('Send');
+    // Fold everything, then search: the match inside is opened and marked.
+    await click('Collapse all');
+    expect(text()).not.toContain('Needle here');
+    await type('input[aria-label="Search response body"]', 'NEEDLE');
+    expect(text()).toContain('1 of 2');
+    expect(el.querySelector('app-json-view mark')!.textContent).toBe('Needle');
+    // The second match is item 140, past the first page of 100 items.
+    const next = async () => {
+      el.querySelector<HTMLButtonElement>('button[aria-label="Next match"]')!.click();
+      await settle();
+    };
+    await next();
+    expect(text()).toContain('2 of 2');
+    expect(el.querySelector('[data-row="0/1/140/1"]')!.className).toContain('bg-warning');
+    await next();
+    expect(text()).toContain('1 of 2');
+
+    await click('raw');
+    expect(text()).toContain('1 of 2');
+    expect(editors().at(-1)!.search).toHaveBeenLastCalledWith('NEEDLE', 0);
+
+    await click('Headers (2)');
+    await type('input[aria-label="Search headers"]', 'request');
+    expect(text()).toContain('1 found');
+    expect([...el.querySelectorAll('[aria-labelledby=response-heading] td')].map((td) => td.textContent!.trim())).toEqual(['x-request-id', 'abc']);
+  });
+
   it('decodes a JWT in a response when it is clicked', async () => {
     const { el, click, type, settle } = await setup();
     const token =
@@ -222,7 +262,9 @@ describe('ApiClient', () => {
     await settle();
     await type('input[type=password]', 'secret-token');
     await click('Body');
-    await click('JSON');
+    el.querySelector<HTMLInputElement>('input[name=body-mode][value=raw]')!.click();
+    await settle();
+    expect(el.querySelector<HTMLSelectElement>('select[aria-label="Raw body type"]')!.value).toBe('json');
     store.update({ body: { ...store.draft().body, raw: '{"name":"Ada"}' } });
     await click('Send');
     expect(sent[0].headers).toEqual([

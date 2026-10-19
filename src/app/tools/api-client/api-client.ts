@@ -1,4 +1,4 @@
-import { Component, DestroyRef, computed, effect, inject, signal } from '@angular/core';
+import { Component, DestroyRef, computed, effect, inject, linkedSignal, signal, viewChild } from '@angular/core';
 import { Analytics } from '../../core/analytics';
 import { TOOLS } from '../../core/tools';
 import { CodeEditor } from '../../shared/code-editor/code-editor';
@@ -10,11 +10,13 @@ import { API_CLIENT_CONTENT, SAMPLE_PATH, SAMPLE_REQUEST } from './content';
 import { nameFromUrl, parseCurl, toCurl, toFetchCode } from './curl';
 import { KvTable } from './kv-table';
 import { JsonView } from './json-view';
+import { SearchBox, countMatches } from './search-box';
 import { parseTree } from '../json-formatter/json-tree';
 import { AuthEditor } from './auth-editor';
 import { Auth } from './auth';
 import { AuthError, signRequest } from './sign';
-import { ApiRequest, BodyMode, Collection, Folder, KeyValue, METHODS, Method, cloneRequest, newRequest } from './model';
+import { ApiRequest, BodyMode, Collection, Folder, KeyValue, METHODS, Method, RAW_LANGUAGES, RawLanguage, RequestBody, cloneRequest, newRequest } from './model';
+import { fileFor, keepFile } from './body-files';
 import { exportPostman, importPostman } from './postman';
 import { ApiResponse, ApiSender, RequestFailure } from './sender';
 import { ApiStore, HistoryEntry } from './store';
@@ -49,7 +51,7 @@ const METHOD_COLOURS: Record<string, string> = {
 
 @Component({
   selector: 'app-api-client',
-  imports: [Icon, CodeEditor, ToolInfoSection, KvTable, AuthEditor, JsonView],
+  imports: [Icon, CodeEditor, ToolInfoSection, KvTable, AuthEditor, JsonView, SearchBox],
   templateUrl: './api-client.html',
 })
 export class ApiClient {
@@ -60,12 +62,18 @@ export class ApiClient {
   protected readonly methodColours = METHOD_COLOURS;
   protected readonly formatBytes = formatBytes;
   protected readonly bodyModes: { value: BodyMode; label: string }[] = [
-    { value: 'none', label: 'None' },
-    { value: 'json', label: 'JSON' },
-    { value: 'text', label: 'Text' },
-    { value: 'urlencoded', label: 'x-www-form-urlencoded' },
+    { value: 'none', label: 'none' },
     { value: 'form-data', label: 'form-data' },
+    { value: 'urlencoded', label: 'x-www-form-urlencoded' },
+    { value: 'raw', label: 'raw' },
+    { value: 'binary', label: 'binary' },
+    { value: 'graphql', label: 'GraphQL' },
   ];
+  protected readonly rawLanguages = RAW_LANGUAGES;
+  /** The editor colours for the raw body's language. */
+  protected readonly rawEditorLanguage = computed(
+    () => RAW_LANGUAGES.find((item) => item.value === this.draft().body.language)?.editor ?? 'plaintext',
+  );
 
   protected readonly store = inject(ApiStore);
   protected readonly draft = this.store.draft;
@@ -127,6 +135,35 @@ export class ApiClient {
       return null;
     }
   });
+  // Search in the response: steps through matches in the tree and the editor, filters headers.
+  protected readonly responseQuery = signal('');
+  /** How far Next and Previous have moved; wraps around the number of matches. */
+  protected readonly searchStep = linkedSignal({ source: this.responseQuery, computation: () => 0 });
+  protected readonly searchMode = computed(() =>
+    this.responseTab() === 'headers' ? 'headers' : this.bodyView() === 'tree' && this.responseTree() ? 'tree' : 'raw',
+  );
+  protected readonly shownHeaders = computed(() => {
+    const query = this.responseQuery().toLowerCase();
+    const headers = this.response()?.headers ?? [];
+    return query ? headers.filter(([name, value]) => `${name}: ${value}`.toLowerCase().includes(query)) : headers;
+  });
+  protected readonly searchTotal = computed(() => {
+    switch (this.searchMode()) {
+      case 'headers':
+        return this.shownHeaders().length;
+      case 'tree':
+        return this.jsonView()?.matchCount() ?? 0;
+      default:
+        return countMatches(this.responseText(), this.responseQuery());
+    }
+  });
+  protected readonly searchCurrent = computed(() => {
+    const total = this.searchTotal();
+    return total ? ((this.searchStep() % total) + total) % total : 0;
+  });
+  private readonly jsonView = viewChild(JsonView);
+  private readonly responseEditor = viewChild<CodeEditor>('responseEditor');
+
   protected readonly responseLanguage = computed(() => {
     const type = this.response()?.contentType ?? '';
     if (/json/i.test(type)) return 'json';
@@ -146,6 +183,13 @@ export class ApiClient {
   private copyTimer?: ReturnType<typeof setTimeout>;
 
   constructor() {
+    // The editor marks raw matches itself; it keeps the search until Monaco has loaded.
+    effect(() => {
+      const editor = this.responseEditor();
+      const query = this.searchMode() === 'raw' ? this.responseQuery() : '';
+      editor?.search(query, this.searchCurrent());
+    });
+
     // The Code panel shows signed requests, which take a moment to work out.
     effect(() => {
       if (this.panel() !== 'code') return;
@@ -245,9 +289,32 @@ export class ApiClient {
   }
 
   protected setBodyMode(mode: BodyMode): void {
-    const body = this.draft().body;
-    const raw = mode === 'json' && !body.raw ? '{\n  \n}' : body.raw;
-    this.store.update({ body: { ...body, mode, raw } });
+    this.setBody({ mode });
+  }
+
+  protected setBody(changes: Partial<RequestBody>): void {
+    this.store.update({ body: { ...this.draft().body, ...changes } });
+  }
+
+  protected setLanguage(language: RawLanguage): void {
+    this.setBody({ language });
+  }
+
+  protected setGraphql(changes: Partial<RequestBody['graphql']>): void {
+    const graphql = { ...this.draft().body.graphql, ...changes };
+    if (graphql.query === this.draft().body.graphql.query && graphql.variables === this.draft().body.graphql.variables) return;
+    this.setBody({ graphql });
+  }
+
+  protected chooseBinary(element: HTMLInputElement): void {
+    const file = element.files?.[0];
+    element.value = '';
+    if (file) this.setBody({ file: keepFile(file) });
+  }
+
+  /** The chosen binary file, or null when it has to be chosen again after a reload. */
+  protected binaryReady(): boolean {
+    return !!fileFor(this.draft().body.file);
   }
 
   protected setBodyRaw(raw: string): void {
@@ -268,6 +335,15 @@ export class ApiClient {
     }
   }
 
+  protected formatGraphqlVariables(): void {
+    try {
+      this.setGraphql({ variables: JSON.stringify(JSON.parse(this.draft().body.graphql.variables), null, 2) });
+      this.note.set('');
+    } catch {
+      this.note.set('The GraphQL variables are not valid JSON, so they could not be formatted.');
+    }
+  }
+
   // Sending
 
   protected async send(): Promise<void> {
@@ -275,6 +351,15 @@ export class ApiClient {
     const request = this.draft();
     if (!request.url.trim()) {
       this.note.set('Enter a URL first.');
+      return;
+    }
+    const check = this.prepared();
+    if (check.bodyError) {
+      this.note.set(check.bodyError);
+      return;
+    }
+    if (check.missingFiles?.length) {
+      this.note.set(`Choose ${check.missingFiles.join(', ')} again in the Body tab. Files are not kept after the page is reloaded.`);
       return;
     }
     this.note.set('');
@@ -301,6 +386,10 @@ export class ApiClient {
     } finally {
       this.controller = null;
     }
+  }
+
+  protected stepSearch(direction: 1 | -1): void {
+    this.searchStep.update((step) => step + direction);
   }
 
   protected cancel(): void {

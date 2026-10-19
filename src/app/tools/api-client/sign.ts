@@ -302,7 +302,9 @@ export async function awsSign(
   const region = auth.region || 'us-east-1';
   const s3 = service === 's3';
 
-  const payloadHash = hex(await digest('SHA-256', prepared.bodyText ?? ''));
+  // A binary body is a file, so its bytes are hashed; form-data is left unsigned, as AWS has no rule for it.
+  const payload = prepared.body instanceof Blob ? new Uint8Array(await prepared.body.arrayBuffer()) : (prepared.bodyText ?? '');
+  const payloadHash = hex(await digest('SHA-256', payload));
   let signed = withHeader(prepared, 'X-Amz-Date', amzDate);
   if (auth.sessionToken) signed = withHeader(signed, 'X-Amz-Security-Token', auth.sessionToken);
   if (s3) signed = withHeader(signed, 'X-Amz-Content-Sha256', payloadHash);

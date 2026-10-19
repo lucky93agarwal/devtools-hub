@@ -441,52 +441,107 @@
           }
           @case ('body') {
             <div class="flex flex-col gap-3">
-              <div class="flex flex-wrap items-center gap-1" role="radiogroup" aria-label="Body type">
+              <div class="flex flex-wrap items-center gap-x-4 gap-y-2" role="radiogroup" aria-label="Body type">
                 @for (mode of bodyModes; track mode.value) {
-                  <button
-                    type="button"
-                    role="radio"
-                    class="rounded-full border px-3 py-1 text-sm font-semibold"
-                    [class]="draft().body.mode === mode.value ? 'border-brand text-ink' : 'border-line text-muted hover:text-ink'"
-                    [attr.aria-checked]="draft().body.mode === mode.value"
-                    (click)="setBodyMode(mode.value)"
-                  >
+                  <label class="flex cursor-pointer items-center gap-1.5 text-sm">
+                    <input
+                      type="radio"
+                      name="body-mode"
+                      class="size-4 accent-brand"
+                      [value]="mode.value"
+                      [checked]="draft().body.mode === mode.value"
+                      (change)="setBodyMode(mode.value)"
+                    />
                     {{ mode.label }}
-                  </button>
+                  </label>
                 }
-                @if (draft().body.mode === 'json') {
-                  <button type="button" class="btn-small ml-auto" (click)="formatJsonBody()">Format JSON</button>
+                @if (draft().body.mode === 'raw') {
+                  <select
+                    class="rounded-lg border border-line bg-page px-2 py-1 text-sm font-semibold text-brand"
+                    aria-label="Raw body type"
+                    (change)="setLanguage($any($event.target).value)"
+                  >
+                    @for (item of rawLanguages; track item.value) {
+                      <option [value]="item.value" [selected]="draft().body.language === item.value">{{ item.label }}</option>
+                    }
+                  </select>
+                  @if (draft().body.language === 'json') {
+                    <button type="button" class="btn-small ml-auto" (click)="formatJsonBody()">Beautify</button>
+                  }
+                }
+                @if (draft().body.mode === 'graphql') {
+                  <button type="button" class="btn-small ml-auto" (click)="formatGraphqlVariables()">Beautify variables</button>
                 }
               </div>
-              @if (draft().method === 'GET' && draft().body.mode !== 'none') {
-                <p class="text-sm text-warning">Browsers do not send a body with GET requests. Choose POST, PUT or PATCH.</p>
+              @if ((draft().method === 'GET' || draft().method === 'HEAD') && draft().body.mode !== 'none') {
+                <p class="text-sm text-warning">
+                  Browsers do not send a body with {{ draft().method }} requests. Choose POST, PUT or PATCH.
+                </p>
               }
               @switch (draft().body.mode) {
                 @case ('none') {
-                  <p class="text-sm text-muted">This request has no body.</p>
+                  <p class="text-sm text-muted">This request does not have a body.</p>
                 }
-                @case ('json') {
+                @case ('raw') {
                   <app-code-editor
                     class="h-64"
-                    language="json"
                     ariaLabel="Request body"
-                    placeholder='{"name": "Ada"}'
+                    [language]="rawEditorLanguage()"
+                    [placeholder]="draft().body.language === 'json' ? '{&quot;name&quot;: &quot;Ada&quot;}' : ''"
                     [value]="draft().body.raw"
                     (valueChange)="setBodyRaw($event)"
                   />
                 }
-                @case ('text') {
-                  <app-code-editor
-                    class="h-64"
-                    language="plaintext"
-                    ariaLabel="Request body"
-                    [value]="draft().body.raw"
-                    (valueChange)="setBodyRaw($event)"
-                  />
+                @case ('binary') {
+                  <div class="flex flex-wrap items-center gap-3 rounded-xl border border-dashed border-line px-4 py-6">
+                    <label class="btn-small cursor-pointer">
+                      <app-icon [path]="icons.upload" [size]="14" />
+                      {{ draft().body.file ? 'Change file' : 'Select file' }}
+                      <input type="file" class="sr-only" aria-label="Binary body file" (change)="chooseBinary($any($event.target))" />
+                    </label>
+                    @if (draft().body.file; as file) {
+                      <span class="font-mono text-sm break-all">{{ file.name }}</span>
+                      @if (binaryReady()) {
+                        <span class="text-sm text-muted">{{ formatBytes(file.size) }} · {{ file.type || 'unknown type' }}</span>
+                      } @else {
+                        <span class="text-sm text-warning">Choose it again: files are not kept after a reload.</span>
+                      }
+                      <button type="button" class="btn-small" (click)="setBody({ file: null })">Remove</button>
+                    } @else {
+                      <span class="text-sm text-muted">The file is sent as the whole body, as it is.</span>
+                    }
+                  </div>
+                }
+                @case ('graphql') {
+                  <div class="grid gap-3 md:grid-cols-2">
+                    <div class="flex flex-col gap-1">
+                      <span class="text-xs font-semibold text-muted uppercase">Query</span>
+                      <app-code-editor
+                        class="h-64"
+                        language="graphql"
+                        ariaLabel="GraphQL query"
+                        placeholder="query { viewer { login } }"
+                        [value]="draft().body.graphql.query"
+                        (valueChange)="setGraphql({ query: $event })"
+                      />
+                    </div>
+                    <div class="flex flex-col gap-1">
+                      <span class="text-xs font-semibold text-muted uppercase">GraphQL variables</span>
+                      <app-code-editor
+                        class="h-64"
+                        language="json"
+                        ariaLabel="GraphQL variables"
+                        placeholder='{"id": 1}'
+                        [value]="draft().body.graphql.variables"
+                        (valueChange)="setGraphql({ variables: $event })"
+                      />
+                    </div>
+                  </div>
                 }
                 @default {
                   <app-kv-table
-                    keyLabel="Field"
+                    keyLabel="Key"
+                    [files]="draft().body.mode === 'form-data'"
                     [rows]="draft().body.fields"
                     [columns]="store.columns()"
                     (columnsChange)="store.columns.set($event)"
@@ -611,6 +666,18 @@
                   </label>
                 }
               </div>
+              @if (responseTab() === 'headers' || (r.text && !imageUrl())) {
+                <app-search-box
+                  class="w-full sm:max-w-sm"
+                  [(query)]="responseQuery"
+                  [total]="searchTotal()"
+                  [current]="searchCurrent()"
+                  [stepper]="searchMode() !== 'headers'"
+                  [label]="searchMode() === 'headers' ? 'Search headers' : 'Search response body'"
+                  [placeholder]="searchMode() === 'headers' ? 'Filter headers' : searchMode() === 'tree' ? 'Search keys and values' : 'Search the response'"
+                  (step)="stepSearch($event)"
+                />
+              }
               @if (responseTab() === 'body') {
                 @if (imageUrl(); as url) {
                   <img [src]="url" alt="Image returned by the API" class="checkerboard max-h-96 self-start rounded-xl border border-line" />
@@ -622,9 +689,10 @@
                 } @else if (!r.text) {
                   <p class="text-sm text-muted">The response has no body.</p>
                 } @else if (bodyView() === 'tree' && responseTree(); as root) {
-                  <app-json-view [root]="root" />
+                  <app-json-view [root]="root" [query]="responseQuery()" [current]="searchStep()" />
                 } @else {
                   <app-code-editor
+                    #responseEditor
                     class="h-96"
                     [language]="responseLanguage()"
                     ariaLabel="Response body"
@@ -636,7 +704,7 @@
                 <div class="overflow-x-auto rounded-xl border border-line">
                   <table class="w-full text-sm">
                     <tbody>
-                      @for (header of r.headers; track header[0]) {
+                      @for (header of shownHeaders(); track $index) {
                         <tr class="border-b border-line last:border-0">
                           <td class="px-3 py-2 font-mono text-[13px] font-semibold">{{ header[0] }}</td>
                           <td class="px-3 py-2 font-mono text-[13px] break-all">{{ header[1] }}</td>

@@ -1,6 +1,6 @@
 import { Auth, defaultAuth } from './auth';
 import { paramsFromUrl } from './build';
-import { ApiRequest, Collection, Folder, KeyValue, METHODS, Method, newId, newRequest } from './model';
+import { ApiRequest, BodyFile, Collection, Folder, KeyValue, METHODS, Method, RAW_LANGUAGES, RawLanguage, newId, newRequest, normalizeBody } from './model';
 
 /**
  * Postman collections (format v2.1, and v2.0) in and out, so people can bring
@@ -12,6 +12,8 @@ interface PostmanKeyValue {
   value?: unknown;
   disabled?: boolean;
   type?: string;
+  /** A form-data file's path on the computer that saved the collection. */
+  src?: string | string[] | null;
   description?: string | { content?: string };
 }
 
@@ -32,6 +34,8 @@ interface PostmanRequest {
     raw?: string;
     urlencoded?: PostmanKeyValue[];
     formdata?: PostmanKeyValue[];
+    file?: { src?: string | null };
+    graphql?: { query?: string; variables?: string };
     options?: { raw?: { language?: string } };
   };
   auth?: PostmanAuth;
@@ -48,14 +52,19 @@ export const POSTMAN_SCHEMA = 'https://schema.getpostman.com/json/collection/v2.
 const descriptionOf = (row: PostmanKeyValue) =>
   typeof row.description === 'string' ? row.description : (row.description?.content ?? '');
 
+/** A file Postman refers to by its path; the page cannot read it, so it is chosen again. */
+const fileByName = (src: string | string[] | null | undefined): BodyFile | null => {
+  const path = Array.isArray(src) ? src[0] : src;
+  return path ? { id: '', name: path.split(/[\\/]/).pop() ?? path, size: 0, type: '' } : null;
+};
+
 const rows = (list: PostmanKeyValue[] | undefined): KeyValue[] =>
-  (list ?? [])
-    .filter((row) => row.type !== 'file')
-    .map((row) => {
-      const description = descriptionOf(row);
-      const out: KeyValue = { key: String(row.key ?? ''), value: String(row.value ?? ''), enabled: !row.disabled };
-      return description ? { ...out, description } : out;
-    });
+  (list ?? []).map((row) => {
+    const description = descriptionOf(row);
+    const out: KeyValue = { key: String(row.key ?? ''), value: row.type === 'file' ? '' : String(row.value ?? ''), enabled: !row.disabled };
+    if (row.type === 'file') Object.assign(out, { type: 'file', file: fileByName(row.src) });
+    return description ? { ...out, description } : out;
+  });
 
 /** Postman's name for each of our auth types. */
 const POSTMAN_TYPES: Record<Auth['type'], string> = {
@@ -233,15 +242,24 @@ function readRequest(item: PostmanItem, skipped: Set<string>): ApiRequest {
     auth: readAuth(source.auth, skipped) ?? { type: 'inherit' },
   });
   const body = source.body;
+  const empty = request.body;
   if (body?.mode === 'raw' && body.raw) {
-    const isJson =
-      body.options?.raw?.language === 'json' ||
-      headers.some((h) => h.key.toLowerCase() === 'content-type' && /json/i.test(h.value));
-    request.body = { mode: isJson ? 'json' : 'text', raw: body.raw, fields: [] };
+    const named = body.options?.raw?.language;
+    const isJson = headers.some((h) => h.key.toLowerCase() === 'content-type' && /json/i.test(h.value));
+    const language: RawLanguage = RAW_LANGUAGES.some((item) => item.value === named)
+      ? (named as RawLanguage)
+      : isJson
+        ? 'json'
+        : 'text';
+    request.body = { ...empty, mode: 'raw', language, raw: body.raw };
   } else if (body?.mode === 'urlencoded') {
-    request.body = { mode: 'urlencoded', raw: '', fields: rows(body.urlencoded) };
+    request.body = { ...empty, mode: 'urlencoded', fields: rows(body.urlencoded) };
   } else if (body?.mode === 'formdata') {
-    request.body = { mode: 'form-data', raw: '', fields: rows(body.formdata) };
+    request.body = { ...empty, mode: 'form-data', fields: rows(body.formdata) };
+  } else if (body?.mode === 'file') {
+    request.body = { ...empty, mode: 'binary', file: fileByName(body.file?.src) };
+  } else if (body?.mode === 'graphql') {
+    request.body = { ...empty, mode: 'graphql', graphql: { query: body.graphql?.query ?? '', variables: body.graphql?.variables ?? '' } };
   }
   return request;
 }
@@ -279,8 +297,6 @@ export function importPostman(json: string): ImportResult {
     for (const item of items) {
       if (Array.isArray(item.item)) scan(item.item);
       const request = typeof item.request === 'object' ? item.request : undefined;
-      if (request?.body?.formdata?.some((f) => f.type === 'file')) skipped.add('file uploads in form-data');
-      if (request?.body?.mode === 'file' || request?.body?.mode === 'graphql') skipped.add(`${request.body.mode} bodies`);
     }
   };
   scan(data.item);
@@ -403,7 +419,7 @@ const writeRows = (list: KeyValue[]) =>
   }));
 
 function writeRequest(request: ApiRequest): PostmanItem {
-  const body = request.body;
+  const body = normalizeBody(request.body);
   const auth = writeAuth(request.auth);
   const out: PostmanRequest = {
     method: request.method,
@@ -411,12 +427,25 @@ function writeRequest(request: ApiRequest): PostmanItem {
     url: { raw: request.url, ...(request.params?.length ? { query: writeRows(request.params) } : {}) },
     ...(auth ? { auth } : {}),
   };
-  if (body.mode === 'json' || body.mode === 'text') {
-    out.body = { mode: 'raw', raw: body.raw, ...(body.mode === 'json' ? { options: { raw: { language: 'json' } } } : {}) };
+  if (body.mode === 'raw') {
+    out.body = { mode: 'raw', raw: body.raw, options: { raw: { language: body.language } } };
   } else if (body.mode === 'urlencoded') {
     out.body = { mode: 'urlencoded', urlencoded: writeRows(body.fields) };
   } else if (body.mode === 'form-data') {
-    out.body = { mode: 'formdata', formdata: writeRows(body.fields).map((f) => ({ ...f, type: 'text' })) };
+    out.body = {
+      mode: 'formdata',
+      formdata: writeRows(body.fields).map((written, i) => {
+        const row = body.fields[i];
+        // Postman keeps the file's path in src; only the name is known here.
+        if (row.type !== 'file') return { ...written, type: 'text' };
+        const { value: _value, ...rest } = written;
+        return { ...rest, type: 'file', src: row.file?.name ?? null };
+      }),
+    };
+  } else if (body.mode === 'binary') {
+    out.body = { mode: 'file', file: { src: body.file?.name ?? null } };
+  } else if (body.mode === 'graphql') {
+    out.body = { mode: 'graphql', graphql: { query: body.graphql.query, variables: body.graphql.variables } };
   }
   return { name: request.name, request: out };
 }

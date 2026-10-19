@@ -16,6 +16,7 @@ export class FakeCodeEditor {
   readonly showError = vi.fn();
   readonly revealError = vi.fn();
   readonly clearError = vi.fn();
+  readonly search = vi.fn();
 
   onInput(event: Event): void {
     this.value.set((event.target as HTMLTextAreaElement).value);
