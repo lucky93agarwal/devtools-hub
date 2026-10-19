@@ -8,11 +8,15 @@ import { PrivacyPage } from '../pages/info/privacy-page';
 import { AboutPage } from '../pages/info/about-page';
 
 const ON: AdsConfig = { adsenseClient: 'ca-pub-1234567890123456', slots: { belowTool: '1111111111', beforeFaq: '' } };
+const OFF: AdsConfig = { adsenseClient: '', slots: { belowTool: '', beforeFaq: '' } };
 
 describe('ads settings', () => {
-  it('stays off in the shipped config until a publisher ID is added', () => {
-    expect(adsEnabled(ADS)).toBe(false);
-    expect(adSlot('belowTool', ADS)).toBeNull();
+  it('stays off without a publisher ID, and shows no ad space until a slot is added', () => {
+    expect(adsEnabled(OFF)).toBe(false);
+    expect(adSlot('belowTool', OFF)).toBeNull();
+    // The shipped config has the publisher ID (for verification and ads.txt) before any ad unit.
+    expect(adsEnabled(ADS)).toBe(true);
+    expect(adSlot('belowTool', { ...ADS, slots: { belowTool: '', beforeFaq: '' } })).toBeNull();
   });
 
   it('needs a real publisher ID and numeric slot IDs', () => {
@@ -36,7 +40,7 @@ describe('Ads', () => {
   };
 
   it('does nothing while ads are off', () => {
-    setup(ADS).fill();
+    setup(OFF).fill();
     expect(document.querySelector('script[src*="googlesyndication"]')).toBeNull();
     expect((window as { adsbygoogle?: unknown[] }).adsbygoogle).toBeUndefined();
   });
@@ -120,10 +124,10 @@ describe('policy text', () => {
   };
 
   it('says there are no ads or cookies while ads are off', async () => {
-    const privacy = await page(PrivacyPage, ADS);
+    const privacy = await page(PrivacyPage, OFF);
     expect(privacy).toContain('the site does not use cookies.');
     expect(privacy).toContain('The site does not currently show ads.');
-    expect(await page(AboutPage, ADS)).toContain('the site does not use cookies.');
+    expect(await page(AboutPage, OFF)).toContain('the site does not use cookies.');
   });
 
   it('explains Google ads, consent and opting out when ads are on', async () => {

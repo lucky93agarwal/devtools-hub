@@ -28,7 +28,7 @@ export const ANALYTICS = {
  * there are no ads. A slot left empty is simply not shown.
  */
 export const ADS = {
-  adsenseClient: '',
+  adsenseClient: 'ca-pub-7468871768869194',
   slots: {
     /** Below the tool, at the start of its explanation. */
     belowTool: '',
