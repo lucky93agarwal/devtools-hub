@@ -71,11 +71,12 @@ export function normalizeBody(body: Partial<RequestBody> & { mode?: string } = {
   return { ...base, graphql: { ...emptyBody().graphql, ...body.graphql } };
 }
 
-/** What a request talks to: HTTP, or a live WebSocket or Socket.IO connection. */
-export type RequestKind = 'http' | 'websocket' | 'socketio';
+/** What a request talks to: HTTP, GraphQL (sent over HTTP), or a live WebSocket or Socket.IO connection. */
+export type RequestKind = 'http' | 'graphql' | 'websocket' | 'socketio';
 
 export const REQUEST_KINDS: { value: RequestKind; label: string; badge: string }[] = [
   { value: 'http', label: 'HTTP', badge: 'HTTP' },
+  { value: 'graphql', label: 'GraphQL', badge: 'GQL' },
   { value: 'websocket', label: 'WebSocket', badge: 'WS' },
   { value: 'socketio', label: 'Socket.IO', badge: 'SIO' },
 ];
@@ -107,6 +108,9 @@ export const defaultRealtime = (): RealtimeSettings => ({
   auth: '',
   saved: [],
 });
+
+/** WebSocket and Socket.IO keep a connection open; HTTP and GraphQL send one request at a time. */
+export const isLiveKind = (kind: RequestKind | undefined) => kind === 'websocket' || kind === 'socketio';
 
 export interface ApiRequest {
   id: string;

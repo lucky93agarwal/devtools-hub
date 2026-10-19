@@ -157,7 +157,9 @@ export function prepareRequest(
   let bodyFile: string | undefined;
   let bodyError: string | undefined;
   const sendsBody = request.method !== 'GET' && request.method !== 'HEAD';
-  const { mode, raw, language, fields, file, graphql } = normalizeBody(request.body);
+  const normalized = normalizeBody(request.body);
+  // A GraphQL request always sends its query, whatever body mode it was saved with.
+  const { mode, raw, language, fields, file, graphql } = request.kind === 'graphql' ? { ...normalized, mode: 'graphql' as const } : normalized;
   if (sendsBody && mode === 'raw') {
     track(raw);
     bodyText = fill(raw);

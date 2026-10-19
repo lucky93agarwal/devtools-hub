@@ -4,6 +4,7 @@ import { Analytics } from '../../core/analytics';
 import { CodeEditor } from '../../shared/code-editor/code-editor';
 import { FakeCodeEditor } from '../../../testing/fake-editors';
 import { ApiClient } from './api-client';
+import { GraphqlEditor } from './graphql-editor';
 import { PreparedRequest } from './build';
 import { newRequest } from './model';
 import { exportPostman } from './postman';
@@ -105,6 +106,9 @@ describe('ApiClient', () => {
       ],
     });
     TestBed.overrideComponent(ApiClient, { remove: { imports: [CodeEditor] }, add: { imports: [FakeCodeEditor] } });
+    TestBed.overrideComponent(GraphqlEditor, { remove: { imports: [CodeEditor] }, add: { imports: [FakeCodeEditor] } });
+    // The GraphQL editor is a deferred block, loaded on demand.
+    await TestBed.compileComponents();
     const fixture = TestBed.createComponent(ApiClient);
     await fixture.whenStable();
     const el = fixture.nativeElement as HTMLElement;
@@ -230,6 +234,45 @@ describe('ApiClient', () => {
     await type('input[aria-label="Search headers"]', 'request');
     expect(text()).toContain('1 found');
     expect([...el.querySelectorAll('[aria-labelledby=response-heading] td')].map((td) => td.textContent!.trim())).toEqual(['x-request-id', 'abc']);
+  });
+
+  it('builds a GraphQL query from the schema and sends it', async () => {
+    const { el, settle, type, click, newOf, store, text } = await setup();
+    const { buildSchema, introspectionFromSchema } = await import('graphql');
+    const schema = buildSchema('type Query { country(code: ID!): Country } type Country { name: String capital: String }');
+    reply = async () => okResponse({ text: JSON.stringify({ data: introspectionFromSchema(schema) }) });
+    await newOf('GraphQL');
+    expect(text()).toContain('GraphQL');
+    expect(el.querySelector('select[aria-label=Method]')).toBeNull();
+    await type('input[aria-label=URL]', 'https://api.example.com/graphql');
+    [...el.querySelectorAll<HTMLButtonElement>('[role=tab]')].find((t) => t.textContent!.trim().startsWith('Query'))!.click();
+    await settle();
+    // The schema is read by itself shortly after the URL is entered.
+    await new Promise((resolve) => setTimeout(resolve, 900));
+    await settle();
+    expect(sent.at(-1)).toMatchObject({ method: 'POST', url: 'https://api.example.com/graphql' });
+    expect(sent.at(-1)!.bodyText).toContain('IntrospectionQuery');
+
+    el.querySelector<HTMLInputElement>('input[aria-label="Argument code of country"]')?.click();
+    await settle();
+    // Arguments show once the field is open.
+    el.querySelector<HTMLButtonElement>('button[aria-label="Expand country"]')!.click();
+    await settle();
+    el.querySelector<HTMLInputElement>('input[aria-label="Argument code of country"]')!.click();
+    await settle();
+    expect(store.draft().body.graphql.query).toBe('query MyQuery($code: ID!) {\n  country(code: $code) {\n    name\n    capital\n  }\n}\n');
+    expect(JSON.parse(store.draft().body.graphql.variables)).toEqual({ code: null });
+    el.querySelector<HTMLInputElement>('input[aria-label="Select country/capital"]')!.click();
+    await settle();
+    expect(store.draft().body.graphql.query).not.toContain('capital');
+
+    store.update({ body: { ...store.draft().body, graphql: { ...store.draft().body.graphql, query: '{ country { population } }' } } });
+    await settle();
+    expect(el.querySelector('[aria-label="Query problems"]')!.textContent).toContain('Cannot query field "population" on type "Country".');
+
+    reply = async () => okResponse({ text: '{"data":{"country":{"name":"India"}}}' });
+    await click('Send');
+    expect(JSON.parse(sent.at(-1)!.bodyText!)).toEqual({ query: '{ country { population } }', variables: { code: null } });
   });
 
   it('previews HTML in a sandboxed frame that runs no scripts', async () => {

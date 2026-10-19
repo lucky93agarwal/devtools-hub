@@ -212,16 +212,23 @@
         <div
           class="flex min-w-0 flex-1 basis-full overflow-hidden rounded-xl border border-line bg-surface focus-within:border-brand sm:basis-auto"
         >
-          <select
-            class="shrink-0 border-r border-line bg-transparent px-3 py-2.5 font-mono text-sm font-bold"
-            aria-label="Method"
-            [class]="methodColours[draft().method]"
-            (change)="setMethod($any($event.target).value)"
-          >
-            @for (method of methods; track method) {
-              <option [value]="method" [selected]="draft().method === method">{{ method }}</option>
-            }
-          </select>
+          @if (isGraphql()) {
+            <!-- GraphQL is always sent as a POST with a JSON body. -->
+            <span class="flex shrink-0 items-center border-r border-line px-3 font-mono text-sm font-bold text-warning" title="Sent as POST">
+              GraphQL
+            </span>
+          } @else {
+            <select
+              class="shrink-0 border-r border-line bg-transparent px-3 py-2.5 font-mono text-sm font-bold"
+              aria-label="Method"
+              [class]="methodColours[draft().method]"
+              (change)="setMethod($any($event.target).value)"
+            >
+              @for (method of methods; track method) {
+                <option [value]="method" [selected]="draft().method === method">{{ method }}</option>
+              }
+            </select>
+          }
           <input
             type="text"
             class="min-w-0 flex-1 bg-transparent px-3 py-2.5 font-mono text-sm outline-none"
@@ -269,9 +276,11 @@
           }
         </div>
         @if (isHttp()) {
-          <button type="button" class="btn-small" (click)="panel.set(panel() === 'curl' ? null : 'curl')">Import cURL</button>
+          @if (!isGraphql()) {
+            <button type="button" class="btn-small" (click)="panel.set(panel() === 'curl' ? null : 'curl')">Import cURL</button>
+          }
           <button type="button" class="btn-small" (click)="panel.set(panel() === 'code' ? null : 'code')">Code</button>
-          <button type="button" class="btn-small" (click)="loadSample()">Sample request</button>
+          <button type="button" class="btn-small" (click)="isGraphql() ? loadGraphqlSample() : loadSample()">Sample request</button>
         } @else {
           <button type="button" class="btn-small" (click)="startSave()">Save</button>
           @if (draft().kind === 'websocket') {
@@ -375,7 +384,7 @@
             { id: 'params', label: 'Params', count: params().length },
             { id: 'auth', label: 'Authorization', count: draft().auth.type === 'none' ? 0 : 1 },
             { id: 'headers', label: 'Headers', count: headerCount() },
-            { id: 'body', label: 'Body', count: draft().body.mode === 'none' ? 0 : 1 }
+            { id: 'body', label: isGraphql() ? 'Query' : 'Body', count: isGraphql() || draft().body.mode !== 'none' ? 1 : 0 }
           ]; track tab.id) {
             <button
               type="button"
@@ -474,6 +483,22 @@
             />
           }
           @case ('body') {
+            @if (isGraphql()) {
+              @defer (on immediate) {
+                <app-graphql-editor
+                  [query]="draft().body.graphql.query"
+                  [variables]="draft().body.graphql.variables"
+                  [url]="prepared().url"
+                  [schemaState]="schemaState()"
+                  (queryChange)="setGraphql({ query: $event })"
+                  (variablesChange)="setGraphql({ variables: $event })"
+                  (fetchSchema)="fetchSchema($event)"
+                  (schemaFile)="setSchema({ status: 'ready', text: $event })"
+                />
+              } @placeholder {
+                <p class="text-sm text-muted">Loading the GraphQL editor…</p>
+              }
+            } @else {
             <div class="flex flex-col gap-3">
               <div class="flex flex-wrap items-center gap-x-4 gap-y-2" role="radiogroup" aria-label="Body type">
                 @for (mode of bodyModes; track mode.value) {
@@ -584,6 +609,7 @@
                 }
               }
             </div>
+            }
           }
         }
       </div>

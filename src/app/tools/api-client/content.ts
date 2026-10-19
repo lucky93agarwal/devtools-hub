@@ -8,6 +8,19 @@ import { ApiRequest } from './model';
  * to try the tree's hover previews on. The URL is made absolute when it is loaded.
  */
 export const SAMPLE_PATH = '/samples/api-demo.json';
+/** A public GraphQL API about countries that allows calls from browsers and describes its schema. */
+export const GRAPHQL_SAMPLE = {
+  name: 'Countries (GraphQL)',
+  url: 'https://countries.trevorblades.com/graphql',
+  body: {
+    mode: 'graphql' as const,
+    graphql: {
+      query: 'query Country($code: ID!) {\n  country(code: $code) {\n    name\n    capital\n    currency\n    emoji\n    languages {\n      name\n    }\n  }\n}\n',
+      variables: '{\n  "code": "IN"\n}',
+    },
+  },
+};
+
 /** A public WebSocket server that sends every message back. */
 export const WEBSOCKET_SAMPLE_URL = 'wss://echo.websocket.org';
 export const SAMPLE_REQUEST: Partial<ApiRequest> = {

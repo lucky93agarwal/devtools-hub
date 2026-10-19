@@ -1,6 +1,6 @@
 import { Auth, defaultAuth } from './auth';
 import { paramsFromUrl } from './build';
-import { ApiRequest, BodyFile, Collection, Folder, KeyValue, METHODS, Method, RAW_LANGUAGES, RawLanguage, newId, newRequest, normalizeBody } from './model';
+import { ApiRequest, BodyFile, Collection, Folder, KeyValue, METHODS, Method, RAW_LANGUAGES, RawLanguage, isLiveKind, newId, newRequest, normalizeBody } from './model';
 
 /**
  * Postman collections (format v2.1, and v2.0) in and out, so people can bring
@@ -457,12 +457,12 @@ function writeFolder(folder: Folder): PostmanItem[] {
       return { name: child.name, item: writeFolder(child), ...(auth ? { auth } : {}) };
     }),
     // Postman keeps WebSocket and Socket.IO requests outside the v2.1 collection format.
-    ...folder.requests.filter((request) => (request.kind ?? 'http') === 'http').map(writeRequest),
+    ...folder.requests.filter((request) => !isLiveKind(request.kind)).map(writeRequest),
   ];
 }
 
 const countRealtime = (folder: Folder): number =>
-  folder.requests.filter((request) => (request.kind ?? 'http') !== 'http').length +
+  folder.requests.filter((request) => isLiveKind(request.kind)).length +
   folder.folders.reduce((sum, child) => sum + countRealtime(child), 0);
 
 /** A Postman v2.1 collection file, and how many live-connection requests it could not hold. */

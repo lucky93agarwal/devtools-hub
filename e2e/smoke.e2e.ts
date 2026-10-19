@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test';
+import { buildSchema, introspectionFromSchema } from 'graphql';
 import { typeInEditor, watchErrors } from './helpers';
 
 // Smoke tests for every live page, using real mouse clicks and keyboard input
@@ -359,6 +360,43 @@ test('API Client sends raw, GraphQL and binary bodies', async ({ page }) => {
   await page.getByLabel('File 1').setInputFiles({ name: 'cat.png', mimeType: 'image/png', buffer: Buffer.from('cat') });
   await page.getByRole('button', { name: 'Code', exact: true }).click();
   await expect(page.locator('pre').first()).toContainText(`--form 'avatar=@"cat.png"'`);
+});
+
+test('API Client builds a GraphQL query from the schema', async ({ page }) => {
+  const schema = buildSchema('type Query { country(code: ID!): Country } type Country { name: String capital: String }');
+  const bodies: string[] = [];
+  // A stand-in GraphQL server that allows calls from web pages.
+  await page.route('https://gql.test/graphql', async (route) => {
+    const cors = {
+      'access-control-allow-origin': '*',
+      'access-control-allow-headers': 'content-type',
+      'access-control-allow-methods': 'POST',
+    };
+    if (route.request().method() === 'OPTIONS') return route.fulfill({ status: 204, headers: cors });
+    const body = route.request().postData() ?? '';
+    bodies.push(body);
+    const data = body.includes('IntrospectionQuery') ? introspectionFromSchema(schema) : { country: { name: 'India' } };
+    return route.fulfill({ status: 200, headers: { ...cors, 'content-type': 'application/json' }, body: JSON.stringify({ data }) });
+  });
+  await page.goto('/api-client');
+  await page.getByRole('button', { name: 'New', exact: true }).click();
+  await page.getByRole('menuitem', { name: /GraphQL/ }).click();
+  await page.getByLabel('URL').fill('https://gql.test/graphql');
+  await page.getByRole('tab', { name: /Query/ }).click();
+  const explorer = page.getByRole('complementary', { name: 'Schema explorer' });
+  await explorer.getByRole('button', { name: 'Expand country' }).click();
+  await explorer.getByLabel('Argument code of country').check();
+  // Ticking the argument ticks the field and its leaves.
+  await expect(explorer.getByLabel('Select country/capital')).toBeChecked();
+  await explorer.getByLabel('Select country/capital').uncheck();
+  await expect(page.locator('app-code-editor').first()).toContainText('country(code: $code)');
+  await expect(page.locator('app-code-editor').first()).not.toContainText('capital');
+  await page.getByRole('button', { name: 'Send', exact: true }).click();
+  await expect(page.locator('app-json-view')).toContainText('"India"');
+  expect(JSON.parse(bodies.at(-1)!)).toEqual({
+    query: 'query MyQuery($code: ID!) {\n  country(code: $code) {\n    name\n  }\n}\n',
+    variables: { code: null },
+  });
 });
 
 test('API Client talks to a WebSocket server', async ({ page }) => {

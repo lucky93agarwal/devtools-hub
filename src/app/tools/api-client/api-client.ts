@@ -7,7 +7,7 @@ import { copyText, downloadBlob, downloadText, formatBytes } from '../../shared/
 import { ICONS, Icon } from '../../shared/icon/icon';
 import { ToolInfoSection } from '../../shared/tool-info/tool-info';
 import { mergeUrlParams, prepareRequest, resolveVariables, urlWithParams, variableMap } from './build';
-import { API_CLIENT_CONTENT, SAMPLE_PATH, SAMPLE_REQUEST, WEBSOCKET_SAMPLE_URL } from './content';
+import { API_CLIENT_CONTENT, GRAPHQL_SAMPLE, SAMPLE_PATH, SAMPLE_REQUEST, WEBSOCKET_SAMPLE_URL } from './content';
 import { nameFromUrl, parseCurl, toCurl, toFetchCode } from './curl';
 import { KvTable } from './kv-table';
 import { JsonView } from './json-view';
@@ -40,9 +40,13 @@ import {
   RequestKind,
   cloneRequest,
   defaultRealtime,
+  emptyBody,
+  isLiveKind,
   newRequest,
 } from './model';
 import { RealtimePanel } from './realtime-panel';
+import { GraphqlEditor } from './graphql-editor';
+import type { SchemaState } from './graphql-editor';
 import { fileFor, keepFile } from './body-files';
 import { exportPostman, importPostman } from './postman';
 import { ApiResponse, ApiSender, RequestFailure } from './sender';
@@ -79,6 +83,7 @@ const METHOD_COLOURS: Record<string, string> = {
   DELETE: 'text-danger',
   HEAD: 'text-muted',
   OPTIONS: 'text-muted',
+  GQL: 'text-warning',
   WS: 'text-warning',
   SIO: 'text-warning',
 };
@@ -86,7 +91,7 @@ const METHOD_COLOURS: Record<string, string> = {
 @Component({
   selector: 'app-api-client',
   host: { '(document:click)': 'closeMenus($event)' },
-  imports: [Icon, CodeEditor, ToolInfoSection, KvTable, AuthEditor, JsonView, SearchBox, RealtimePanel],
+  imports: [Icon, CodeEditor, ToolInfoSection, KvTable, AuthEditor, JsonView, SearchBox, RealtimePanel, GraphqlEditor],
   templateUrl: './api-client.html',
 })
 export class ApiClient {
@@ -161,10 +166,16 @@ export class ApiClient {
   protected readonly requestKinds = REQUEST_KINDS;
   protected readonly kindHints: Record<RequestKind, string> = {
     http: 'REST and other HTTP APIs',
+    graphql: 'Queries built from the schema',
     websocket: 'A live two-way connection',
     socketio: 'Events with a Socket.IO server',
   };
-  protected readonly isHttp = computed(() => (this.draft().kind ?? 'http') === 'http');
+  /** HTTP and GraphQL use the request form; WebSocket and Socket.IO the live panel. */
+  protected readonly isHttp = computed(() => !isLiveKind(this.draft().kind));
+  protected readonly isGraphql = computed(() => this.draft().kind === 'graphql');
+  /** Schemas read per endpoint, kept while the page is open. */
+  private readonly schemas = signal(new Map<string, SchemaState>());
+  protected readonly schemaState = computed(() => this.schemas().get(this.prepared().url) ?? { status: 'idle' as const });
   protected readonly previewKind = computed(() => {
     const response = this.response();
     return response ? previewKind(response.contentType, response.text !== null) : 'none';
@@ -553,11 +564,53 @@ export class ApiClient {
   protected newRequest(kind: RequestKind = 'http'): void {
     this.newMenu.set(false);
     this.panel.set(null);
+    const label = REQUEST_KINDS.find((k) => k.value === kind)!.label;
     this.store.openNew(
-      kind === 'http' ? newRequest() : newRequest({ kind, name: `New ${kind === 'websocket' ? 'WebSocket' : 'Socket.IO'} request`, realtime: defaultRealtime() }),
+      kind === 'http'
+        ? newRequest()
+        : kind === 'graphql'
+          ? newRequest({ kind, name: 'New GraphQL request', method: 'POST', body: { ...emptyBody(), mode: 'graphql' } })
+          : newRequest({ kind, name: `New ${label} request`, realtime: defaultRealtime() }),
     );
     this.result.set({ kind: 'idle' });
     this.requestTab.set('params');
+  }
+
+  protected loadGraphqlSample(): void {
+    this.store.openNew(newRequest({ ...GRAPHQL_SAMPLE, kind: 'graphql', method: 'POST', body: { ...emptyBody(), ...GRAPHQL_SAMPLE.body } }));
+    this.result.set({ kind: 'idle' });
+    this.requestTab.set('body');
+  }
+
+  protected setSchema(state: SchemaState): void {
+    this.setSchemaFor(this.prepared().url, state);
+  }
+
+  /** Sends the introspection query with the request's own headers and auth. */
+  protected async fetchSchema(body: string): Promise<void> {
+    const draft = this.draft();
+    const request = { ...draft, kind: 'http' as const, method: 'POST' as const, body: { ...emptyBody(), mode: 'raw' as const, language: 'json' as const, raw: body } };
+    const prepared = prepareRequest(request, this.variables(), this.store.effectiveAuth());
+    const url = prepared.url;
+    this.setSchemaFor(url, { status: 'loading' });
+    try {
+      const response = await this.sender.send(await signRequest(prepared), new AbortController().signal);
+      if (!response.text) throw new Error(`The server answered ${response.status} with no schema.`);
+      if (response.status >= 400 && !response.text.includes('__schema')) throw new Error(`The server answered ${response.status} ${response.statusText}.`);
+      this.setSchemaFor(url, { status: 'ready', text: response.text });
+    } catch (e) {
+      const message =
+        e instanceof RequestFailure && e.kind === 'blocked'
+          ? 'The browser could not reach the endpoint. Check the URL, and that the server allows this site (CORS).'
+          : e instanceof Error
+            ? e.message
+            : 'The schema could not be read.';
+      this.setSchemaFor(url, { status: 'error', error: message });
+    }
+  }
+
+  private setSchemaFor(url: string, state: SchemaState): void {
+    this.schemas.update((map) => new Map(map).set(url, state));
   }
 
   protected loadWebSocketSample(): void {
