@@ -1,4 +1,4 @@
-import { Component, input, model, output } from '@angular/core';
+import { Component, ElementRef, afterNextRender, input, model, output, viewChild } from '@angular/core';
 
 /** Counts matches of the query in the text, ignoring case, as the editor's search does. */
 export function countMatches(text: string, query: string): number {
@@ -22,6 +22,7 @@ export function countMatches(text: string, query: string): number {
         <path d="M11 4a7 7 0 1 0 0 14 7 7 0 0 0 0-14zM20 20l-4-4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
       </svg>
       <input
+        #field
         type="text"
         role="searchbox"
         class="w-full min-w-0 bg-transparent py-1 text-sm outline-none"
@@ -32,6 +33,7 @@ export function countMatches(text: string, query: string): number {
         [value]="query()"
         (input)="query.set($any($event.target).value)"
         (keydown.enter)="$event.preventDefault(); step.emit($any($event).shiftKey ? -1 : 1)"
+        (keydown.escape)="closed.emit()"
       />
       @if (query()) {
         <span class="shrink-0 px-1 text-xs whitespace-nowrap text-muted" aria-live="polite">
@@ -79,4 +81,16 @@ export class SearchBox {
   /** Show the previous and next arrows; off when matches are filtered instead of stepped through. */
   readonly stepper = input(true);
   readonly step = output<1 | -1>();
+  /** Escape in the field. */
+  readonly closed = output<void>();
+  /** Put the cursor in the field when it appears. */
+  readonly autofocus = input(false);
+
+  private readonly field = viewChild.required<ElementRef<HTMLInputElement>>('field');
+
+  constructor() {
+    afterNextRender(() => {
+      if (this.autofocus()) this.field().nativeElement.focus();
+    });
+  }
 }

@@ -56,6 +56,8 @@ export class CodeEditor {
   readonly ariaLabel = input('Code editor');
   /** Shows a red border. */
   readonly invalid = input(false);
+  /** Wrap long lines instead of scrolling sideways. */
+  readonly wordWrap = input(false);
 
   protected readonly ready = signal(false);
 
@@ -114,6 +116,11 @@ export class CodeEditor {
     effect(() => {
       const language = this.language();
       if (this.ready() && this.textModel) this.monaco?.editor.setModelLanguage(this.textModel, language);
+    });
+
+    effect(() => {
+      const wrap = this.wordWrap();
+      if (this.ready()) this.editor?.updateOptions({ wordWrap: wrap ? 'on' : 'off' });
     });
 
     effect(() => {
@@ -256,6 +263,7 @@ export class CodeEditor {
       quickSuggestions: false,
       links: false,
       contextmenu: true,
+      wordWrap: this.wordWrap() ? 'on' : 'off',
     });
     this.errorDecorations = this.editor.createDecorationsCollection();
     this.flashDecorations = this.editor.createDecorationsCollection();

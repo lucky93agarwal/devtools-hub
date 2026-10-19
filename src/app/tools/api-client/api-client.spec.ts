@@ -125,21 +125,35 @@ describe('ApiClient', () => {
       input.dispatchEvent(new Event(event));
       await settle();
     };
+    /** Opens the response format menu and picks a format. */
+    const chooseFormat = async (label: string) => {
+      el.querySelector<HTMLButtonElement>('button[aria-label^="Format: "]')!.click();
+      await settle();
+      const item = [...el.querySelectorAll<HTMLButtonElement>('[role=menuitemradio]')].find((b) => b.textContent!.trim().endsWith(label));
+      item!.click();
+      // Hex and Base64 read the body's bytes first.
+      await new Promise((resolve) => setTimeout(resolve, 20));
+      await settle();
+    };
     const editors = () => fixture.debugElement.queryAll(By.directive(FakeCodeEditor)).map((d) => d.componentInstance as FakeCodeEditor);
-    return { fixture, el, settle, text, click, type, editors, store: TestBed.inject(ApiStore) };
+    return { fixture, el, settle, text, click, type, editors, chooseFormat, store: TestBed.inject(ApiStore) };
   }
 
-  it('sends a request and shows the status, time, size and pretty JSON', async () => {
-    const { el, click, type, text, editors } = await setup();
+  it('sends a request and shows the status, time, size and the body in each format', async () => {
+    const { el, click, type, text, editors, chooseFormat } = await setup();
     await type('input[aria-label=URL]', 'https://api.example.com/posts/1?x=1');
     await click('Send');
     expect(sent[0]).toMatchObject({ method: 'GET', url: 'https://api.example.com/posts/1?x=1' });
     expect(text()).toContain('200 OK');
     expect(text()).toContain('42 ms');
-    // JSON opens as a tree; Raw shows the text in the editor.
+    // JSON opens as a tree; Raw shows the text as the server sent it.
     expect(el.querySelector('app-json-view')!.textContent).toContain('"title": "Hello"');
-    await click('raw');
-    expect(editors().at(-1)!.value()).toBe('{\n  "id": 1,\n  "title": "Hello"\n}');
+    await chooseFormat('Raw');
+    expect(editors().at(-1)!.value()).toBe('{"id":1,"title":"Hello"}');
+    await chooseFormat('Hex');
+    expect(editors().at(-1)!.value()).toMatch(/^00000000 {2}7b 22 69 64 22 3a 31 2c {2}22 74 69 74 6c 65 22 3a {2}\|\{"id":1,"title":\|/);
+    await chooseFormat('Base64');
+    expect(editors().at(-1)!.value()).toBe(btoa('{"id":1,"title":"Hello"}'));
     expect(track).toHaveBeenCalledWith('api-send', { method: 'GET', status: '2xx' });
     // The URL's params show in the Params tab.
     expect([...el.querySelectorAll<HTMLInputElement>('app-kv-table input[type=text]')].map((i) => i.value)).toContain('x');
@@ -170,7 +184,7 @@ describe('ApiClient', () => {
   });
 
   it('searches the response tree, raw text and headers', async () => {
-    const { el, click, type, settle, text, editors } = await setup();
+    const { el, click, type, settle, text, editors, chooseFormat } = await setup();
     const items = Array.from({ length: 150 }, (_, i) => ({ id: i, name: i === 140 ? 'needle' : `item ${i}` }));
     reply = async () =>
       okResponse({
@@ -185,6 +199,8 @@ describe('ApiClient', () => {
     // Fold everything, then search: the match inside is opened and marked.
     await click('Collapse all');
     expect(text()).not.toContain('Needle here');
+    el.querySelector<HTMLButtonElement>('button[aria-label=Search]')!.click();
+    await settle();
     await type('input[aria-label="Search response body"]', 'NEEDLE');
     expect(text()).toContain('1 of 2');
     expect(el.querySelector('app-json-view mark')!.textContent).toBe('Needle');
@@ -199,7 +215,7 @@ describe('ApiClient', () => {
     await next();
     expect(text()).toContain('1 of 2');
 
-    await click('raw');
+    await chooseFormat('Raw');
     expect(text()).toContain('1 of 2');
     expect(editors().at(-1)!.search).toHaveBeenLastCalledWith('NEEDLE', 0);
 
@@ -207,6 +223,17 @@ describe('ApiClient', () => {
     await type('input[aria-label="Search headers"]', 'request');
     expect(text()).toContain('1 found');
     expect([...el.querySelectorAll('[aria-labelledby=response-heading] td')].map((td) => td.textContent!.trim())).toEqual(['x-request-id', 'abc']);
+  });
+
+  it('previews HTML in a sandboxed frame that runs no scripts', async () => {
+    const { el, click, type } = await setup();
+    reply = async () => okResponse({ contentType: 'text/html', text: '<h1>Hi</h1><script>alert(1)</script>' });
+    await type('input[aria-label=URL]', 'https://x.dev/page');
+    await click('Send');
+    await click('Preview');
+    const frame = el.querySelector<HTMLIFrameElement>('iframe[title="HTML returned by the API"]')!;
+    expect(frame.getAttribute('sandbox')).toBe('allow-popups allow-popups-to-escape-sandbox');
+    expect(frame.getAttribute('srcdoc')).toContain('<base href="https://api.example.com/posts/1" target="_blank"><h1>Hi</h1>');
   });
 
   it('decodes a JWT in a response when it is clicked', async () => {

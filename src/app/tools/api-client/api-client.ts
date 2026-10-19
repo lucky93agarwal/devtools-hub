@@ -1,4 +1,5 @@
-import { Component, DestroyRef, computed, effect, inject, linkedSignal, signal, viewChild } from '@angular/core';
+import { Component, DestroyRef, computed, effect, inject, linkedSignal, signal, untracked, viewChild } from '@angular/core';
+import { DomSanitizer } from '@angular/platform-browser';
 import { Analytics } from '../../core/analytics';
 import { TOOLS } from '../../core/tools';
 import { CodeEditor } from '../../shared/code-editor/code-editor';
@@ -11,6 +12,15 @@ import { nameFromUrl, parseCurl, toCurl, toFetchCode } from './curl';
 import { KvTable } from './kv-table';
 import { JsonView } from './json-view';
 import { SearchBox, countMatches } from './search-box';
+import {
+  RESPONSE_FORMATS,
+  ResponseFormat,
+  defaultFormat,
+  hexDump,
+  previewDocument,
+  previewKind,
+  toBase64,
+} from './response-format';
 import { parseTree } from '../json-formatter/json-tree';
 import { AuthEditor } from './auth-editor';
 import { Auth } from './auth';
@@ -51,6 +61,7 @@ const METHOD_COLOURS: Record<string, string> = {
 
 @Component({
   selector: 'app-api-client',
+  host: { '(document:click)': 'closeMenus($event)' },
   imports: [Icon, CodeEditor, ToolInfoSection, KvTable, AuthEditor, JsonView, SearchBox],
   templateUrl: './api-client.html',
 })
@@ -80,9 +91,6 @@ export class ApiClient {
   protected readonly requestTab = signal<RequestTab>('params');
   protected readonly sideTab = signal<SideTab>('collections');
   protected readonly responseTab = signal<'body' | 'headers'>('body');
-  protected readonly pretty = signal(true);
-  /** JSON bodies show as a tree, or as text in the editor. */
-  protected readonly bodyView = signal<'tree' | 'raw'>('tree');
   protected readonly result = signal<Result>({ kind: 'idle' });
   protected readonly note = signal('');
   protected readonly copied = signal('');
@@ -111,23 +119,55 @@ export class ApiClient {
     return result.kind === 'failed' ? result.failure : null;
   });
   protected readonly sending = computed(() => this.result().kind === 'sending');
-  /** JSON responses are shown formatted when Pretty is on. */
+  // How the body is shown, as in Postman: a format from the menu, or Preview.
+  protected readonly formats = RESPONSE_FORMATS;
+  protected readonly responseFormat = linkedSignal<ApiResponse | null, ResponseFormat>({
+    source: this.response,
+    computation: (response, previous) =>
+      // Keep a format the user picked while they send the same kind of request again.
+      previous && response && previous.source?.contentType === response.contentType
+        ? previous.value
+        : response
+          ? defaultFormat(response.contentType, response.text !== null)
+          : 'json',
+  });
+  protected readonly formatOption = computed(() => RESPONSE_FORMATS.find((f) => f.value === this.responseFormat())!);
+  protected readonly formatMenu = signal(false);
+  protected readonly previewKind = computed(() => {
+    const response = this.response();
+    return response ? previewKind(response.contentType, response.text !== null) : 'none';
+  });
+  /** Images, PDFs, audio and video open in Preview; text opens in its format. */
+  protected readonly previewOn = linkedSignal(() => ['image', 'pdf', 'video', 'audio'].includes(this.previewKind()));
+  /** Long lines wrap, except in Hex, whose columns only line up unwrapped. */
+  protected readonly wrap = linkedSignal(() => this.responseFormat() !== 'hex');
+  protected readonly searchOpen = signal(false);
+  /** The body's bytes, read only when Hex or Base64 needs them. */
+  protected readonly responseBytes = signal<{ response: ApiResponse; bytes: Uint8Array } | null>(null);
+  /** The body as shown in the editor and copied by Copy. */
   protected readonly responseText = computed(() => {
     const response = this.response();
-    if (!response?.text) return '';
-    if (this.pretty() && /json/i.test(response.contentType)) {
+    if (!response) return '';
+    const format = this.responseFormat();
+    if (format === 'hex' || format === 'base64') {
+      const loaded = this.responseBytes();
+      if (loaded?.response !== response) return 'Reading the response…';
+      return format === 'hex' ? hexDump(loaded.bytes) : toBase64(loaded.bytes);
+    }
+    const text = response.text ?? '';
+    if (format === 'json') {
       try {
-        return JSON.stringify(JSON.parse(response.text), null, 2);
+        return JSON.stringify(JSON.parse(text), null, 2);
       } catch {
-        return response.text;
+        return text;
       }
     }
-    return response.text;
+    return text;
   });
-  /** The JSON body as a tree, or null when the body is not valid JSON. */
+  /** The JSON body as a tree when JSON is the format, or null when it is not valid JSON. */
   protected readonly responseTree = computed(() => {
     const text = this.response()?.text;
-    if (!text || this.responseLanguage() !== 'json') return null;
+    if (!text || this.responseFormat() !== 'json') return null;
     try {
       JSON.parse(text);
       return parseTree(text);
@@ -135,12 +175,24 @@ export class ApiClient {
       return null;
     }
   });
+  /** The PDF's local address for the Preview frame. */
+  protected readonly previewResource = computed(() => {
+    const url = this.previewUrl();
+    return url ? this.sanitizer.bypassSecurityTrustResourceUrl(url) : null;
+  });
+  protected readonly headersText = computed(() => (this.response()?.headers ?? []).map(([n, v]) => `${n}: ${v}`).join('\n'));
+  /** An HTML response for the sandboxed Preview frame, which runs no scripts. */
+  protected readonly previewHtml = computed(() => {
+    const response = this.response();
+    if (!response?.text || this.previewKind() !== 'html') return null;
+    return this.sanitizer.bypassSecurityTrustHtml(previewDocument(response.text, response.url));
+  });
   // Search in the response: steps through matches in the tree and the editor, filters headers.
   protected readonly responseQuery = signal('');
   /** How far Next and Previous have moved; wraps around the number of matches. */
   protected readonly searchStep = linkedSignal({ source: this.responseQuery, computation: () => 0 });
   protected readonly searchMode = computed(() =>
-    this.responseTab() === 'headers' ? 'headers' : this.bodyView() === 'tree' && this.responseTree() ? 'tree' : 'raw',
+    this.responseTab() === 'headers' ? 'headers' : this.previewOn() ? 'preview' : this.responseTree() ? 'tree' : 'raw',
   );
   protected readonly shownHeaders = computed(() => {
     const query = this.responseQuery().toLowerCase();
@@ -164,25 +216,31 @@ export class ApiClient {
   private readonly jsonView = viewChild(JsonView);
   private readonly responseEditor = viewChild<CodeEditor>('responseEditor');
 
-  protected readonly responseLanguage = computed(() => {
-    const type = this.response()?.contentType ?? '';
-    if (/json/i.test(type)) return 'json';
-    if (/xml/i.test(type)) return 'xml';
-    if (/html/i.test(type)) return 'html';
-    return 'plaintext';
-  });
-  protected readonly imageUrl = signal<string | null>(null);
+  /** A local address for an image, PDF, audio or video response, for Preview. */
+  protected readonly previewUrl = signal<string | null>(null);
   protected readonly tree = computed(() => this.store.collections().map((c) => ({ collection: c, rows: flatten(c) })));
   protected readonly saveTargets = computed(() =>
     this.store.collections().flatMap((c) => folderOptions(c, c.id)),
   );
 
   private readonly sender = inject(ApiSender);
+  private readonly sanitizer = inject(DomSanitizer);
   private readonly analytics = inject(Analytics);
   private controller: AbortController | null = null;
   private copyTimer?: ReturnType<typeof setTimeout>;
 
   constructor() {
+    // Hex and Base64 need the body's bytes, which are read once per response.
+    effect(() => {
+      const response = this.response();
+      const format = this.responseFormat();
+      if (!response || (format !== 'hex' && format !== 'base64')) return;
+      if (untracked(this.responseBytes)?.response === response) return;
+      void response.blob.arrayBuffer().then((buffer) => {
+        if (this.response() === response) this.responseBytes.set({ response, bytes: new Uint8Array(buffer) });
+      });
+    });
+
     // The editor marks raw matches itself; it keeps the search until Monaco has loaded.
     effect(() => {
       const editor = this.responseEditor();
@@ -208,7 +266,7 @@ export class ApiClient {
     });
     inject(DestroyRef).onDestroy(() => {
       this.controller?.abort();
-      this.releaseImage();
+      this.releasePreview();
       clearTimeout(this.copyTimer);
     });
   }
@@ -364,7 +422,7 @@ export class ApiClient {
     }
     this.note.set('');
     this.controller = new AbortController();
-    this.releaseImage();
+    this.releasePreview();
     this.result.set({ kind: 'sending' });
     try {
       let prepared = this.prepared();
@@ -374,7 +432,9 @@ export class ApiClient {
         throw new RequestFailure('auth', e instanceof AuthError ? e.message : 'The request could not be signed.');
       }
       const response = await this.sender.send(prepared, this.controller.signal);
-      if (/^image\//i.test(response.contentType)) this.imageUrl.set(URL.createObjectURL(response.blob));
+      if (['image', 'pdf', 'video', 'audio'].includes(previewKind(response.contentType, response.text !== null))) {
+        this.previewUrl.set(URL.createObjectURL(response.blob));
+      }
       this.result.set({ kind: 'done', response });
       this.store.addHistory(request, response.status, response.ms);
       this.analytics.track('api-send', { method: request.method, status: `${Math.floor(response.status / 100)}xx` });
@@ -386,6 +446,30 @@ export class ApiClient {
     } finally {
       this.controller = null;
     }
+  }
+
+  protected chooseFormat(format: ResponseFormat): void {
+    this.responseFormat.set(format);
+    this.previewOn.set(false);
+    this.formatMenu.set(false);
+  }
+
+  protected toggleSearch(): void {
+    this.searchOpen.update((open) => !open);
+    if (!this.searchOpen()) this.responseQuery.set('');
+  }
+
+  /** Ctrl+F or Cmd+F in the response opens its search, except inside the editor, which has its own. */
+  protected onResponseKeydown(event: KeyboardEvent): void {
+    if (!(event.ctrlKey || event.metaKey) || event.key.toLowerCase() !== 'f') return;
+    if ((event.target as HTMLElement).closest('app-code-editor')) return;
+    event.preventDefault();
+    this.searchOpen.set(true);
+  }
+
+  /** Closes the format menu on a click anywhere else. */
+  protected closeMenus(event: MouseEvent): void {
+    if (this.formatMenu() && !(event.target as HTMLElement).closest('[data-format-menu]')) this.formatMenu.set(false);
   }
 
   protected stepSearch(direction: 1 | -1): void {
@@ -560,10 +644,10 @@ export class ApiClient {
     this.copyTimer = setTimeout(() => this.copied.set(''), 2000);
   }
 
-  private releaseImage(): void {
-    const url = this.imageUrl();
+  private releasePreview(): void {
+    const url = this.previewUrl();
     if (url) URL.revokeObjectURL(url);
-    this.imageUrl.set(null);
+    this.previewUrl.set(null);
   }
 }
 

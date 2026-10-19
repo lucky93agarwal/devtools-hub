@@ -13,6 +13,7 @@ export class FakeCodeEditor {
   readonly placeholder = input('');
   readonly ariaLabel = input('');
   readonly invalid = input(false);
+  readonly wordWrap = input(false);
   readonly showError = vi.fn();
   readonly revealError = vi.fn();
   readonly clearError = vi.fn();

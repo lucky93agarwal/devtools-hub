@@ -92,6 +92,8 @@ const TIMING_TEXT = {
       @for (row of rows(); track row.id) {
         <div
           class="group flex min-w-0 items-start gap-1 pr-2"
+          [class.w-max]="!wrap()"
+          [class.min-w-full]="!wrap()"
           [class]="row.id === currentMatchId() ? 'bg-warning/15 outline outline-1 -outline-offset-1 outline-warning' : 'hover:bg-surface'"
           [attr.data-row]="row.id"
           [style.padding-left.px]="8 + row.depth * 16"
@@ -121,7 +123,7 @@ const TIMING_TEXT = {
               } @else {
                 <span class="w-4 shrink-0"></span>
               }
-              <span class="min-w-0 break-all">
+              <span class="min-w-0" [class]="wrap() ? 'break-all' : 'whitespace-pre'">
                 @if (row.key !== null) {
                   <span
                     tabindex="0"
@@ -314,6 +316,8 @@ export class JsonView implements OnDestroy {
   readonly query = input('');
   /** Which match to show, counted from 0; it wraps around past the last one. */
   readonly current = input(0);
+  /** Wrap long values; off keeps each row on one line and scrolls sideways. */
+  readonly wrap = input(true);
 
   protected readonly icons = ICONS;
   protected readonly page = PAGE;

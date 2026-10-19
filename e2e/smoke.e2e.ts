@@ -290,7 +290,8 @@ test('API Client sends a real request and shows the response', async ({ page }) 
   await page.getByRole('button', { name: 'Send', exact: true }).click();
   await expect(page.getByText('200 OK')).toBeVisible();
   await expect(page.locator('app-json-view')).toContainText('"name": "DevTools Hub"');
-  await page.getByRole('button', { name: 'raw', exact: true }).click();
+  await page.getByRole('button', { name: /^Format: / }).click();
+  await page.getByRole('menuitemradio', { name: 'Raw' }).click();
   await expect(page.locator('app-code-editor').last()).toContainText('"name": "DevTools Hub"');
   await page.getByRole('tab', { name: /Headers \(\d+\)/ }).click();
   await expect(page.getByRole('cell', { name: 'content-type' })).toBeVisible();
@@ -323,6 +324,7 @@ test('API Client sample response shows types, tokens and copies any part', async
   await token.getByRole('button', { name: 'Close' }).click();
   await expect(token).toBeHidden();
 
+  await page.getByRole('button', { name: 'Search', exact: true }).click();
   await page.getByLabel('Search response body').fill('jaipur');
   await expect(page.getByText('1 of 1')).toBeVisible();
   await expect(tree.locator('mark')).toHaveText('Jaipur');

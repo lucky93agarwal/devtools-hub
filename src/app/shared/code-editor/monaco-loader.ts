@@ -76,6 +76,7 @@ export function loadMonaco(): Promise<MonacoApi> {
       // API Client raw bodies
       import('monaco-editor/languages/definitions/javascript/register'),
       import('monaco-editor/languages/definitions/html/register'),
+      import('monaco-editor/languages/definitions/markdown/register'),
     ]);
 
     registerJson(monaco);

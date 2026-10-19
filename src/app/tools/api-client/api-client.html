@@ -555,7 +555,12 @@
       </div>
 
       <!-- Response -->
-      <section class="flex flex-col gap-3 border-t border-line pt-4" aria-labelledby="response-heading" aria-live="polite">
+      <section
+        class="flex flex-col gap-3 border-t border-line pt-4"
+        aria-labelledby="response-heading"
+        aria-live="polite"
+        (keydown)="onResponseKeydown($event)"
+      >
         <div class="flex flex-wrap items-center gap-x-4 gap-y-2">
           <h2 id="response-heading" class="text-lg leading-7">Response</h2>
           @if (response(); as r) {
@@ -564,16 +569,6 @@
             </span>
             <span class="text-sm text-muted">{{ r.ms }} ms</span>
             <span class="text-sm text-muted">{{ formatBytes(r.size) }}</span>
-            <div class="ml-auto flex gap-2">
-              @if (r.text !== null) {
-                <button type="button" class="btn-small" (click)="copy(responseText(), 'Response')">
-                  <app-icon [path]="icons.copy" [size]="14" /> Copy
-                </button>
-              }
-              <button type="button" class="btn-small" (click)="downloadResponse()">
-                <app-icon [path]="icons.download" [size]="14" /> Download
-              </button>
-            </div>
           }
         </div>
 
@@ -637,38 +632,118 @@
                     {{ tab.label }}
                   </button>
                 }
-                @if (responseTab() === 'body' && responseTree()) {
-                  <div class="ml-auto flex items-center gap-3">
-                    <div class="flex rounded-full border border-line p-0.5 text-sm" role="group" aria-label="Body view">
-                      @for (view of ['tree', 'raw']; track view) {
-                        <button
-                          type="button"
-                          class="rounded-full px-3 py-0.5 font-semibold capitalize"
-                          [class]="bodyView() === view ? 'bg-brand text-on-brand' : 'text-muted hover:text-ink'"
-                          [attr.aria-pressed]="bodyView() === view"
-                          (click)="bodyView.set($any(view))"
-                        >
-                          {{ view }}
-                        </button>
-                      }
-                    </div>
-                    @if (bodyView() === 'raw') {
-                      <label class="flex items-center gap-2 text-sm">
-                        <input type="checkbox" class="size-4 accent-brand" [checked]="pretty()" (change)="pretty.set($any($event.target).checked)" />
-                        Pretty
-                      </label>
+              </div>
+
+              <!-- Toolbar: format and Preview on the left, actions on the right, as in Postman. -->
+              <div class="flex flex-wrap items-center gap-2">
+                @if (responseTab() === 'body') {
+                  <div class="relative" data-format-menu>
+                    <button
+                      type="button"
+                      class="flex items-center gap-2 rounded-lg px-3 py-1.5 text-sm font-semibold"
+                      [class]="previewOn() ? 'text-muted hover:bg-surface hover:text-ink' : 'bg-surface text-ink'"
+                      aria-haspopup="menu"
+                      [attr.aria-expanded]="formatMenu()"
+                      [attr.aria-label]="'Format: ' + formatOption().label"
+                      (click)="formatMenu.set(!formatMenu())"
+                    >
+                      <span class="font-mono text-xs">{{ formatOption().mark }}</span>
+                      {{ formatOption().label }}
+                      <svg viewBox="0 0 24 24" class="size-4" aria-hidden="true"><path d="M6 9l6 6 6-6" fill="none" stroke="currentColor" stroke-width="2" /></svg>
+                    </button>
+                    @if (formatMenu()) {
+                      <div
+                        class="absolute top-full left-0 z-30 mt-1 flex w-52 flex-col rounded-xl border border-line bg-page p-1 text-sm shadow-lg"
+                        role="menu"
+                        aria-label="Response format"
+                      >
+                        @for (format of formats; track format.value; let i = $index) {
+                          @if (i > 0 && format.group !== formats[i - 1].group) {
+                            <hr class="my-1 border-line" />
+                          }
+                          <button
+                            type="button"
+                            role="menuitemradio"
+                            class="flex items-center gap-3 rounded-lg px-2 py-1.5 text-left hover:bg-surface"
+                            [attr.aria-checked]="responseFormat() === format.value"
+                            [disabled]="r.text === null && format.group === 'text'"
+                            [class.opacity-40]="r.text === null && format.group === 'text'"
+                            (click)="chooseFormat(format.value)"
+                          >
+                            <span class="w-4 text-brand" aria-hidden="true">{{ responseFormat() === format.value ? '✓' : '' }}</span>
+                            <span class="w-7 font-mono text-xs text-muted" aria-hidden="true">{{ format.mark }}</span>
+                            {{ format.label }}
+                          </button>
+                        }
+                      </div>
                     }
                   </div>
-                } @else if (responseTab() === 'body' && responseLanguage() === 'json') {
-                  <label class="ml-auto flex items-center gap-2 text-sm">
-                    <input type="checkbox" class="size-4 accent-brand" [checked]="pretty()" (change)="pretty.set($any($event.target).checked)" />
-                    Pretty
-                  </label>
+                  <button
+                    type="button"
+                    class="flex items-center gap-2 rounded-lg px-3 py-1.5 text-sm font-semibold"
+                    [class]="previewOn() ? 'bg-surface text-ink' : 'text-muted hover:bg-surface hover:text-ink'"
+                    [attr.aria-pressed]="previewOn()"
+                    [disabled]="previewKind() === 'none'"
+                    (click)="previewOn.set(!previewOn())"
+                  >
+                    <svg viewBox="0 0 24 24" class="size-4" aria-hidden="true"><path d="M7 5l12 7-12 7z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" /></svg>
+                    Preview
+                  </button>
                 }
+                <div class="ml-auto flex items-center gap-1">
+                  @if (responseTab() === 'body' && !previewOn()) {
+                    <button
+                      type="button"
+                      class="grid size-9 place-items-center rounded-lg hover:bg-surface hover:text-ink"
+                      [class]="wrap() ? 'bg-surface text-ink' : 'text-muted'"
+                      aria-label="Wrap long lines"
+                      [attr.aria-pressed]="wrap()"
+                      (click)="wrap.set(!wrap())"
+                    >
+                      <svg viewBox="0 0 24 24" class="size-5" aria-hidden="true">
+                        <path d="M4 6h16M4 12h13a3 3 0 0 1 0 6h-4m2-2-2 2 2 2M4 18h5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+                      </svg>
+                    </button>
+                  }
+                  @if (searchMode() !== 'preview') {
+                    <button
+                      type="button"
+                      class="grid size-9 place-items-center rounded-lg hover:bg-surface hover:text-ink"
+                      [class]="searchOpen() ? 'bg-surface text-ink' : 'text-muted'"
+                      aria-label="Search"
+                      [attr.aria-pressed]="searchOpen()"
+                      (click)="toggleSearch()"
+                    >
+                      <svg viewBox="0 0 24 24" class="size-5" aria-hidden="true">
+                        <path d="M11 4a7 7 0 1 0 0 14 7 7 0 0 0 0-14zM20 20l-4-4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
+                      </svg>
+                    </button>
+                  }
+                  <span class="mx-1 h-5 w-px bg-line" aria-hidden="true"></span>
+                  @if (responseTab() === 'body' ? r.text !== null || responseFormat() === 'hex' || responseFormat() === 'base64' : true) {
+                    <button
+                      type="button"
+                      class="grid size-9 place-items-center rounded-lg text-muted hover:bg-surface hover:text-ink"
+                      [attr.aria-label]="responseTab() === 'body' ? 'Copy response' : 'Copy headers'"
+                      (click)="responseTab() === 'body' ? copy(responseText(), 'Response') : copy(headersText(), 'Headers')"
+                    >
+                      <app-icon [path]="icons.copy" [size]="18" />
+                    </button>
+                  }
+                  <button
+                    type="button"
+                    class="grid size-9 place-items-center rounded-lg text-muted hover:bg-surface hover:text-ink"
+                    aria-label="Download response"
+                    (click)="downloadResponse()"
+                  >
+                    <app-icon [path]="icons.download" [size]="18" />
+                  </button>
+                </div>
               </div>
-              @if (responseTab() === 'headers' || (r.text && !imageUrl())) {
+              @if (searchOpen() && searchMode() !== 'preview') {
                 <app-search-box
-                  class="w-full sm:max-w-sm"
+                  class="w-full sm:max-w-md"
+                  [autofocus]="true"
                   [(query)]="responseQuery"
                   [total]="searchTotal()"
                   [current]="searchCurrent()"
@@ -676,27 +751,54 @@
                   [label]="searchMode() === 'headers' ? 'Search headers' : 'Search response body'"
                   [placeholder]="searchMode() === 'headers' ? 'Filter headers' : searchMode() === 'tree' ? 'Search keys and values' : 'Search the response'"
                   (step)="stepSearch($event)"
+                  (closed)="toggleSearch()"
                 />
               }
               @if (responseTab() === 'body') {
-                @if (imageUrl(); as url) {
-                  <img [src]="url" alt="Image returned by the API" class="checkerboard max-h-96 self-start rounded-xl border border-line" />
-                } @else if (r.text === null) {
+                @if (previewOn()) {
+                  @switch (previewKind()) {
+                    @case ('image') {
+                      <img [src]="previewUrl()" alt="Image returned by the API" class="checkerboard max-h-96 self-start rounded-xl border border-line" />
+                    }
+                    @case ('pdf') {
+                      <iframe [src]="previewResource()" title="PDF returned by the API" class="h-[32rem] w-full rounded-xl border border-line bg-white"></iframe>
+                    }
+                    @case ('video') {
+                      <video [src]="previewUrl()" controls class="max-h-96 w-full rounded-xl bg-surface"></video>
+                    }
+                    @case ('audio') {
+                      <audio [src]="previewUrl()" controls class="w-full"></audio>
+                    }
+                    @case ('html') {
+                      <!-- No scripts run: the frame is sandboxed. Links open in a new tab. -->
+                      <iframe
+                        [srcdoc]="previewHtml()"
+                        sandbox="allow-popups allow-popups-to-escape-sandbox"
+                        title="HTML returned by the API"
+                        class="h-[32rem] w-full rounded-xl border border-line bg-white"
+                      ></iframe>
+                    }
+                    @default {
+                      <pre class="max-h-[32rem] overflow-auto rounded-xl border border-line p-3 font-mono text-[13px] whitespace-pre-wrap">{{ r.text }}</pre>
+                    }
+                  }
+                } @else if (r.text === null && responseFormat() !== 'hex' && responseFormat() !== 'base64') {
                   <p class="text-sm text-muted">
-                    This response is {{ r.contentType || 'binary data' }} ({{ formatBytes(r.size) }}), which cannot be shown
-                    as text. Choose Download to save it.
+                    This response is {{ r.contentType || 'binary data' }} ({{ formatBytes(r.size) }}). Choose Hex or Base64 to
+                    read it, or Download to save it.
                   </p>
-                } @else if (!r.text) {
+                } @else if (!r.size && !r.text) {
                   <p class="text-sm text-muted">The response has no body.</p>
-                } @else if (bodyView() === 'tree' && responseTree(); as root) {
-                  <app-json-view [root]="root" [query]="responseQuery()" [current]="searchStep()" />
+                } @else if (responseTree(); as root) {
+                  <app-json-view [root]="root" [query]="searchOpen() ? responseQuery() : ''" [current]="searchStep()" [wrap]="wrap()" />
                 } @else {
                   <app-code-editor
                     #responseEditor
                     class="h-96"
-                    [language]="responseLanguage()"
+                    [language]="formatOption().editor"
                     ariaLabel="Response body"
                     [readOnly]="true"
+                    [wordWrap]="wrap()"
                     [value]="responseText()"
                   />
                 }
