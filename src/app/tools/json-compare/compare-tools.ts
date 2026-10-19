@@ -3,7 +3,7 @@ import { DiffStats } from '../../shared/code-editor/diff-viewer';
 /** Sample pair so visitors can try the tool without their own JSON. */
 export const COMPARE_SAMPLES = {
   original: JSON.stringify({
-    name: 'DevTools Hub',
+    name: 'DevTools24',
     version: 1,
     free: true,
     tools: ['JSON formatter', 'JSON compare'],
@@ -11,7 +11,7 @@ export const COMPARE_SAMPLES = {
     beta: true,
   }),
   changed: JSON.stringify({
-    name: 'DevTools Hub',
+    name: 'DevTools24',
     version: 2,
     free: true,
     tools: ['JSON formatter', 'JSON compare', 'Image converter'],

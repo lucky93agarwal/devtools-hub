@@ -64,7 +64,7 @@ function card(title, description) {
     footer { margin-top: 44px; display: flex; gap: 14px; }
     footer span { border: 2px solid #334155; border-radius: 999px; padding: 10px 22px; font-size: 24px; font-weight: 600; color: #e2e8f0; }
   </style></head><body>
-    <div class="brand">${logo(64)}DevTools Hub</div>
+    <div class="brand">${logo(64)}DevTools24</div>
     <h1>${escape(title)}</h1>
     <p>${escape(description)}</p>
     <footer><span>Free</span><span>Runs in your browser</span><span>Nothing is uploaded</span></footer>

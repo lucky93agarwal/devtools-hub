@@ -290,10 +290,10 @@ test('API Client sends a real request and shows the response', async ({ page }) 
   await page.getByLabel('URL').fill(`${new URL(page.url()).origin}/site.webmanifest?v=1`);
   await page.getByRole('button', { name: 'Send', exact: true }).click();
   await expect(page.getByText('200 OK')).toBeVisible();
-  await expect(page.locator('app-json-view')).toContainText('"name": "DevTools Hub"');
+  await expect(page.locator('app-json-view')).toContainText('"name": "DevTools24"');
   await page.getByRole('button', { name: /^Format: / }).click();
   await page.getByRole('menuitemradio', { name: 'Raw' }).click();
-  await expect(page.locator('app-code-editor').last()).toContainText('"name": "DevTools Hub"');
+  await expect(page.locator('app-code-editor').last()).toContainText('"name": "DevTools24"');
   await page.getByRole('tab', { name: /Headers \(\d+\)/ }).click();
   await expect(page.getByRole('cell', { name: 'content-type' })).toBeVisible();
 

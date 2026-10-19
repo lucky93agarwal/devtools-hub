@@ -1,6 +1,6 @@
 import { DOCUMENT } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
-import { Analytics, analyticsEnabled, sizeBucket } from './analytics';
+import { Analytics, PAGE_HOST, analyticsEnabled, sizeBucket } from './analytics';
 import { ANALYTICS, SITE_URL } from './app-config';
 
 /** The config is read-only in app code; tests switch it on and off. */
@@ -24,9 +24,17 @@ describe('Analytics', () => {
     expect(script()).toBeNull();
   });
 
+  it('loads nothing away from the real site, such as on localhost or in tests', () => {
+    config.umamiScriptUrl = 'https://analytics.example/script.js';
+    config.umamiWebsiteId = 'abc-123';
+    TestBed.inject(Analytics).load();
+    expect(script()).toBeNull();
+  });
+
   it('loads the tracker once, limited to the real site and honouring Do Not Track', () => {
     config.umamiScriptUrl = 'https://analytics.example/script.js';
     config.umamiWebsiteId = 'abc-123';
+    TestBed.configureTestingModule({ providers: [{ provide: PAGE_HOST, useValue: new URL(SITE_URL).hostname }] });
     const analytics = TestBed.inject(Analytics);
     analytics.load();
     analytics.load();

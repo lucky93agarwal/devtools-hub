@@ -1,4 +1,4 @@
-import { DOCUMENT, Injectable, PLATFORM_ID, inject } from '@angular/core';
+import { DOCUMENT, Injectable, InjectionToken, PLATFORM_ID, inject } from '@angular/core';
 import { isPlatformBrowser } from '@angular/common';
 import { ANALYTICS, SITE_URL } from './app-config';
 
@@ -15,6 +15,12 @@ export type LimitKind = 'count' | 'file-size' | 'batch-size';
 /** True when both Umami values are set in app-config.ts. */
 export const analyticsEnabled = () => Boolean(ANALYTICS.umamiScriptUrl && ANALYTICS.umamiWebsiteId);
 
+/** The host name the page was opened on; tests set it to stand in for the real site. */
+export const PAGE_HOST = new InjectionToken<string>('PAGE_HOST', {
+  providedIn: 'root',
+  factory: () => inject(DOCUMENT).location?.hostname ?? '',
+});
+
 /**
  * Privacy-friendly visit counting with Umami: no cookies, and the browser's
  * Do Not Track setting is respected. Page views are counted by Umami itself;
@@ -24,16 +30,19 @@ export const analyticsEnabled = () => Boolean(ANALYTICS.umamiScriptUrl && ANALYT
 export class Analytics {
   private readonly document = inject(DOCUMENT);
   private readonly browser = isPlatformBrowser(inject(PLATFORM_ID));
+  private readonly pageHost = inject(PAGE_HOST);
 
   /** Adds the Umami script once, in the browser, when analytics is configured. */
   load(): void {
     if (!this.browser || !analyticsEnabled() || this.document.querySelector('script[data-website-id]')) return;
+    // Only the real site loads it: not local development, tests or the old workers.dev address.
+    const host = new URL(SITE_URL).hostname;
+    if (this.pageHost !== host) return;
     const script = this.document.createElement('script');
     script.defer = true;
     script.src = ANALYTICS.umamiScriptUrl;
     script.dataset['websiteId'] = ANALYTICS.umamiWebsiteId;
-    // Count only the real site, not local development or previews.
-    script.dataset['domains'] = new URL(SITE_URL).hostname;
+    script.dataset['domains'] = host;
     script.dataset['doNotTrack'] = 'true';
     this.document.head.appendChild(script);
   }

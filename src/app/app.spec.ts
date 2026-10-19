@@ -42,7 +42,7 @@ describe('routes', () => {
 
   it('keeps search titles short enough to show in full', () => {
     for (const tool of TOOLS) {
-      expect(`${tool.seoTitle} | DevTools Hub`.length, tool.path).toBeLessThanOrEqual(60);
+      expect(`${tool.seoTitle} | DevTools24`.length, tool.path).toBeLessThanOrEqual(60);
       expect(tool.metaDescription.length, tool.path).toBeLessThanOrEqual(160);
     }
   });

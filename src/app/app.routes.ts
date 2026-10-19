@@ -44,7 +44,7 @@ const infoRoutes: Routes = [
     path: 'about',
     title: 'About',
     loadComponent: () => import('./pages/info/about-page').then((m) => m.AboutPage),
-    data: { description: 'Why DevTools Hub exists, which tools it offers and how your data stays in your browser.' },
+    data: { description: 'Why DevTools24 exists, which tools it offers and how your data stays in your browser.' },
   },
   {
     path: 'privacy',
@@ -52,21 +52,21 @@ const infoRoutes: Routes = [
     loadComponent: () => import('./pages/info/privacy-page').then((m) => m.PrivacyPage),
     data: {
       description: adsEnabled()
-        ? 'How DevTools Hub handles your data: tools run in your browser, with no accounts. Ads are served by Google AdSense.'
-        : 'How DevTools Hub handles your data: tools run in your browser, with no accounts and no cookies.',
+        ? 'How DevTools24 handles your data: tools run in your browser, with no accounts. Ads are served by Google AdSense.'
+        : 'How DevTools24 handles your data: tools run in your browser, with no accounts and no cookies.',
     },
   },
   {
     path: 'terms',
     title: 'Terms of use',
     loadComponent: () => import('./pages/info/terms-page').then((m) => m.TermsPage),
-    data: { description: 'The terms for using the free developer tools on DevTools Hub.' },
+    data: { description: 'The terms for using the free developer tools on DevTools24.' },
   },
   {
     path: 'contact',
     title: 'Contact',
     loadComponent: () => import('./pages/info/contact-page').then((m) => m.ContactPage),
-    data: { description: 'Report a bug, request a tool or ask a question about DevTools Hub.' },
+    data: { description: 'Report a bug, request a tool or ask a question about DevTools24.' },
   },
 ];
 

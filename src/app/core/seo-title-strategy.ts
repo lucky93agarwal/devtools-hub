@@ -7,7 +7,7 @@ import { TOOLS } from './tools';
 
 /**
  * Sets the search and sharing tags for each page from its route: the title
- * ("<title> | DevTools Hub"), meta description, canonical link, Open Graph tags,
+ * ("<title> | DevTools24"), meta description, canonical link, Open Graph tags,
  * and noindex for pages with `data.noindex`. Runs during prerendering, so the tags
  * are in the HTML that search engines read.
  */

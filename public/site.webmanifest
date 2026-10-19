@@ -1,6 +1,6 @@
 {
-  "name": "DevTools Hub",
-  "short_name": "DevTools",
+  "name": "DevTools24",
+  "short_name": "DevTools24",
   "description": "Free developer tools that run in your browser. Nothing is uploaded.",
   "start_url": "/",
   "display": "standalone",

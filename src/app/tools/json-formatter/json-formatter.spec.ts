@@ -77,7 +77,7 @@ describe('JsonFormatter', () => {
     it('loads and formats the valid sample', async () => {
       const { input, output, status, click } = await setup();
       await click('Valid JSON');
-      expect(input.value).toContain('DevTools Hub');
+      expect(input.value).toContain('DevTools24');
       expect(output.value.split('\n').length).toBeGreaterThan(5);
       expect(status()).toContain('Valid JSON. Formatted');
     });

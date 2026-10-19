@@ -42,9 +42,9 @@ describe('SeoTitleStrategy', () => {
 
   it('sets the title, description, canonical link and sharing tags', async () => {
     const page = await go('/tool?x=1');
-    expect(page.title).toBe('A Tool | DevTools Hub');
+    expect(page.title).toBe('A Tool | DevTools24');
     expect(page.description).toBe('Tool text');
-    expect(page.ogTitle).toBe('A Tool | DevTools Hub');
+    expect(page.ogTitle).toBe('A Tool | DevTools24');
     expect(page.ogUrl).toBe(`${SITE_URL}/tool`);
     expect(page.canonical).toHaveLength(1);
     expect(page.canonical[0].getAttribute('href')).toBe(`${SITE_URL}/tool`);
@@ -52,7 +52,7 @@ describe('SeoTitleStrategy', () => {
   });
 
   it('uses the site name alone when a page has no title', async () => {
-    expect((await go('/')).title).toBe('DevTools Hub');
+    expect((await go('/')).title).toBe('DevTools24');
   });
 
   it('marks noindex pages and clears the mark on the next page', async () => {

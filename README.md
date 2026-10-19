@@ -1,4 +1,4 @@
-# DevTools Hub
+# DevTools24
 
 [![CI](https://github.com/lucky93agarwal/devtools-hub/actions/workflows/ci.yml/badge.svg)](https://github.com/lucky93agarwal/devtools-hub/actions/workflows/ci.yml)
 

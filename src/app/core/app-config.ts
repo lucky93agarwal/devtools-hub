@@ -2,7 +2,7 @@
  * Single place for site-wide settings and limits.
  * Change a value here and every tool picks it up.
  */
-export const SITE_NAME = 'DevTools Hub';
+export const SITE_NAME = 'DevTools24';
 
 /** Public address of the site, without a trailing slash. Used for canonical links and the sitemap. */
 export const SITE_URL = 'https://devtools24.in';

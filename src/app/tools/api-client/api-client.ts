@@ -619,7 +619,7 @@ export class ApiClient {
         kind: 'websocket',
         name: 'Echo server',
         url: WEBSOCKET_SAMPLE_URL,
-        realtime: { ...defaultRealtime(), format: 'json', message: '{\n  "type": "hello",\n  "text": "Hi from DevTools Hub"\n}' },
+        realtime: { ...defaultRealtime(), format: 'json', message: '{\n  "type": "hello",\n  "text": "Hi from DevTools24"\n}' },
       }),
     );
   }

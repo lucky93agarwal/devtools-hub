@@ -9,7 +9,7 @@ export interface ToolInfo {
   name: string;
   /** One-line description, used on the home card and under the H1. */
   description: string;
-  /** Browser tab and search result title; " | DevTools Hub" is added after it. */
+  /** Browser tab and search result title; " | DevTools24" is added after it. */
   seoTitle: string;
   /** Search result snippet, about 150 characters. */
   metaDescription: string;

@@ -1,7 +1,7 @@
 /** Sample inputs so visitors can try the tool without their own JSON. */
 export const JSON_SAMPLES = {
   valid: JSON.stringify({
-    name: 'DevTools Hub',
+    name: 'DevTools24',
     version: 1,
     free: true,
     tools: ['JSON formatter', 'JSON compare', 'Image converter', 'JWT decoder'],
@@ -9,7 +9,7 @@ export const JSON_SAMPLES = {
     owner: null,
   }),
   broken: `{
-  "name": "DevTools Hub",
+  "name": "DevTools24",
   "version": 1
   "tools": ["JSON formatter", "JSON compare",],
   "free": true
