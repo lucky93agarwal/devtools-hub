@@ -17,6 +17,7 @@ const toolComponents: Record<string, () => Promise<Type<unknown>>> = {
   'background-remover': () =>
     import('./tools/background-remover/background-remover').then((m) => m.BackgroundRemover),
   'json-to-code': () => import('./tools/json-to-code/json-to-code').then((m) => m.JsonToCode),
+  'api-client': () => import('./tools/api-client/api-client').then((m) => m.ApiClient),
   'data-converter': () => import('./tools/data-converter/data-converter').then((m) => m.DataConverter),
   'xml-formatter': () => import('./tools/text-formatter/text-formatter').then((m) => m.TextFormatter),
   'yaml-validator': () => import('./tools/text-formatter/text-formatter').then((m) => m.TextFormatter),

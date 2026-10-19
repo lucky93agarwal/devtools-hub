@@ -31,8 +31,16 @@ import { InfoPage } from './info-page';
       <p>
         You do not need an account to use any tool. The site itself does not set cookies{{
           adsOn ? '; the advertising cookies described below come from Google' : ''
-        }}. It may save small preferences, such as the light or dark theme, in your browser's local storage; these never
-        leave your device and you can clear them in your browser settings.
+        }}. It may save small preferences, such as the light or dark theme, in your browser's local storage, and the API
+        Client keeps the requests, collections, environments and history you create there too. These never leave your
+        device and you can clear them in your browser settings.
+      </p>
+
+      <h2>Requests you send with the API Client</h2>
+      <p>
+        When you send a request with the API Client, your browser sends it directly to the address you entered. It does
+        not pass through this site. That service receives the request, including any tokens or data in it, under its own
+        privacy policy.
       </p>
 
       <h2>Hosting and server logs</h2>

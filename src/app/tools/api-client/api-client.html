@@ -1,0 +1,632 @@
+<div class="container-page pt-10 sm:pt-16">
+  <h1 class="text-[28px] leading-9 sm:text-[40px] sm:leading-12">{{ tool.name }}</h1>
+  <p class="mt-3 max-w-3xl text-muted">{{ tool.description }}</p>
+
+  <div class="mt-8 grid gap-4 lg:grid-cols-[17rem_minmax(0,1fr)]">
+    <!-- Sidebar: collections, history, environments -->
+    <aside class="card flex min-w-0 flex-col gap-3 p-3 lg:max-h-[48rem] lg:overflow-y-auto" aria-label="Saved requests">
+      <div class="flex gap-1" role="tablist" aria-label="Sidebar">
+        @for (tab of ['collections', 'history', 'environments']; track tab) {
+          <button
+            type="button"
+            role="tab"
+            class="flex-1 rounded-full px-2 py-1.5 text-xs font-semibold capitalize"
+            [class]="sideTab() === tab ? 'bg-brand text-on-brand' : 'text-muted hover:text-ink'"
+            [attr.aria-selected]="sideTab() === tab"
+            (click)="sideTab.set($any(tab))"
+          >
+            {{ tab }}
+          </button>
+        }
+      </div>
+
+      @switch (sideTab()) {
+        @case ('collections') {
+          <div class="flex flex-wrap gap-1">
+            <button type="button" class="btn-small" (click)="newCollection()">+ Collection</button>
+            <button type="button" class="btn-small" (click)="postmanInput.click()">Import Postman</button>
+            <input
+              #postmanInput
+              type="file"
+              class="sr-only"
+              tabindex="-1"
+              aria-hidden="true"
+              accept=".json,application/json"
+              (change)="importFile(postmanInput)"
+            />
+          </div>
+          @if (!tree().length) {
+            <p class="text-sm leading-5 text-muted">
+              No collections yet. Save a request, or import a collection exported from Postman (v2.1).
+            </p>
+          }
+          @for (item of tree(); track item.collection.id) {
+            <div class="flex flex-col gap-0.5">
+              <div class="group flex items-center gap-1">
+                <input
+                  class="min-w-0 flex-1 rounded-lg bg-transparent px-1 py-1 text-sm font-semibold outline-none focus:bg-page"
+                  [value]="item.collection.name"
+                  aria-label="Collection name"
+                  (change)="rename('collection', item.collection.id, item.collection.name, $any($event.target).value)"
+                />
+                <button
+                  type="button"
+                  class="rounded px-1 text-xs text-muted hover:text-ink"
+                  [attr.aria-label]="'Export ' + item.collection.name + ' for Postman'"
+                  title="Export for Postman"
+                  (click)="exportCollection(item.collection)"
+                >
+                  <app-icon [path]="icons.download" [size]="14" />
+                </button>
+                <button
+                  type="button"
+                  class="rounded px-1 text-xs"
+                  [class]="confirmDelete() === item.collection.id ? 'text-danger font-semibold' : 'text-muted hover:text-danger'"
+                  [attr.aria-label]="'Delete ' + item.collection.name"
+                  (click)="remove('collection', item.collection.id)"
+                >
+                  {{ confirmDelete() === item.collection.id ? 'Delete?' : '×' }}
+                </button>
+              </div>
+              @for (row of item.rows; track row.id) {
+                @if (row.kind === 'folder') {
+                  <p class="truncate py-1 text-xs font-semibold text-muted" [style.padding-left.rem]="0.5 + row.depth * 0.75">
+                    {{ row.name }}
+                  </p>
+                } @else {
+                  <div
+                    class="group flex items-center gap-1 rounded-lg"
+                    [class.bg-page]="store.draftSource()?.requestId === row.id"
+                    [style.padding-left.rem]="0.25 + row.depth * 0.75"
+                  >
+                    <button
+                      type="button"
+                      class="flex min-w-0 flex-1 items-center gap-2 px-1 py-1 text-left text-sm"
+                      (click)="open(row)"
+                    >
+                      <span class="w-12 shrink-0 font-mono text-[11px] font-bold" [class]="methodColours[row.method!]">{{
+                        row.method
+                      }}</span>
+                      <span class="truncate">{{ row.name }}</span>
+                    </button>
+                    <button
+                      type="button"
+                      class="rounded px-1 text-xs"
+                      [class]="confirmDelete() === row.id ? 'text-danger font-semibold' : 'text-muted opacity-0 group-hover:opacity-100 focus:opacity-100 hover:text-danger'"
+                      [attr.aria-label]="'Delete ' + row.name"
+                      (click)="remove('request', row.id)"
+                    >
+                      {{ confirmDelete() === row.id ? 'Delete?' : '×' }}
+                    </button>
+                  </div>
+                }
+              }
+            </div>
+          }
+        }
+        @case ('history') {
+          @if (store.history().length) {
+            <button type="button" class="btn-small self-start" (click)="store.clearHistory()">Clear history</button>
+          } @else {
+            <p class="text-sm leading-5 text-muted">Requests you send appear here.</p>
+          }
+          @for (entry of store.history(); track entry.id) {
+            <button
+              type="button"
+              class="flex flex-col gap-0.5 rounded-lg px-2 py-1.5 text-left text-sm hover:bg-page"
+              (click)="openHistory(entry)"
+            >
+              <span class="flex items-center gap-2">
+                <span class="font-mono text-[11px] font-bold" [class]="methodColours[entry.request.method]">{{
+                  entry.request.method
+                }}</span>
+                <span class="truncate font-mono text-xs">{{ entry.request.url }}</span>
+              </span>
+              <span class="text-xs text-muted">
+                {{ entry.status ?? 'Failed' }} · {{ timeAgo(entry.at) }}
+              </span>
+            </button>
+          }
+        }
+        @case ('environments') {
+          <label class="flex flex-col gap-1 text-sm leading-5">
+            <span class="font-semibold">Active environment</span>
+            <select
+              class="rounded-xl border border-line bg-page px-3 py-2"
+              (change)="store.activeEnvironmentId.set($any($event.target).value || null)"
+            >
+              <option value="" [selected]="!store.activeEnvironmentId()">No environment</option>
+              @for (env of store.environments(); track env.id) {
+                <option [value]="env.id" [selected]="store.activeEnvironmentId() === env.id">{{ env.name }}</option>
+              }
+            </select>
+          </label>
+          <button
+            type="button"
+            class="btn-small self-start"
+            (click)="store.addEnvironment('Environment ' + (store.environments().length + 1))"
+          >
+            + Environment
+          </button>
+          @if (store.activeEnvironment(); as env) {
+            <input
+              class="rounded-lg border border-line bg-page px-2 py-1.5 text-sm font-semibold"
+              aria-label="Environment name"
+              [value]="env.name"
+              (change)="store.updateEnvironment(env.id, { name: $any($event.target).value })"
+            />
+            <app-kv-table
+              keyLabel="Variable"
+              [rows]="env.variables"
+              (rowsChange)="store.updateEnvironment(env.id, { variables: $event })"
+            />
+            <p class="text-xs leading-4 text-muted">Use a variable as {{ '{{name}}' }} in the URL, headers, auth or body.</p>
+            <button type="button" class="btn-small self-start text-danger" (click)="store.deleteEnvironment(env.id)">
+              Delete environment
+            </button>
+          } @else {
+            <p class="text-sm leading-5 text-muted">
+              Environments hold variables such as baseUrl or token, so one request works against dev, test and production.
+            </p>
+          }
+        }
+      }
+    </aside>
+
+    <!-- Request and response -->
+    <section class="flex min-w-0 flex-col gap-4" aria-label="Request">
+      <div class="flex flex-wrap items-center gap-2">
+        <input
+          class="min-w-0 flex-1 rounded-lg bg-transparent px-1 py-1 text-sm font-semibold outline-none focus:bg-surface"
+          aria-label="Request name"
+          [value]="draft().name"
+          (change)="store.update({ name: $any($event.target).value || draft().name })"
+        />
+        @if (store.draftSource()) {
+          <span class="text-xs text-muted">Saved in a collection</span>
+        }
+      </div>
+
+      <form class="flex flex-wrap gap-2 sm:flex-nowrap" (submit)="$event.preventDefault(); send()">
+        <div
+          class="flex min-w-0 flex-1 basis-full overflow-hidden rounded-xl border border-line bg-surface focus-within:border-brand sm:basis-auto"
+        >
+          <select
+            class="shrink-0 border-r border-line bg-transparent px-3 py-2.5 font-mono text-sm font-bold"
+            aria-label="Method"
+            [class]="methodColours[draft().method]"
+            (change)="setMethod($any($event.target).value)"
+          >
+            @for (method of methods; track method) {
+              <option [value]="method" [selected]="draft().method === method">{{ method }}</option>
+            }
+          </select>
+          <input
+            type="text"
+            class="min-w-0 flex-1 bg-transparent px-3 py-2.5 font-mono text-sm outline-none"
+            aria-label="URL"
+            placeholder="https://api.example.com/users or {{ '{{baseUrl}}' }}/users"
+            spellcheck="false"
+            autocomplete="off"
+            [value]="draft().url"
+            (input)="setUrl($any($event.target).value)"
+          />
+        </div>
+        @if (sending()) {
+          <button type="button" class="btn-secondary" (click)="cancel()">Cancel</button>
+        } @else {
+          <button type="submit" class="btn-primary">Send</button>
+        }
+        <button type="button" class="btn-secondary" (click)="startSave()">Save</button>
+      </form>
+
+      <div class="flex flex-wrap items-center gap-2">
+        <button type="button" class="btn-small" (click)="newRequest()">New</button>
+        <button type="button" class="btn-small" (click)="panel.set(panel() === 'curl' ? null : 'curl')">Import cURL</button>
+        <button type="button" class="btn-small" (click)="panel.set(panel() === 'code' ? null : 'code')">Code</button>
+        <button type="button" class="btn-small" (click)="loadSample()">Sample request</button>
+        @if (copied()) {
+          <span class="text-sm font-semibold text-success" aria-live="polite">{{ copied() }}</span>
+        }
+      </div>
+
+      @switch (panel()) {
+        @case ('curl') {
+          <div class="card flex flex-col gap-2 p-3">
+            <label for="curl-text" class="text-sm font-semibold">Paste a cURL command</label>
+            <textarea
+              id="curl-text"
+              rows="5"
+              class="rounded-xl border border-line bg-page p-3 font-mono text-[13px]"
+              spellcheck="false"
+              placeholder="curl 'https://api.example.com/users' -H 'Authorization: Bearer …'"
+              [value]="curlText()"
+              (input)="curlText.set($any($event.target).value)"
+            ></textarea>
+            <p class="text-xs text-muted">Tip: in the browser's Network panel, right-click a request and choose Copy as cURL (bash).</p>
+            <div class="flex gap-2">
+              <button type="button" class="btn-small" [disabled]="!curlText().trim()" (click)="importCurl()">Import</button>
+              <button type="button" class="btn-small" (click)="panel.set(null)">Close</button>
+            </div>
+          </div>
+        }
+        @case ('save') {
+          <form class="card flex flex-wrap items-end gap-2 p-3" (submit)="$event.preventDefault(); saveAs()">
+            <label class="flex min-w-0 flex-1 flex-col gap-1 text-sm">
+              <span class="font-semibold">Name</span>
+              <input
+                class="rounded-xl border border-line bg-page px-3 py-2"
+                [value]="saveName()"
+                (input)="saveName.set($any($event.target).value)"
+              />
+            </label>
+            <label class="flex flex-col gap-1 text-sm">
+              <span class="font-semibold">Save to</span>
+              <select class="rounded-xl border border-line bg-page px-3 py-2" (change)="saveTarget.set($any($event.target).value)">
+                @for (target of saveTargets(); track target.value) {
+                  <option [value]="target.value" [selected]="saveTarget() === target.value">{{ target.label }}</option>
+                }
+              </select>
+            </label>
+            <button type="submit" class="btn-small">Save request</button>
+            <button type="button" class="btn-small" (click)="panel.set(null)">Cancel</button>
+          </form>
+        }
+        @case ('code') {
+          <div class="card flex flex-col gap-3 p-3">
+            <div class="flex items-center justify-between gap-2">
+              <span class="text-sm font-semibold">cURL</span>
+              <button type="button" class="btn-small" (click)="copy(curl(), 'cURL')">
+                <app-icon [path]="icons.copy" [size]="14" /> Copy
+              </button>
+            </div>
+            <pre class="overflow-x-auto rounded-xl bg-page p-3 font-mono text-[12px] leading-5">{{ curl() }}</pre>
+            <div class="flex items-center justify-between gap-2">
+              <span class="text-sm font-semibold">JavaScript fetch</span>
+              <button type="button" class="btn-small" (click)="copy(fetchCode(), 'Code')">
+                <app-icon [path]="icons.copy" [size]="14" /> Copy
+              </button>
+            </div>
+            <pre class="overflow-x-auto rounded-xl bg-page p-3 font-mono text-[12px] leading-5">{{ fetchCode() }}</pre>
+          </div>
+        }
+      }
+
+      <div aria-live="polite" class="flex flex-col gap-2 text-sm leading-5">
+        @if (note()) {
+          <p class="rounded-xl border border-warning bg-warning/10 px-4 py-2">{{ note() }}</p>
+        }
+        @if (prepared().unresolved.length) {
+          <p class="rounded-xl border border-warning bg-warning/10 px-4 py-2">
+            No value for {{ prepared().unresolved.join(', ') }}. Add it to the active environment or the collection's
+            variables.
+          </p>
+        }
+        @if (prepared().dropped.length) {
+          <p class="rounded-xl border border-warning bg-warning/10 px-4 py-2">
+            Browsers do not let web pages send {{ prepared().dropped.join(', ') }}, so
+            {{ prepared().dropped.length === 1 ? 'it is' : 'they are' }} left out. Use Code → cURL to send
+            {{ prepared().dropped.length === 1 ? 'it' : 'them' }} from a terminal.
+          </p>
+        }
+      </div>
+
+      <!-- Request settings -->
+      <div class="flex flex-col gap-3">
+        <div class="flex flex-wrap gap-1 border-b border-line" role="tablist" aria-label="Request settings">
+          @for (tab of [
+            { id: 'params', label: 'Params', count: params().length },
+            { id: 'auth', label: 'Authorization', count: draft().auth.type === 'none' ? 0 : 1 },
+            { id: 'headers', label: 'Headers', count: headerCount() },
+            { id: 'body', label: 'Body', count: draft().body.mode === 'none' ? 0 : 1 }
+          ]; track tab.id) {
+            <button
+              type="button"
+              role="tab"
+              class="-mb-px border-b-2 px-3 py-2 text-sm font-semibold"
+              [class]="requestTab() === tab.id ? 'border-brand text-ink' : 'border-transparent text-muted hover:text-ink'"
+              [attr.aria-selected]="requestTab() === tab.id"
+              (click)="requestTab.set($any(tab.id))"
+            >
+              {{ tab.label }}
+              @if (tab.count) {
+                <span class="ml-1 text-xs text-muted">{{ tab.id === 'auth' || tab.id === 'body' ? '•' : tab.count }}</span>
+              }
+            </button>
+          }
+        </div>
+
+        @switch (requestTab()) {
+          @case ('params') {
+            <app-kv-table [rows]="params()" [toggles]="false" (rowsChange)="setParams($event)" />
+            <p class="text-xs text-muted">Params and the URL stay in sync.</p>
+          }
+          @case ('auth') {
+            <div class="flex flex-col gap-3 text-sm leading-5">
+              <label class="flex items-center gap-2">
+                <span class="font-semibold">Type</span>
+                <select
+                  class="rounded-xl border border-line bg-page px-3 py-2"
+                  (change)="setAuthType($any($event.target).value)"
+                >
+                  <option value="none" [selected]="draft().auth.type === 'none'">No auth</option>
+                  <option value="bearer" [selected]="draft().auth.type === 'bearer'">Bearer token</option>
+                  <option value="basic" [selected]="draft().auth.type === 'basic'">Basic auth</option>
+                  <option value="api-key" [selected]="draft().auth.type === 'api-key'">API key</option>
+                </select>
+              </label>
+              @if (asAuth('bearer'); as auth) {
+                <label class="flex flex-col gap-1">
+                  <span class="font-semibold">Token</span>
+                  <input
+                    type="password"
+                    class="rounded-xl border border-line bg-page px-3 py-2 font-mono text-[13px]"
+                    autocomplete="off"
+                    [value]="auth.token"
+                    (input)="setAuth({ token: $any($event.target).value })"
+                  />
+                </label>
+              }
+              @if (asAuth('basic'); as auth) {
+                <div class="grid gap-2 sm:grid-cols-2">
+                  <label class="flex flex-col gap-1">
+                    <span class="font-semibold">Username</span>
+                    <input
+                      class="rounded-xl border border-line bg-page px-3 py-2"
+                      autocomplete="off"
+                      [value]="auth.username"
+                      (input)="setAuth({ username: $any($event.target).value })"
+                    />
+                  </label>
+                  <label class="flex flex-col gap-1">
+                    <span class="font-semibold">Password</span>
+                    <input
+                      type="password"
+                      class="rounded-xl border border-line bg-page px-3 py-2"
+                      autocomplete="off"
+                      [value]="auth.password"
+                      (input)="setAuth({ password: $any($event.target).value })"
+                    />
+                  </label>
+                </div>
+              }
+              @if (asAuth('api-key'); as auth) {
+                <div class="grid gap-2 sm:grid-cols-3">
+                  <label class="flex flex-col gap-1">
+                    <span class="font-semibold">Key</span>
+                    <input
+                      class="rounded-xl border border-line bg-page px-3 py-2 font-mono text-[13px]"
+                      [value]="auth.key"
+                      (input)="setAuth({ key: $any($event.target).value })"
+                    />
+                  </label>
+                  <label class="flex flex-col gap-1">
+                    <span class="font-semibold">Value</span>
+                    <input
+                      type="password"
+                      class="rounded-xl border border-line bg-page px-3 py-2 font-mono text-[13px]"
+                      autocomplete="off"
+                      [value]="auth.value"
+                      (input)="setAuth({ value: $any($event.target).value })"
+                    />
+                  </label>
+                  <label class="flex flex-col gap-1">
+                    <span class="font-semibold">Add to</span>
+                    <select
+                      class="rounded-xl border border-line bg-page px-3 py-2"
+                      (change)="setAuth({ addTo: $any($event.target).value })"
+                    >
+                      <option value="header" [selected]="auth.addTo === 'header'">Header</option>
+                      <option value="query" [selected]="auth.addTo === 'query'">Query params</option>
+                    </select>
+                  </label>
+                </div>
+              }
+              @if (draft().auth.type !== 'none') {
+                <p class="text-xs text-muted">
+                  Secrets are kept only in this browser. Prefer {{ '{{variables}}' }} from an environment over typing them
+                  into shared requests.
+                </p>
+              }
+            </div>
+          }
+          @case ('headers') {
+            <app-kv-table keyLabel="Header" [rows]="draft().headers" (rowsChange)="setHeaders($event)" />
+          }
+          @case ('body') {
+            <div class="flex flex-col gap-3">
+              <div class="flex flex-wrap items-center gap-1" role="radiogroup" aria-label="Body type">
+                @for (mode of bodyModes; track mode.value) {
+                  <button
+                    type="button"
+                    role="radio"
+                    class="rounded-full border px-3 py-1 text-sm font-semibold"
+                    [class]="draft().body.mode === mode.value ? 'border-brand text-ink' : 'border-line text-muted hover:text-ink'"
+                    [attr.aria-checked]="draft().body.mode === mode.value"
+                    (click)="setBodyMode(mode.value)"
+                  >
+                    {{ mode.label }}
+                  </button>
+                }
+                @if (draft().body.mode === 'json') {
+                  <button type="button" class="btn-small ml-auto" (click)="formatJsonBody()">Format JSON</button>
+                }
+              </div>
+              @if (draft().method === 'GET' && draft().body.mode !== 'none') {
+                <p class="text-sm text-warning">Browsers do not send a body with GET requests. Choose POST, PUT or PATCH.</p>
+              }
+              @switch (draft().body.mode) {
+                @case ('none') {
+                  <p class="text-sm text-muted">This request has no body.</p>
+                }
+                @case ('json') {
+                  <app-code-editor
+                    class="h-64"
+                    language="json"
+                    ariaLabel="Request body"
+                    placeholder='{"name": "Ada"}'
+                    [value]="draft().body.raw"
+                    (valueChange)="setBodyRaw($event)"
+                  />
+                }
+                @case ('text') {
+                  <app-code-editor
+                    class="h-64"
+                    language="plaintext"
+                    ariaLabel="Request body"
+                    [value]="draft().body.raw"
+                    (valueChange)="setBodyRaw($event)"
+                  />
+                }
+                @default {
+                  <app-kv-table keyLabel="Field" [rows]="draft().body.fields" (rowsChange)="setBodyFields($event)" />
+                }
+              }
+            </div>
+          }
+        }
+      </div>
+
+      <!-- Response -->
+      <section class="flex flex-col gap-3 border-t border-line pt-4" aria-labelledby="response-heading" aria-live="polite">
+        <div class="flex flex-wrap items-center gap-x-4 gap-y-2">
+          <h2 id="response-heading" class="text-lg leading-7">Response</h2>
+          @if (response(); as r) {
+            <span class="rounded-full px-3 py-1 font-mono text-sm font-bold" [class]="statusClass(r.status)">
+              {{ r.status }} {{ r.statusText }}
+            </span>
+            <span class="text-sm text-muted">{{ r.ms }} ms</span>
+            <span class="text-sm text-muted">{{ formatBytes(r.size) }}</span>
+            <div class="ml-auto flex gap-2">
+              @if (r.text !== null) {
+                <button type="button" class="btn-small" (click)="copy(responseText(), 'Response')">
+                  <app-icon [path]="icons.copy" [size]="14" /> Copy
+                </button>
+              }
+              <button type="button" class="btn-small" (click)="downloadResponse()">
+                <app-icon [path]="icons.download" [size]="14" /> Download
+              </button>
+            </div>
+          }
+        </div>
+
+        @switch (result().kind) {
+          @case ('idle') {
+            <p class="rounded-xl border border-dashed border-line px-4 py-8 text-center text-sm text-muted">
+              Enter a URL and choose Send. The request goes from your browser straight to the API.
+            </p>
+          }
+          @case ('sending') {
+            <p class="flex items-center gap-2 text-sm font-semibold">
+              <span
+                class="size-5 animate-spin rounded-full border-2 border-line border-t-brand motion-reduce:animate-none"
+                aria-hidden="true"
+              ></span>
+              Sending…
+            </p>
+          }
+          @case ('failed') {
+            @if (failure(); as f) {
+              <div class="flex flex-col gap-3 rounded-xl border border-danger bg-danger/10 px-4 py-3 text-sm leading-5">
+                <p class="font-semibold">{{ f.message }}</p>
+                @if (f.kind === 'blocked') {
+                  <p>Most often this means one of these:</p>
+                  <ul class="list-disc pl-5">
+                    <li>
+                      <strong>CORS:</strong> the API does not allow calls from web pages on other sites. Postman and
+                      terminals are not limited by this, browsers are.
+                    </li>
+                    <li>The address is wrong, the server is down, or its certificate is not trusted.</li>
+                    <li>A company VPN or firewall is needed to reach it.</li>
+                  </ul>
+                  <p>
+                    Your own API can allow this site by sending <code class="font-mono">Access-Control-Allow-Origin</code>.
+                    Otherwise run the same request as cURL in a terminal.
+                  </p>
+                }
+                @if (f.kind === 'blocked' || f.kind === 'mixed-content') {
+                  <button type="button" class="btn-small self-start" (click)="copy(curl(), 'cURL')">
+                    <app-icon [path]="icons.copy" [size]="14" /> Copy as cURL
+                  </button>
+                }
+              </div>
+            }
+          }
+          @case ('done') {
+            @if (response(); as r) {
+              <div class="flex flex-wrap items-center gap-1 border-b border-line" role="tablist" aria-label="Response">
+                @for (tab of [
+                  { id: 'body', label: 'Body' },
+                  { id: 'headers', label: 'Headers (' + r.headers.length + ')' }
+                ]; track tab.id) {
+                  <button
+                    type="button"
+                    role="tab"
+                    class="-mb-px border-b-2 px-3 py-2 text-sm font-semibold"
+                    [class]="responseTab() === tab.id ? 'border-brand text-ink' : 'border-transparent text-muted hover:text-ink'"
+                    [attr.aria-selected]="responseTab() === tab.id"
+                    (click)="responseTab.set($any(tab.id))"
+                  >
+                    {{ tab.label }}
+                  </button>
+                }
+                @if (responseTab() === 'body' && responseLanguage() === 'json') {
+                  <label class="ml-auto flex items-center gap-2 text-sm">
+                    <input type="checkbox" class="size-4 accent-brand" [checked]="pretty()" (change)="pretty.set($any($event.target).checked)" />
+                    Pretty
+                  </label>
+                }
+              </div>
+              @if (responseTab() === 'body') {
+                @if (imageUrl(); as url) {
+                  <img [src]="url" alt="Image returned by the API" class="checkerboard max-h-96 self-start rounded-xl border border-line" />
+                } @else if (r.text === null) {
+                  <p class="text-sm text-muted">
+                    This response is {{ r.contentType || 'binary data' }} ({{ formatBytes(r.size) }}), which cannot be shown
+                    as text. Choose Download to save it.
+                  </p>
+                } @else if (!r.text) {
+                  <p class="text-sm text-muted">The response has no body.</p>
+                } @else {
+                  <app-code-editor
+                    class="h-96"
+                    [language]="responseLanguage()"
+                    ariaLabel="Response body"
+                    [readOnly]="true"
+                    [value]="responseText()"
+                  />
+                }
+              } @else {
+                <div class="overflow-x-auto rounded-xl border border-line">
+                  <table class="w-full text-sm">
+                    <tbody>
+                      @for (header of r.headers; track header[0]) {
+                        <tr class="border-b border-line last:border-0">
+                          <td class="px-3 py-2 font-mono text-[13px] font-semibold">{{ header[0] }}</td>
+                          <td class="px-3 py-2 font-mono text-[13px] break-all">{{ header[1] }}</td>
+                        </tr>
+                      }
+                    </tbody>
+                  </table>
+                </div>
+                <p class="text-xs text-muted">
+                  Browsers only show the headers a server allows (Access-Control-Expose-Headers), so some may be missing.
+                </p>
+              }
+            }
+          }
+        }
+      </section>
+    </section>
+  </div>
+
+  <p class="mt-4 flex items-center gap-2 text-sm text-muted">
+    <app-icon [path]="icons.lock" [size]="16" />
+    Requests go from your browser straight to the API. Collections, history and environments are saved only in this browser.
+  </p>
+  @if (!store.persistent()) {
+    <p class="mt-2 text-sm text-warning">This browser is not allowing storage, so saved requests are lost when you leave.</p>
+  }
+
+  <app-tool-info [tool]="tool" [content]="content" />
+</div>

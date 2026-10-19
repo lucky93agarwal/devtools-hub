@@ -109,6 +109,18 @@ export const TOOLS: readonly ToolInfo[] = [
     live: true,
   },
   {
+    path: 'api-client',
+    name: 'API Client',
+    description: 'Send HTTP requests and read responses, with collections, environments and Postman import.',
+    seoTitle: 'API Client: Test REST APIs Online',
+    metaDescription:
+      'Send GET, POST, PUT and DELETE requests with headers, auth and JSON bodies. Collections, environments, cURL and Postman import. Free.',
+    icon: 'M4 7h16M4 12h10M4 17h7M17 14l3 3-3 3',
+    phase: 6,
+    onHome: true,
+    live: true,
+  },
+  {
     path: 'json-to-code',
     name: 'JSON to Code',
     description: 'Turn JSON into model classes for Kotlin, Java, TypeScript, Dart, Swift, C#, Python, Go, Rust, PHP and Ruby.',
@@ -178,4 +190,5 @@ export const NAV_LINKS: readonly { label: string; path: string }[] = [
   { label: 'JWT', path: 'jwt' },
   { label: 'JSON to Code', path: 'json-to-code' },
   { label: 'Data', path: 'data-converter' },
+  { label: 'API', path: 'api-client' },
 ];

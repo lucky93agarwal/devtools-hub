@@ -13,6 +13,7 @@ const NAV = [
   { label: 'JWT', path: '/jwt', heading: /JWT/ },
   { label: 'JSON to Code', path: '/json-to-code', heading: 'JSON to Code' },
   { label: 'Data', path: '/data-converter', heading: 'Data Converter' },
+  { label: 'API', path: '/api-client', heading: 'API Client' },
 ];
 
 let errors: string[];
@@ -280,6 +281,34 @@ test('Image Cropper crops with a dragged corner and a square shape', async ({ pa
   const download = page.waitForEvent('download');
   await page.getByRole('button', { name: `Download ${side}×${side}` }).click();
   expect((await download).suggestedFilename()).toBe(`photo-cropped-${side}x${side}.png`);
+});
+
+test('API Client sends a real request and shows the response', async ({ page }) => {
+  await page.goto('/api-client');
+  // The site's own manifest: same origin, so no CORS, and a JSON body.
+  await page.getByLabel('URL').fill(`${new URL(page.url()).origin}/site.webmanifest?v=1`);
+  await page.getByRole('button', { name: 'Send', exact: true }).click();
+  await expect(page.getByText('200 OK')).toBeVisible();
+  await expect(page.locator('app-code-editor').last()).toContainText('"name": "DevTools Hub"');
+  await page.getByRole('tab', { name: /Headers \(\d+\)/ }).click();
+  await expect(page.getByRole('cell', { name: 'content-type' })).toBeVisible();
+
+  // Sent requests appear in History and can be saved.
+  await page.getByRole('tab', { name: 'history' }).click();
+  await expect(page.locator('aside').getByText(/site\.webmanifest/)).toBeVisible();
+  await page.getByRole('button', { name: 'Save', exact: true }).click();
+  await page.getByRole('button', { name: 'Save request' }).click();
+  await expect(page.getByText('Saved in a collection')).toBeVisible();
+});
+
+test('API Client explains a request the browser cannot complete', async ({ page }) => {
+  await page.goto('/api-client');
+  // Nothing listens on port 9, so the browser gets no response, as with a CORS refusal.
+  await page.getByLabel('URL').fill('http://127.0.0.1:9/nothing');
+  await page.getByRole('button', { name: 'Send', exact: true }).click();
+  await expect(page.getByText('The browser could not get a response.')).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Copy as cURL' })).toBeVisible();
+  errors.length = 0; // the failed fetch is logged by the browser on purpose
 });
 
 test('the old JSON to model address opens JSON to Code', async ({ page }) => {
