@@ -19,15 +19,29 @@ export interface LogEntry {
 
 export interface RealtimeHandlers {
   open(note: string): void;
+  /** A note for the log, such as a confirmed subscription. */
+  info?(note: string): void;
   receive(text: string, size: number, details?: { event?: string; binary?: boolean }): void;
   closed(note: string): void;
   error(message: string): void;
 }
 
+export interface SendOptions {
+  /** Socket.IO: the event, and whether to wait for an acknowledgement. */
+  event?: string;
+  ack?: boolean;
+  /** MQTT: where and how to publish. */
+  topic?: string;
+  qos?: 0 | 1 | 2;
+  retain?: boolean;
+}
+
 export interface RealtimeConnection {
-  /** Sends a message; Socket.IO also takes the event and whether to wait for an acknowledgement. */
-  send(text: string, format: 'text' | 'json', options?: { event?: string; ack?: boolean }): { text: string; size: number };
+  send(text: string, format: 'text' | 'json', options?: SendOptions): { text: string; size: number };
   close(): void;
+  /** MQTT only. */
+  subscribe?(topic: string, qos: 0 | 1 | 2): void;
+  unsubscribe?(topic: string): void;
 }
 
 const encoder = new TextEncoder();
@@ -210,6 +224,86 @@ export async function connectSocketIo(
     },
     close() {
       socket.disconnect();
+    },
+  };
+}
+
+/** MQTT in a browser runs over WebSocket: http becomes ws, and no scheme means wss. */
+export function mqttUrl(url: string): string {
+  return webSocketUrl(url);
+}
+
+export interface MqttOptions {
+  clientId: string;
+  username: string;
+  password: string;
+  keepalive: number;
+  clean: boolean;
+  subscriptions: { topic: string; qos: 0 | 1 | 2 }[];
+}
+
+/** Loads mqtt.js only when an MQTT request connects. */
+export async function connectMqtt(
+  url: string,
+  options: MqttOptions,
+  handlers: RealtimeHandlers,
+  load: () => Promise<typeof import('mqtt')> = () => import('mqtt'),
+): Promise<RealtimeConnection> {
+  const loaded = await load();
+  // The browser build puts everything on its default export.
+  const connect = loaded.connect ?? (loaded as unknown as { default: typeof loaded }).default.connect;
+  const client = connect(url, {
+    clientId: options.clientId || `devtools24_${Math.random().toString(16).slice(2, 10)}`,
+    username: options.username || undefined,
+    password: options.password || undefined,
+    keepalive: options.keepalive || 60,
+    clean: options.clean,
+    reconnectPeriod: 0,
+    connectTimeout: 15_000,
+  });
+  const subscribe = (topic: string, qos: 0 | 1 | 2) =>
+    client.subscribe(topic, { qos }, (error, granted) => {
+      if (error) handlers.error(`Could not subscribe to ${topic}: ${error.message}`);
+      else if (granted?.[0]?.qos === 128) handlers.error(`The broker refused the subscription to ${topic}.`);
+      else handlers.info?.(`Subscribed to ${topic} (QoS ${granted?.[0]?.qos ?? qos})`);
+    });
+
+  client.on('connect', () => {
+    handlers.open(`Connected to ${url} as ${client.options.clientId}`);
+    for (const subscription of options.subscriptions) subscribe(subscription.topic, subscription.qos);
+  });
+  client.on('message', (topic, payload, packet) => {
+    let text: string;
+    let binary = false;
+    try {
+      text = new TextDecoder('utf-8', { fatal: true }).decode(payload);
+    } catch {
+      text = describeBinary(payload);
+      binary = true;
+    }
+    handlers.receive(text, payload.length, { event: packet.retain ? `${topic} (retained)` : topic, binary });
+  });
+  client.on('error', (error) => handlers.error(`MQTT error: ${error.message}`));
+  client.on('close', () => handlers.closed('Disconnected'));
+
+  return {
+    send(text, format, { topic = '', qos = 0, retain = false } = {}) {
+      messageValue(text, format);
+      if (!topic) throw new Error('Enter a topic to publish to.');
+      client.publish(topic, text, { qos, retain }, (error) => {
+        if (error) handlers.error(`Could not publish to ${topic}: ${error.message}`);
+      });
+      return { text, size: byteSize(text) };
+    },
+    close() {
+      client.end(true);
+    },
+    subscribe,
+    unsubscribe(topic) {
+      client.unsubscribe(topic, (error) => {
+        if (error) handlers.error(`Could not unsubscribe from ${topic}: ${error.message}`);
+        else handlers.info?.(`Unsubscribed from ${topic}`);
+      });
     },
   };
 }

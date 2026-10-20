@@ -7,15 +7,17 @@ import { parseTree } from '../json-formatter/json-tree';
 import { mergeUrlParams, resolveVariables, urlWithParams } from './build';
 import { JsonView } from './json-view';
 import { KvColumns, KvTable } from './kv-table';
-import { ApiRequest, KeyValue, REQUEST_KINDS, RealtimeSettings, defaultRealtime } from './model';
+import { ApiRequest, KeyValue, MqttSettings, QoS, REQUEST_KINDS, RealtimeSettings, defaultMqtt, defaultRealtime } from './model';
 import {
   LogDirection,
   LogEntry,
   RealtimeConnection,
   RealtimeHandlers,
   blockedReason,
+  connectMqtt,
   connectSocketIo,
   connectWebSocket,
+  mqttUrl,
   socketIoUrl,
   webSocketUrl,
 } from './realtime';
@@ -43,7 +45,7 @@ type Status = 'idle' | 'connecting' | 'open' | 'closed';
           spellcheck="false"
           autocomplete="off"
           aria-label="URL"
-          [placeholder]="isSocketIo() ? 'https://example.com/namespace' : 'wss://echo.websocket.org'"
+          [placeholder]="isSocketIo() ? 'https://example.com/namespace' : isMqtt() ? 'wss://broker.example.com:8084/mqtt' : 'wss://echo.websocket.org'"
           [value]="request().url"
           (input)="setUrl($any($event.target).value)"
           (keydown.enter)="toggleConnection()"
@@ -77,6 +79,69 @@ type Status = 'idle' | 'connecting' | 'open' | 'closed';
 
       @switch (tabId()) {
         @case ('message') {
+          @if (isMqtt()) {
+            <div class="flex flex-col gap-2 rounded-xl border border-line p-3">
+              <span class="text-xs font-semibold text-muted uppercase">Subscriptions</span>
+              @for (sub of mqtt().subscriptions; track $index; let i = $index) {
+                <div class="flex flex-wrap items-center gap-2">
+                  <input
+                    type="checkbox"
+                    class="size-4 accent-brand"
+                    [attr.aria-label]="'Listen to ' + sub.topic"
+                    [checked]="sub.enabled"
+                    (change)="toggleSubscription(i, $any($event.target).checked)"
+                  />
+                  <span class="min-w-0 flex-1 truncate font-mono text-sm">{{ sub.topic }}</span>
+                  <span class="chip px-2 py-0.5 text-xs">QoS {{ sub.qos }}</span>
+                  <button type="button" class="text-muted hover:text-danger" [attr.aria-label]="'Remove subscription ' + sub.topic" (click)="removeSubscription(i)">&times;</button>
+                </div>
+              }
+              <div class="flex flex-wrap items-center gap-2">
+                <input
+                  #newTopic
+                  type="text"
+                  class="min-w-0 flex-1 rounded-lg border border-line bg-page px-3 py-1.5 font-mono text-sm"
+                  placeholder="sensors/+/temperature or devices/#"
+                  aria-label="Topic to subscribe to"
+                  spellcheck="false"
+                  (keydown.enter)="addSubscription(newTopic, newQos)"
+                />
+                <select #newQos class="rounded-lg border border-line bg-page px-2 py-1.5 text-sm" aria-label="Subscription QoS">
+                  <option value="0">QoS 0</option>
+                  <option value="1">QoS 1</option>
+                  <option value="2">QoS 2</option>
+                </select>
+                <button type="button" class="btn-small" (click)="addSubscription(newTopic, newQos)">Subscribe</button>
+              </div>
+            </div>
+            <div class="flex flex-wrap items-center gap-3">
+              <label class="flex min-w-0 flex-1 items-center gap-2 text-sm">
+                Topic
+                <input
+                  type="text"
+                  class="min-w-0 flex-1 rounded-lg border border-line bg-page px-3 py-1.5 font-mono text-sm"
+                  aria-label="Publish topic"
+                  placeholder="devices/42/commands"
+                  spellcheck="false"
+                  [value]="mqtt().topic"
+                  (input)="setMqtt({ topic: $any($event.target).value })"
+                />
+              </label>
+              <select
+                class="rounded-lg border border-line bg-page px-2 py-1.5 text-sm"
+                aria-label="Publish QoS"
+                (change)="setMqtt({ qos: toQos($any($event.target).value) })"
+              >
+                @for (q of [0, 1, 2]; track q) {
+                  <option [value]="q" [selected]="mqtt().qos === q">QoS {{ q }}</option>
+                }
+              </select>
+              <label class="flex items-center gap-2 text-sm">
+                <input type="checkbox" class="size-4 accent-brand" [checked]="mqtt().retain" (change)="setMqtt({ retain: $any($event.target).checked })" />
+                Retain
+              </label>
+            </div>
+          }
           @if (isSocketIo()) {
             <div class="flex flex-wrap items-center gap-3">
               <label class="flex items-center gap-2 text-sm">
@@ -151,7 +216,33 @@ type Status = 'idle' | 'connecting' | 'open' | 'closed';
           <app-kv-table [rows]="request().params" [columns]="columns()" (columnsChange)="columnsChange.emit($event)" (rowsChange)="setParams($event)" />
         }
         @case ('settings') {
-          @if (isSocketIo()) {
+          @if (isMqtt()) {
+            <div class="grid gap-3 sm:grid-cols-2">
+              @for (field of mqttFields; track field.key) {
+                <label class="flex flex-col gap-1 text-sm">
+                  <span class="font-semibold">{{ field.label }}</span>
+                  <input
+                    class="rounded-lg border border-line bg-page px-3 py-1.5 font-mono text-sm"
+                    spellcheck="false"
+                    autocomplete="off"
+                    [type]="field.type"
+                    [attr.aria-label]="field.label"
+                    [placeholder]="field.placeholder"
+                    [value]="mqtt()[field.key]"
+                    (input)="setMqttField(field.key, $any($event.target).value)"
+                  />
+                </label>
+              }
+              <label class="flex items-center gap-2 text-sm">
+                <input type="checkbox" class="size-4 accent-brand" [checked]="mqtt().clean" (change)="setMqtt({ clean: $any($event.target).checked })" />
+                Clean session
+              </label>
+            </div>
+            <p class="text-xs text-muted">
+              Browsers reach MQTT brokers only over WebSocket (ws:// or wss://, often port 8083/8084 with path /mqtt), not
+              plain TCP port 1883 or 8883. The password is saved with the request in this browser.
+            </p>
+          } @else if (isSocketIo()) {
             <label class="flex flex-col gap-1 text-sm">
               <span class="font-semibold">Path</span>
               <input
@@ -304,6 +395,14 @@ export class RealtimePanel implements OnDestroy {
   /** Only a different request resets the connection, not edits to this one. */
   private readonly requestId = computed(() => this.request().id);
   protected readonly isSocketIo = computed(() => this.request().kind === 'socketio');
+  protected readonly isMqtt = computed(() => this.request().kind === 'mqtt');
+  protected readonly mqtt = computed(() => ({ ...defaultMqtt(), ...this.request().realtime?.mqtt }));
+  protected readonly mqttFields: { key: 'clientId' | 'username' | 'password' | 'keepalive'; label: string; type: string; placeholder: string }[] = [
+    { key: 'clientId', label: 'Client ID', type: 'text', placeholder: 'Random when empty' },
+    { key: 'keepalive', label: 'Keep alive (seconds)', type: 'number', placeholder: '60' },
+    { key: 'username', label: 'Username', type: 'text', placeholder: '' },
+    { key: 'password', label: 'Password', type: 'password', placeholder: '' },
+  ];
   protected readonly kindInfo = computed(() => REQUEST_KINDS.find((k) => k.value === this.request().kind) ?? REQUEST_KINDS[1]);
   protected readonly settings = computed(() => ({ ...defaultRealtime(), ...this.request().realtime }));
   protected readonly tabs = computed(() => [
@@ -363,6 +462,42 @@ export class RealtimePanel implements OnDestroy {
     this.requestChange.emit({ realtime: { ...this.settings(), ...changes } });
   }
 
+  protected setMqtt(changes: Partial<MqttSettings>): void {
+    this.setSettings({ mqtt: { ...this.mqtt(), ...changes } });
+  }
+
+  protected toQos(value: string): QoS {
+    return Math.min(2, Math.max(0, Number(value) || 0)) as QoS;
+  }
+
+  protected setMqttField(key: 'clientId' | 'username' | 'password' | 'keepalive', value: string): void {
+    this.setMqtt(key === 'keepalive' ? { keepalive: Number(value) || 60 } : { [key]: value });
+  }
+
+  protected addSubscription(input: HTMLInputElement, qosSelect: HTMLSelectElement): void {
+    const topic = input.value.trim();
+    if (!topic) return;
+    const qos = this.toQos(qosSelect.value);
+    this.setMqtt({ subscriptions: [...this.mqtt().subscriptions.filter((s) => s.topic !== topic), { topic, qos, enabled: true }] });
+    input.value = '';
+    this.connection?.subscribe?.(resolveVariables(topic, this.variables()), qos);
+  }
+
+  protected toggleSubscription(index: number, enabled: boolean): void {
+    const subscriptions = this.mqtt().subscriptions.map((s, i) => (i === index ? { ...s, enabled } : s));
+    this.setMqtt({ subscriptions });
+    const sub = subscriptions[index];
+    const topic = resolveVariables(sub.topic, this.variables());
+    if (enabled) this.connection?.subscribe?.(topic, sub.qos);
+    else this.connection?.unsubscribe?.(topic);
+  }
+
+  protected removeSubscription(index: number): void {
+    const sub = this.mqtt().subscriptions[index];
+    if (sub.enabled) this.connection?.unsubscribe?.(resolveVariables(sub.topic, this.variables()));
+    this.setMqtt({ subscriptions: this.mqtt().subscriptions.filter((_, i) => i !== index) });
+  }
+
   protected setMessage(message: string): void {
     if (message !== this.settings().message) this.setSettings({ message });
   }
@@ -393,6 +528,7 @@ export class RealtimePanel implements OnDestroy {
       }
     })();
     this.setSettings({ message: entry.text, format: json ? 'json' : 'text', ...(entry.event && this.isSocketIo() ? { event: entry.event } : {}) });
+    if (entry.event && this.isMqtt()) this.setMqtt({ topic: entry.event.replace(/ \(retained\)$/, '') });
     this.tabId.set('message');
   }
 
@@ -408,7 +544,7 @@ export class RealtimePanel implements OnDestroy {
     this.problem.set('');
     const fill = (text: string) => resolveVariables(text, this.variables());
     const raw = fill(this.request().url);
-    const url = this.isSocketIo() ? socketIoUrl(raw) : webSocketUrl(raw);
+    const url = this.isSocketIo() ? socketIoUrl(raw) : this.isMqtt() ? mqttUrl(raw) : webSocketUrl(raw);
     const blocked = blockedReason(url, location.protocol);
     if (blocked) {
       this.problem.set(blocked);
@@ -432,6 +568,9 @@ export class RealtimePanel implements OnDestroy {
         this.add('info', text);
         this.connection = null;
       },
+      info: (text) => {
+        if (live()) this.add('info', text);
+      },
       error: (text) => {
         if (!live()) return;
         this.add('error', text);
@@ -443,7 +582,23 @@ export class RealtimePanel implements OnDestroy {
     this.add('info', `Connecting to ${url}…`);
     this.analytics.track('api-connect', { kind: this.request().kind ?? 'websocket' });
     try {
-      if (this.isSocketIo()) {
+      if (this.isMqtt()) {
+        const m = this.mqtt();
+        const connection = await connectMqtt(
+          url,
+          {
+            clientId: fill(m.clientId),
+            username: fill(m.username),
+            password: fill(m.password),
+            keepalive: m.keepalive,
+            clean: m.clean,
+            subscriptions: m.subscriptions.filter((s) => s.enabled && s.topic).map((s) => ({ topic: fill(s.topic), qos: s.qos })),
+          },
+          handlers,
+        );
+        if (live()) this.connection = connection;
+        else connection.close();
+      } else if (this.isSocketIo()) {
         const authText = fill(this.settings().auth).trim();
         let auth: Record<string, unknown> | undefined;
         if (authText) {
@@ -484,8 +639,17 @@ export class RealtimePanel implements OnDestroy {
     if (!this.connection) return;
     const { message, format, event, ack } = this.settings();
     try {
-      const sent = this.connection.send(resolveVariables(message, this.variables()), format, { event: event || 'message', ack });
-      this.add('out', sent.text, sent.size, this.isSocketIo() ? { event: event || 'message' } : undefined);
+      const m = this.mqtt();
+      const topic = resolveVariables(m.topic, this.variables());
+      const sent = this.connection.send(resolveVariables(message, this.variables()), format, {
+        event: event || 'message',
+        ack,
+        topic,
+        qos: m.qos,
+        retain: m.retain,
+      });
+      const label = this.isSocketIo() ? event || 'message' : this.isMqtt() ? topic : undefined;
+      this.add('out', sent.text, sent.size, label ? { event: label } : undefined);
     } catch (e) {
       this.problem.set(e instanceof Error ? e.message : 'The message could not be sent.');
       return;

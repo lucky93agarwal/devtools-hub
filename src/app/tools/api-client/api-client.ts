@@ -7,7 +7,7 @@ import { copyText, downloadBlob, downloadText, formatBytes } from '../../shared/
 import { ICONS, Icon } from '../../shared/icon/icon';
 import { ToolInfoSection } from '../../shared/tool-info/tool-info';
 import { mergeUrlParams, prepareRequest, resolveVariables, urlWithParams, variableMap } from './build';
-import { API_CLIENT_CONTENT, GRAPHQL_SAMPLE, SAMPLE_PATH, SAMPLE_REQUEST, WEBSOCKET_SAMPLE_URL } from './content';
+import { API_CLIENT_CONTENT, GRAPHQL_SAMPLE, MQTT_SAMPLE_URL, SAMPLE_PATH, SAMPLE_REQUEST, WEBSOCKET_SAMPLE_URL } from './content';
 import { nameFromUrl, parseCurl, toCurl, toFetchCode } from './curl';
 import { KvTable } from './kv-table';
 import { JsonView } from './json-view';
@@ -39,6 +39,7 @@ import {
   RequestBody,
   RequestKind,
   cloneRequest,
+  defaultMqtt,
   defaultRealtime,
   emptyBody,
   isLiveKind,
@@ -169,6 +170,7 @@ export class ApiClient {
     graphql: 'Queries built from the schema',
     websocket: 'A live two-way connection',
     socketio: 'Events with a Socket.IO server',
+    mqtt: 'Publish and subscribe to a broker',
   };
   /** HTTP and GraphQL use the request form; WebSocket and Socket.IO the live panel. */
   protected readonly isHttp = computed(() => !isLiveKind(this.draft().kind));
@@ -611,6 +613,22 @@ export class ApiClient {
 
   private setSchemaFor(url: string, state: SchemaState): void {
     this.schemas.update((map) => new Map(map).set(url, state));
+  }
+
+  protected loadMqttSample(): void {
+    this.store.openNew(
+      newRequest({
+        kind: 'mqtt',
+        name: 'Public MQTT broker',
+        url: MQTT_SAMPLE_URL,
+        realtime: {
+          ...defaultRealtime(),
+          format: 'json',
+          message: '{\n  "temperature": 21.5,\n  "unit": "C"\n}',
+          mqtt: { ...defaultMqtt(), topic: 'devtools24/demo', subscriptions: [{ topic: 'devtools24/demo', qos: 0, enabled: true }] },
+        },
+      }),
+    );
   }
 
   protected loadWebSocketSample(): void {

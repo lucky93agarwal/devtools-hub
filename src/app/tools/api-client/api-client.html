@@ -285,6 +285,8 @@
           <button type="button" class="btn-small" (click)="startSave()">Save</button>
           @if (draft().kind === 'websocket') {
             <button type="button" class="btn-small" (click)="loadWebSocketSample()">Sample request</button>
+          } @else if (draft().kind === 'mqtt') {
+            <button type="button" class="btn-small" (click)="loadMqttSample()">Sample request</button>
           }
         }
         @if (copied()) {

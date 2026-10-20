@@ -3,6 +3,7 @@ import {
   argumentsText,
   blockedReason,
   closeNote,
+  connectMqtt,
   connectSocketIo,
   connectWebSocket,
   messageValue,
@@ -179,5 +180,73 @@ describe('Socket.IO connection', () => {
     await connectSocketIo('https://x.dev', { path: '', auth: undefined }, handlers, fake.load);
     fake.fire('connect_error', new Error('websocket error'));
     expect(events[0]).toBe('error Could not connect: websocket error. Check the address and path, and that the server runs Socket.IO 3 or 4.');
+  });
+});
+
+describe('MQTT connection', () => {
+  function fakeMqtt() {
+    const listeners = new Map<string, (...args: unknown[]) => void>();
+    const calls: unknown[][] = [];
+    const client = {
+      options: { clientId: 'devtools24_test' },
+      on: (event: string, listener: (...args: unknown[]) => void) => listeners.set(event, listener),
+      subscribe: (topic: string, opts: unknown, cb: (e: Error | null, g?: { qos: number }[]) => void) => {
+        calls.push(['subscribe', topic, opts]);
+        cb(null, [{ qos: topic.includes('denied') ? 128 : 1 }]);
+      },
+      unsubscribe: (topic: string, cb: (e?: Error) => void) => {
+        calls.push(['unsubscribe', topic]);
+        cb();
+      },
+      publish: (topic: string, text: string, opts: unknown, cb: (e?: Error) => void) => {
+        calls.push(['publish', topic, text, opts]);
+        cb();
+      },
+      end: vi.fn(),
+    };
+    const connect = vi.fn(() => client);
+    return {
+      connect,
+      client,
+      calls,
+      fire: (event: string, ...args: unknown[]) => listeners.get(event)!(...args),
+      load: async () => ({ connect }) as unknown as typeof import('mqtt'),
+    };
+  }
+
+  it('connects, subscribes, publishes and shows messages by topic', async () => {
+    const { events, handlers } = recorder();
+    const info: string[] = [];
+    handlers.info = (note) => info.push(note);
+    const fake = fakeMqtt();
+    const connection = await connectMqtt(
+      'wss://broker.test/mqtt',
+      { clientId: '', username: 'u', password: 'p', keepalive: 30, clean: true, subscriptions: [{ topic: 'a/#', qos: 1 }, { topic: 'denied', qos: 0 }] },
+      handlers,
+      fake.load,
+    );
+    expect(fake.connect).toHaveBeenCalledWith(
+      'wss://broker.test/mqtt',
+      expect.objectContaining({ username: 'u', password: 'p', keepalive: 30, clean: true, reconnectPeriod: 0 }),
+    );
+    fake.fire('connect');
+    expect(info).toEqual(['Subscribed to a/# (QoS 1)']);
+    connection.send('{"on":true}', 'json', { topic: 'a/b', qos: 1, retain: true });
+    expect(fake.calls).toContainEqual(['publish', 'a/b', '{"on":true}', { qos: 1, retain: true }]);
+    expect(() => connection.send('x', 'text', {})).toThrow('Enter a topic');
+    fake.fire('message', 'a/b', new TextEncoder().encode('hello'), { retain: false });
+    fake.fire('message', 'a/c', new Uint8Array([255, 254]), { retain: true });
+    connection.unsubscribe!('a/#');
+    connection.close();
+    expect(fake.client.end).toHaveBeenCalled();
+    fake.fire('close');
+    expect(events).toEqual([
+      'open Connected to wss://broker.test/mqtt as devtools24_test',
+      'error The broker refused the subscription to denied.',
+      'in [a/b] 5 hello',
+      'in [a/c (retained)] binary 2 //4=',
+      'closed Disconnected',
+    ]);
+    expect(info.at(-1)).toBe('Unsubscribed from a/#');
   });
 });

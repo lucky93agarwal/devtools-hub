@@ -72,13 +72,14 @@ export function normalizeBody(body: Partial<RequestBody> & { mode?: string } = {
 }
 
 /** What a request talks to: HTTP, GraphQL (sent over HTTP), or a live WebSocket or Socket.IO connection. */
-export type RequestKind = 'http' | 'graphql' | 'websocket' | 'socketio';
+export type RequestKind = 'http' | 'graphql' | 'websocket' | 'socketio' | 'mqtt';
 
 export const REQUEST_KINDS: { value: RequestKind; label: string; badge: string }[] = [
   { value: 'http', label: 'HTTP', badge: 'HTTP' },
   { value: 'graphql', label: 'GraphQL', badge: 'GQL' },
   { value: 'websocket', label: 'WebSocket', badge: 'WS' },
   { value: 'socketio', label: 'Socket.IO', badge: 'SIO' },
+  { value: 'mqtt', label: 'MQTT', badge: 'MQTT' },
 ];
 
 /** Settings for WebSocket and Socket.IO requests. */
@@ -94,9 +95,38 @@ export interface RealtimeSettings {
   /** Socket.IO: the server's path, and the handshake auth as JSON. */
   path: string;
   auth: string;
+  /** MQTT: where to publish, how, and what to listen to. */
+  mqtt: MqttSettings;
   /** Messages kept for sending again, as Postman's saved messages. */
   saved: { name: string; message: string; format: 'text' | 'json'; event: string }[];
 }
+
+export type QoS = 0 | 1 | 2;
+
+export interface MqttSettings {
+  topic: string;
+  qos: QoS;
+  retain: boolean;
+  subscriptions: { topic: string; qos: QoS; enabled: boolean }[];
+  /** Empty means a random ID is made for each connection. */
+  clientId: string;
+  username: string;
+  password: string;
+  keepalive: number;
+  clean: boolean;
+}
+
+export const defaultMqtt = (): MqttSettings => ({
+  topic: '',
+  qos: 0,
+  retain: false,
+  subscriptions: [],
+  clientId: '',
+  username: '',
+  password: '',
+  keepalive: 60,
+  clean: true,
+});
 
 export const defaultRealtime = (): RealtimeSettings => ({
   message: '',
@@ -106,11 +136,12 @@ export const defaultRealtime = (): RealtimeSettings => ({
   protocols: '',
   path: '/socket.io',
   auth: '',
+  mqtt: defaultMqtt(),
   saved: [],
 });
 
-/** WebSocket and Socket.IO keep a connection open; HTTP and GraphQL send one request at a time. */
-export const isLiveKind = (kind: RequestKind | undefined) => kind === 'websocket' || kind === 'socketio';
+/** WebSocket, Socket.IO and MQTT keep a connection open; HTTP and GraphQL send one request at a time. */
+export const isLiveKind = (kind: RequestKind | undefined) => kind === 'websocket' || kind === 'socketio' || kind === 'mqtt';
 
 export interface ApiRequest {
   id: string;

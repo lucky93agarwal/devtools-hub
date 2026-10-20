@@ -31,6 +31,7 @@
     "graphql": "17.0.2",
     "libheif-js": "^1.23.5",
     "monaco-editor": "^0.57.0",
+    "mqtt": "5.16.0",
     "onnxruntime-web": "^1.30.0",
     "papaparse": "^5.7.0",
     "rxjs": "~7.8.0",

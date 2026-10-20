@@ -21,6 +21,9 @@ export const GRAPHQL_SAMPLE = {
   },
 };
 
+/** EMQX's free public MQTT broker over secure WebSocket; anyone can read its topics. */
+export const MQTT_SAMPLE_URL = 'wss://broker.emqx.io:8084/mqtt';
+
 /** A public WebSocket server that sends every message back. */
 export const WEBSOCKET_SAMPLE_URL = 'wss://echo.websocket.org';
 export const SAMPLE_REQUEST: Partial<ApiRequest> = {
