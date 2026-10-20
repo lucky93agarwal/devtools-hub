@@ -22,6 +22,7 @@ import {
   toBase64,
 } from './response-format';
 import { parseTree } from '../json-formatter/json-tree';
+import { findJsonError } from '../json-formatter/json-tools';
 import { AuthEditor } from './auth-editor';
 import { Auth } from './auth';
 import { AuthError, signRequest } from './sign';
@@ -164,7 +165,7 @@ export class ApiClient {
       previous && response && previous.source?.contentType === response.contentType
         ? previous.value
         : response
-          ? defaultFormat(response.contentType, response.text !== null)
+          ? defaultFormat(response.contentType, response.text !== null, response.text ?? '')
           : 'json',
   });
   protected readonly formatOption = computed(() => RESPONSE_FORMATS.find((f) => f.value === this.responseFormat())!);
@@ -234,6 +235,16 @@ export class ApiClient {
     return url ? this.sanitizer.bypassSecurityTrustResourceUrl(url) : null;
   });
   protected readonly headersText = computed(() => (this.response()?.headers ?? []).map(([n, v]) => `${n}: ${v}`).join('\n'));
+  /**
+   * Where a body that should be JSON breaks: shown in JSON format when the server
+   * says it is JSON, or the body starts like JSON, but it does not parse.
+   */
+  protected readonly responseJsonError = computed(() => {
+    const response = this.response();
+    const text = response?.text;
+    if (!text?.trim() || this.responseFormat() !== 'json' || this.responseTree()) return null;
+    return findJsonError(text);
+  });
   /** An HTML response for the sandboxed Preview frame, which runs no scripts. */
   protected readonly previewHtml = computed(() => {
     const response = this.response();
@@ -292,6 +303,15 @@ export class ApiClient {
       void response.blob.arrayBuffer().then((buffer) => {
         if (this.response() === response) this.responseBytes.set({ response, bytes: new Uint8Array(buffer) });
       });
+    });
+
+    // Underline where an invalid JSON body breaks, once the editor shows it.
+    effect(() => {
+      const error = this.responseJsonError();
+      const editor = this.responseEditor();
+      if (!editor) return;
+      if (error) editor.showError(error.line, error.column, error.message);
+      else editor.clearError();
     });
 
     // The editor marks raw matches itself; it keeps the search until Monaco has loaded.
@@ -525,6 +545,11 @@ export class ApiClient {
     const target = event.target as HTMLElement;
     if (this.formatMenu() && !target.closest('[data-format-menu]')) this.formatMenu.set(false);
     if (this.newMenu() && !target.closest('[data-new-menu]')) this.newMenu.set(false);
+  }
+
+  protected showJsonError(): void {
+    const error = this.responseJsonError();
+    if (error) this.responseEditor()?.revealError(error.line, error.column);
   }
 
   protected stepSearch(direction: 1 | -1): void {

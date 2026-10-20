@@ -856,6 +856,14 @@
                 } @else if (responseTree(); as root) {
                   <app-json-view [root]="root" [query]="searchOpen() ? responseQuery() : ''" [current]="searchStep()" [wrap]="wrap()" />
                 } @else {
+                  @if (responseJsonError(); as err) {
+                    <div class="flex flex-wrap items-center gap-3 rounded-xl border border-danger bg-danger/10 px-4 py-2 text-sm" role="alert">
+                      <span>
+                        <strong>Invalid JSON</strong> at line {{ err.line }}, column {{ err.column }}: {{ err.message }}
+                      </span>
+                      <button type="button" class="btn-small ml-auto" (click)="showJsonError()">Go to error</button>
+                    </div>
+                  }
                   <app-code-editor
                     #responseEditor
                     class="h-96"
@@ -863,6 +871,7 @@
                     ariaLabel="Response body"
                     [readOnly]="true"
                     [wordWrap]="wrap()"
+                    [invalid]="!!responseJsonError()"
                     [value]="responseText()"
                   />
                 }

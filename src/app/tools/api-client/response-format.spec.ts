@@ -10,6 +10,8 @@ describe('response formats', () => {
     expect(defaultFormat('text/javascript', true)).toBe('javascript');
     expect(defaultFormat('text/markdown', true)).toBe('markdown');
     expect(defaultFormat('text/plain', true)).toBe('raw');
+    expect(defaultFormat('text/plain', true, ' {"a":1')).toBe('json');
+    expect(defaultFormat('text/html', true, '{"a":1}')).toBe('html');
     expect(defaultFormat('application/octet-stream', false)).toBe('hex');
   });
 

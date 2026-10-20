@@ -31,10 +31,12 @@ export const HEX_LIMIT = 256 * 1024;
 export const BASE64_LIMIT = 4 * 1024 * 1024;
 
 /** The format a response opens in, from its Content-Type. Binary bodies open as Hex. */
-export function defaultFormat(contentType: string, isText: boolean): ResponseFormat {
+export function defaultFormat(contentType: string, isText: boolean, text = ''): ResponseFormat {
   if (!isText) return 'hex';
   const type = contentType.toLowerCase();
   if (/json/.test(type)) return 'json';
+  // Servers often send JSON as text/plain or with no type at all.
+  if (!/html|xml|yaml|javascript|markdown/.test(type) && /^\s*[[{]/.test(text)) return 'json';
   if (/html/.test(type)) return 'html';
   if (/xml/.test(type)) return 'xml';
   if (/yaml|yml/.test(type)) return 'yaml';

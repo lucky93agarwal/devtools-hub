@@ -275,6 +275,18 @@ describe('ApiClient', () => {
     expect(JSON.parse(sent.at(-1)!.bodyText!)).toEqual({ query: '{ country { population } }', variables: { code: null } });
   });
 
+  it('points out where a JSON response is broken', async () => {
+    const { el, click, type, text, editors } = await setup();
+    reply = async () => okResponse({ contentType: 'text/plain', text: '{\n  "id": 1,\n  "name": "Ada"\n  "age": 36\n}' });
+    await type('input[aria-label=URL]', 'https://api.example.com/broken');
+    await click('Send');
+    expect(el.querySelector('[role=alert]')!.textContent).toContain('Invalid JSON at line 4, column 3');
+    await new Promise((resolve) => setTimeout(resolve));
+    expect(editors().at(-1)!.showError).toHaveBeenCalledWith(4, 3, expect.stringContaining(','));
+    await click('Go to error');
+    expect(editors().at(-1)!.revealError).toHaveBeenCalledWith(4, 3);
+  });
+
   it('previews HTML in a sandboxed frame that runs no scripts', async () => {
     const { el, click, type } = await setup();
     reply = async () => okResponse({ contentType: 'text/html', text: '<h1>Hi</h1><script>alert(1)</script>' });
