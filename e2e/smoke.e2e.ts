@@ -399,6 +399,59 @@ test('API Client builds a GraphQL query from the schema', async ({ page }) => {
   });
 });
 
+test('API Client streams an AI answer', async ({ page }) => {
+  // A stand-in for Anthropic's streaming Messages API.
+  await page.route('https://api.anthropic.com/v1/messages', (route) =>
+    route.fulfill({
+      status: 200,
+      headers: { 'access-control-allow-origin': '*', 'content-type': 'text/event-stream' },
+      body: [
+        'event: message_start\ndata: {"type":"message_start","message":{"usage":{"input_tokens":7}}}\n\n',
+        'event: content_block_delta\ndata: {"type":"content_block_delta","delta":{"type":"text_delta","text":"Hello "}}\n\n',
+        'event: content_block_delta\ndata: {"type":"content_block_delta","delta":{"type":"text_delta","text":"there!"}}\n\n',
+        'event: message_delta\ndata: {"type":"message_delta","usage":{"output_tokens":3}}\n\n',
+      ].join(''),
+    }),
+  );
+  await page.goto('/api-client');
+  await page.getByRole('button', { name: 'New', exact: true }).click();
+  await page.getByRole('menuitem').filter({ hasText: 'Prompt OpenAI' }).click();
+  await page.getByLabel('AI provider').selectOption('anthropic');
+  await expect(page.getByLabel('Model')).toHaveValue('claude-sonnet-5-5');
+  await page.getByLabel('API key').fill('test-key');
+  await page.getByRole('textbox', { name: 'Prompt', exact: true }).fill('Say hi');
+  await page.getByRole('button', { name: 'Send', exact: true }).click();
+  const conversation = page.locator('app-ai-panel section');
+  await expect(conversation).toContainText('Hello there!');
+  await expect(conversation).toContainText('7 tokens in, 3 out');
+});
+
+test('API Client lists and runs MCP tools', async ({ page }) => {
+  // A stand-in MCP server answering JSON-RPC with plain JSON.
+  await page.route('https://mcp.test/mcp', async (route) => {
+    const cors = { 'access-control-allow-origin': '*', 'access-control-allow-headers': '*' };
+    if (route.request().method() === 'OPTIONS') return route.fulfill({ status: 204, headers: cors });
+    const body = route.request().postDataJSON();
+    if (!body.id) return route.fulfill({ status: 202, headers: cors });
+    const results: Record<string, unknown> = {
+      initialize: { protocolVersion: '2025-06-18', serverInfo: { name: 'Test server', version: '0.1' }, capabilities: { tools: {} } },
+      'tools/list': { tools: [{ name: 'add', description: 'Adds two numbers', inputSchema: { type: 'object', properties: { a: { type: 'number' }, b: { type: 'number' } } } }] },
+      'tools/call': { content: [{ type: 'text', text: String((body.params?.arguments?.a ?? 0) + (body.params?.arguments?.b ?? 0)) }] },
+    };
+    return route.fulfill({ status: 200, headers: { ...cors, 'content-type': 'application/json' }, body: JSON.stringify({ jsonrpc: '2.0', id: body.id, result: results[body.method] }) });
+  });
+  await page.goto('/api-client');
+  await page.getByRole('button', { name: 'New', exact: true }).click();
+  await page.getByRole('menuitem').filter({ hasText: 'resources and prompts' }).click();
+  await page.getByLabel('URL').fill('https://mcp.test/mcp');
+  await page.getByRole('button', { name: 'Connect' }).click();
+  await expect(page.getByText('Test server')).toBeVisible();
+  await page.getByRole('button', { name: /Adds two numbers/ }).click();
+  await expect(page.locator('app-mcp-panel app-code-editor')).toContainText('"a": 0');
+  await page.getByRole('button', { name: 'Run tool' }).click();
+  await expect(page.getByText('Result of add')).toBeVisible();
+});
+
 test('API Client talks to a WebSocket server', async ({ page }) => {
   // A stand-in echo server, so the test does not depend on the internet.
   await page.routeWebSocket('wss://echo.test/', (ws) => {

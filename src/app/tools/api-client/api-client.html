@@ -287,6 +287,8 @@
             <button type="button" class="btn-small" (click)="loadWebSocketSample()">Sample request</button>
           } @else if (draft().kind === 'mqtt') {
             <button type="button" class="btn-small" (click)="loadMqttSample()">Sample request</button>
+          } @else if (draft().kind === 'mcp') {
+            <button type="button" class="btn-small" (click)="loadMcpSample()">Sample request</button>
           }
         }
         @if (copied()) {
@@ -885,6 +887,16 @@
           }
         }
       </section>
+      } @else if (draft().kind === 'ai') {
+        <app-ai-panel [request]="draft()" [variables]="variables()" (requestChange)="store.update($event)" />
+      } @else if (draft().kind === 'mcp') {
+        <app-mcp-panel
+          [request]="draft()"
+          [variables]="variables()"
+          [columns]="store.columns()"
+          (columnsChange)="store.columns.set($event)"
+          (requestChange)="store.update($event)"
+        />
       } @else {
         <app-realtime-panel
           [request]="draft()"

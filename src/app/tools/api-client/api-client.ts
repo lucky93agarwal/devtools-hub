@@ -7,7 +7,7 @@ import { copyText, downloadBlob, downloadText, formatBytes } from '../../shared/
 import { ICONS, Icon } from '../../shared/icon/icon';
 import { ToolInfoSection } from '../../shared/tool-info/tool-info';
 import { mergeUrlParams, prepareRequest, resolveVariables, urlWithParams, variableMap } from './build';
-import { API_CLIENT_CONTENT, GRAPHQL_SAMPLE, MQTT_SAMPLE_URL, SAMPLE_PATH, SAMPLE_REQUEST, WEBSOCKET_SAMPLE_URL } from './content';
+import { API_CLIENT_CONTENT, GRAPHQL_SAMPLE, MCP_SAMPLE_URL, MQTT_SAMPLE_URL, SAMPLE_PATH, SAMPLE_REQUEST, WEBSOCKET_SAMPLE_URL } from './content';
 import { nameFromUrl, parseCurl, toCurl, toFetchCode } from './curl';
 import { KvTable } from './kv-table';
 import { JsonView } from './json-view';
@@ -39,13 +39,16 @@ import {
   RequestBody,
   RequestKind,
   cloneRequest,
+  defaultAi,
   defaultMqtt,
   defaultRealtime,
   emptyBody,
-  isLiveKind,
+  isHttpKind,
   newRequest,
 } from './model';
 import { RealtimePanel } from './realtime-panel';
+import { AiPanel } from './ai-panel';
+import { McpPanel } from './mcp-panel';
 import { GraphqlEditor } from './graphql-editor';
 import type { SchemaState } from './graphql-editor';
 import { fileFor, keepFile } from './body-files';
@@ -86,13 +89,16 @@ const METHOD_COLOURS: Record<string, string> = {
   OPTIONS: 'text-muted',
   GQL: 'text-warning',
   WS: 'text-warning',
+  MQTT: 'text-warning',
+  AI: 'text-brand',
+  MCP: 'text-brand',
   SIO: 'text-warning',
 };
 
 @Component({
   selector: 'app-api-client',
   host: { '(document:click)': 'closeMenus($event)' },
-  imports: [Icon, CodeEditor, ToolInfoSection, KvTable, AuthEditor, JsonView, SearchBox, RealtimePanel, GraphqlEditor],
+  imports: [Icon, CodeEditor, ToolInfoSection, KvTable, AuthEditor, JsonView, SearchBox, RealtimePanel, GraphqlEditor, AiPanel, McpPanel],
   templateUrl: './api-client.html',
 })
 export class ApiClient {
@@ -171,9 +177,11 @@ export class ApiClient {
     websocket: 'A live two-way connection',
     socketio: 'Events with a Socket.IO server',
     mqtt: 'Publish and subscribe to a broker',
+    ai: 'Prompt OpenAI, Claude, Gemini and more',
+    mcp: 'Try a server’s tools, resources and prompts',
   };
   /** HTTP and GraphQL use the request form; WebSocket and Socket.IO the live panel. */
-  protected readonly isHttp = computed(() => !isLiveKind(this.draft().kind));
+  protected readonly isHttp = computed(() => isHttpKind(this.draft().kind));
   protected readonly isGraphql = computed(() => this.draft().kind === 'graphql');
   /** Schemas read per endpoint, kept while the page is open. */
   private readonly schemas = signal(new Map<string, SchemaState>());
@@ -572,7 +580,11 @@ export class ApiClient {
         ? newRequest()
         : kind === 'graphql'
           ? newRequest({ kind, name: 'New GraphQL request', method: 'POST', body: { ...emptyBody(), mode: 'graphql' } })
-          : newRequest({ kind, name: `New ${label} request`, realtime: defaultRealtime() }),
+          : kind === 'ai'
+            ? newRequest({ kind, name: 'New AI request', ai: defaultAi() })
+            : kind === 'mcp'
+              ? newRequest({ kind, name: 'New MCP request' })
+              : newRequest({ kind, name: `New ${label} request`, realtime: defaultRealtime() }),
     );
     this.result.set({ kind: 'idle' });
     this.requestTab.set('params');
@@ -613,6 +625,10 @@ export class ApiClient {
 
   private setSchemaFor(url: string, state: SchemaState): void {
     this.schemas.update((map) => new Map(map).set(url, state));
+  }
+
+  protected loadMcpSample(): void {
+    this.store.openNew(newRequest({ kind: 'mcp', name: 'DeepWiki MCP server', url: MCP_SAMPLE_URL }));
   }
 
   protected loadMqttSample(): void {
@@ -698,7 +714,7 @@ export class ApiClient {
     const { text, left } = exportPostman(collection);
     downloadText(text, `${collection.name.replace(/[^\w.-]+/g, '-')}.postman_collection.json`);
     this.note.set(
-      left ? `${left} WebSocket or Socket.IO ${left === 1 ? 'request was' : 'requests were'} left out: Postman's collection file only holds HTTP requests.` : '',
+      left ? `${left} WebSocket, Socket.IO, MQTT, AI or MCP ${left === 1 ? 'request was' : 'requests were'} left out: Postman's collection file only holds HTTP requests.` : '',
     );
   }
 

@@ -19,7 +19,7 @@ Free, privacy-first developer tools that run entirely in the browser. Nothing yo
 | [Background Remover](https://devtools24.in/background-remover) | Live |
 | [JSON to Code](https://devtools24.in/json-to-code) | Live (Kotlin, Java, TypeScript, Dart, Swift, C#, Python, Pydantic, Go, Rust, PHP, Ruby, JSON Schema, Protobuf, GraphQL, SQL) |
 | [Data Converter](https://devtools24.in/data-converter) | Live (JSON, YAML, XML, CSV both ways) |
-| [API Client](https://devtools24.in/api-client) | Live (HTTP, GraphQL with schema explorer, WebSocket, Socket.IO and MQTT requests, collections, environments, all Postman auth types, cURL and Postman import, raw/binary/GraphQL bodies and form-data files, response search, JSON tree with copy, type, JWT and link previews) |
+| [API Client](https://devtools24.in/api-client) | Live (HTTP, GraphQL with schema explorer, WebSocket, Socket.IO, MQTT, AI and MCP requests, collections, environments, all Postman auth types, cURL and Postman import, raw/binary/GraphQL bodies and form-data files, response search, JSON tree with copy, type, JWT and link previews) |
 | [XML Formatter and Validator](https://devtools24.in/xml-formatter) | Live |
 | [YAML Validator and Formatter](https://devtools24.in/yaml-validator) | Live |
 | [App Icon Generator](https://devtools24.in/app-icon-generator) | Live (Android and iOS) |

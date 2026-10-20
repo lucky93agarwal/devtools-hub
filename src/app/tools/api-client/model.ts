@@ -72,7 +72,7 @@ export function normalizeBody(body: Partial<RequestBody> & { mode?: string } = {
 }
 
 /** What a request talks to: HTTP, GraphQL (sent over HTTP), or a live WebSocket or Socket.IO connection. */
-export type RequestKind = 'http' | 'graphql' | 'websocket' | 'socketio' | 'mqtt';
+export type RequestKind = 'http' | 'graphql' | 'websocket' | 'socketio' | 'mqtt' | 'ai' | 'mcp';
 
 export const REQUEST_KINDS: { value: RequestKind; label: string; badge: string }[] = [
   { value: 'http', label: 'HTTP', badge: 'HTTP' },
@@ -80,6 +80,8 @@ export const REQUEST_KINDS: { value: RequestKind; label: string; badge: string }
   { value: 'websocket', label: 'WebSocket', badge: 'WS' },
   { value: 'socketio', label: 'Socket.IO', badge: 'SIO' },
   { value: 'mqtt', label: 'MQTT', badge: 'MQTT' },
+  { value: 'ai', label: 'AI', badge: 'AI' },
+  { value: 'mcp', label: 'MCP', badge: 'MCP' },
 ];
 
 /** Settings for WebSocket and Socket.IO requests. */
@@ -143,11 +145,44 @@ export const defaultRealtime = (): RealtimeSettings => ({
 /** WebSocket, Socket.IO and MQTT keep a connection open; HTTP and GraphQL send one request at a time. */
 export const isLiveKind = (kind: RequestKind | undefined) => kind === 'websocket' || kind === 'socketio' || kind === 'mqtt';
 
+/** HTTP and GraphQL use the request form and can go into a Postman collection. */
+export const isHttpKind = (kind: RequestKind | undefined) => !kind || kind === 'http' || kind === 'graphql';
+
+export type AiProvider = 'openai' | 'anthropic' | 'gemini' | 'compatible';
+
+/** An AI request: a model, a key and a prompt, sent straight to the provider. */
+export interface AiSettings {
+  provider: AiProvider;
+  model: string;
+  /** For OpenAI-compatible servers such as OpenRouter, Groq or Ollama. */
+  baseUrl: string;
+  apiKey: string;
+  system: string;
+  prompt: string;
+  /** Empty uses the provider's default. */
+  temperature: number | null;
+  maxTokens: number;
+  stream: boolean;
+}
+
+export const defaultAi = (): AiSettings => ({
+  provider: 'openai',
+  model: 'gpt-4.1-mini',
+  baseUrl: '',
+  apiKey: '',
+  system: '',
+  prompt: '',
+  temperature: null,
+  maxTokens: 1024,
+  stream: true,
+});
+
 export interface ApiRequest {
   id: string;
   /** Missing on requests saved before other kinds existed, which are HTTP. */
   kind?: RequestKind;
   realtime?: RealtimeSettings;
+  ai?: AiSettings;
   name: string;
   method: Method;
   /** As typed, query string included; may contain {{variables}}. Holds only the ticked params. */
