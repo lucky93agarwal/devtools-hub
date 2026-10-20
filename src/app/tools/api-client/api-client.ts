@@ -11,6 +11,7 @@ import { API_CLIENT_CONTENT, GRAPHQL_SAMPLE, MCP_SAMPLE_URL, MQTT_SAMPLE_URL, SA
 import { nameFromUrl, parseCurl, toCurl, toFetchCode } from './curl';
 import { KvTable } from './kv-table';
 import { SNIPPET_LANGUAGES, snippet } from './snippets';
+import { SearchSelect } from './search-select';
 import { JsonView } from './json-view';
 import { SearchBox, countMatches } from './search-box';
 import {
@@ -111,7 +112,7 @@ const METHOD_COLOURS: Record<string, string> = {
 @Component({
   selector: 'app-api-client',
   host: { '(document:click)': 'closeMenus($event)' },
-  imports: [Icon, CodeEditor, ToolInfoSection, KvTable, AuthEditor, JsonView, SearchBox, RealtimePanel, GraphqlEditor, AiPanel, McpPanel],
+  imports: [Icon, CodeEditor, ToolInfoSection, KvTable, AuthEditor, JsonView, SearchBox, RealtimePanel, GraphqlEditor, AiPanel, McpPanel, SearchSelect],
   templateUrl: './api-client.html',
 })
 export class ApiClient {
@@ -238,16 +239,27 @@ export class ApiClient {
     }
     return text;
   });
-  /** The JSON body as a tree when JSON is the format, or null when it is not valid JSON. */
-  protected readonly responseTree = computed(() => {
+  /** JSON shows as a tree to explore, or as formatted text in the editor. */
+  protected readonly jsonMode = signal<'tree' | 'text'>('tree');
+  protected readonly jsonModes = [
+    { id: 'tree' as const, label: 'Tree', tip: 'Fold, copy and hover keys' },
+    { id: 'text' as const, label: 'Text', tip: 'Formatted JSON text' },
+  ];
+  protected readonly jsonParses = computed(() => {
     const text = this.response()?.text;
-    if (!text || this.responseFormat() !== 'json') return null;
+    if (!text) return false;
     try {
       JSON.parse(text);
-      return parseTree(text);
+      return true;
     } catch {
-      return null;
+      return false;
     }
+  });
+  /** The JSON body as a tree when JSON is the format and Tree is chosen; null otherwise or when it is not valid JSON. */
+  protected readonly responseTree = computed(() => {
+    const text = this.response()?.text;
+    if (!text || this.responseFormat() !== 'json' || this.jsonMode() !== 'tree' || !this.jsonParses()) return null;
+    return parseTree(text);
   });
   /** The PDF's local address for the Preview frame. */
   protected readonly previewResource = computed(() => {
@@ -262,7 +274,7 @@ export class ApiClient {
   protected readonly responseJsonError = computed(() => {
     const response = this.response();
     const text = response?.text;
-    if (!text?.trim() || this.responseFormat() !== 'json' || this.responseTree()) return null;
+    if (!text?.trim() || this.responseFormat() !== 'json' || this.jsonParses()) return null;
     return findJsonError(text);
   });
   /** An HTML response for the sandboxed Preview frame, which runs no scripts. */

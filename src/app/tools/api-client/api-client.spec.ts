@@ -277,6 +277,31 @@ describe('ApiClient', () => {
     expect(JSON.parse(sent.at(-1)!.bodyText!)).toEqual({ query: '{ country { population } }', variables: { code: null } });
   });
 
+  it('picks a code language by searching, and switches JSON between tree and text', async () => {
+    const { el, click, type, settle, editors, text } = await setup();
+    await type('input[aria-label=URL]', 'https://api.example.com/posts/1');
+    await click('Code');
+    el.querySelector<HTMLButtonElement>('button[aria-label^="Code language: "]')!.click();
+    await new Promise((resolve) => setTimeout(resolve, 10));
+    await settle();
+    const search = el.querySelector<HTMLInputElement>('input[aria-label="Search Code language"]')!;
+    search.value = 'pyth req';
+    search.dispatchEvent(new Event('input'));
+    await settle();
+    expect([...el.querySelectorAll('[role=option]')].map((o) => o.textContent!.trim())).toEqual(['Python - Requests']);
+    search.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter' }));
+    await settle();
+    expect(el.querySelector('pre')!.textContent).toContain('import requests');
+
+    await click('Send');
+    expect(el.querySelector('app-json-view')).not.toBeNull();
+    await click('Text');
+    expect(el.querySelector('app-json-view')).toBeNull();
+    expect(editors().at(-1)!.value()).toBe('{\n  "id": 1,\n  "title": "Hello"\n}');
+    await click('Tree');
+    expect(text()).toContain('Expand all');
+  });
+
   it('points out where a JSON response is broken', async () => {
     const { el, click, type, text, editors } = await setup();
     reply = async () => okResponse({ contentType: 'text/plain', text: '{\n  "id": 1,\n  "name": "Ada"\n  "age": 36\n}' });

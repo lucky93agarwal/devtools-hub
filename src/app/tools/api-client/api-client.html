@@ -374,15 +374,13 @@
           <div class="card flex flex-col gap-3 p-3">
             <div class="flex flex-wrap items-center gap-2">
               <span class="text-sm font-semibold">Code snippet</span>
-              <select
-                class="ml-auto rounded-lg border border-line bg-page px-2 py-1.5 text-sm font-semibold"
-                aria-label="Code language"
-                (change)="chooseSnippet($any($event.target).value)"
-              >
-                @for (lang of snippetLanguages; track lang.id) {
-                  <option [value]="lang.id" [selected]="snippetLanguage() === lang.id">{{ lang.label }}</option>
-                }
-              </select>
+              <app-search-select
+                class="ml-auto"
+                label="Code language"
+                [options]="snippetLanguages"
+                [value]="snippetLanguage()"
+                (valueChange)="chooseSnippet($event)"
+              />
               <button type="button" class="btn-small px-2.5" aria-label="Copy code" data-tip="Copy code" (click)="copy(snippetCode(), snippetLabel())">
                 <app-icon [path]="icons.copy" [size]="16" />
               </button>
@@ -779,6 +777,23 @@
                       </div>
                     }
                   </div>
+                  @if (jsonParses() && responseFormat() === 'json' && !previewOn()) {
+                    <div class="flex rounded-lg border border-line p-0.5 text-sm" role="group" aria-label="JSON view">
+                      @for (view of jsonModes; track view.id) {
+                        <button
+                          type="button"
+                          class="rounded-md px-2.5 py-1 font-semibold"
+                          [class]="jsonMode() === view.id ? 'bg-brand text-on-brand' : 'text-muted hover:text-ink'"
+                          [attr.aria-pressed]="jsonMode() === view.id"
+                          [attr.data-tip]="view.tip"
+                          data-tip-side="bottom"
+                          (click)="jsonMode.set(view.id)"
+                        >
+                          {{ view.label }}
+                        </button>
+                      }
+                    </div>
+                  }
                   <button
                     type="button"
                     class="flex items-center gap-2 rounded-lg px-3 py-1.5 text-sm font-semibold"
