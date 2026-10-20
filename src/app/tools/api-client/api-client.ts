@@ -1,4 +1,5 @@
-import { Component, DestroyRef, computed, effect, inject, linkedSignal, signal, untracked, viewChild } from '@angular/core';
+import { Component, DOCUMENT, DestroyRef, PLATFORM_ID, computed, effect, inject, linkedSignal, signal, untracked, viewChild } from '@angular/core';
+import { isPlatformBrowser } from '@angular/common';
 import { DomSanitizer } from '@angular/platform-browser';
 import { Analytics } from '../../core/analytics';
 import { TOOLS } from '../../core/tools';
@@ -326,6 +327,14 @@ export class ApiClient {
   private copyTimer?: ReturnType<typeof setTimeout>;
 
   constructor() {
+    // The page is prerendered, so a URL typed or pasted before the app starts is in the
+    // box but not in the request; the first render would wipe it. Keep it instead, so a
+    // Send pressed in that moment (replayed once the app starts) sends it.
+    if (isPlatformBrowser(inject(PLATFORM_ID))) {
+      const typed = inject(DOCUMENT).querySelector<HTMLInputElement>('input[aria-label="URL"]')?.value.trim();
+      if (typed && typed !== this.draft().url) this.setUrl(typed);
+    }
+
     // Hex and Base64 need the body's bytes, which are read once per response.
     effect(() => {
       const response = this.response();

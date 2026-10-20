@@ -208,7 +208,8 @@
       </div>
 
       @if (isHttp()) {
-      <form class="flex flex-wrap gap-2 sm:flex-nowrap" (submit)="$event.preventDefault(); send()">
+      <!-- Not a <form>: a Send pressed before the app starts would submit and reload the page. -->
+      <div class="flex flex-wrap gap-2 sm:flex-nowrap">
         <div
           class="flex min-w-0 flex-1 basis-full overflow-hidden rounded-xl border border-line bg-surface focus-within:border-brand sm:basis-auto"
         >
@@ -238,15 +239,16 @@
             autocomplete="off"
             [value]="draft().url"
             (input)="setUrl($any($event.target).value)"
+            (keydown.enter)="send()"
           />
         </div>
         @if (sending()) {
           <button type="button" class="btn-secondary" (click)="cancel()">Cancel</button>
         } @else {
-          <button type="submit" class="btn-primary">Send</button>
+          <button type="button" class="btn-primary" (click)="send()">Send</button>
         }
         <button type="button" class="btn-secondary" (click)="startSave()">Save</button>
-      </form>
+      </div>
       }
 
       <div class="flex flex-wrap items-center gap-2">

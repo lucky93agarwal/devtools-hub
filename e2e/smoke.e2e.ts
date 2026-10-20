@@ -499,6 +499,23 @@ test('API Client emits and receives Socket.IO events', async ({ page }) => {
   await expect(log).toContainText('"got": "chat"');
 });
 
+test('API Client sends a request typed before the app has started', async ({ page }) => {
+  // Hold the app's script back, as on a slow phone, while the prerendered page is usable.
+  let release!: () => void;
+  const gate = new Promise<void>((resolve) => (release = resolve));
+  await page.route('**/main-*.js', async (route) => {
+    await gate;
+    await route.continue();
+  });
+  await page.goto('/api-client', { waitUntil: 'commit' });
+  const url = `${new URL(page.url()).origin}/site.webmanifest?early=1`;
+  await page.getByLabel('URL', { exact: true }).fill(url);
+  await page.getByRole('button', { name: 'Send', exact: true }).click();
+  release();
+  await expect(page.getByText('200 OK')).toBeVisible();
+  await expect(page.getByLabel('URL', { exact: true })).toHaveValue(url);
+});
+
 test('API Client params support descriptions, bulk edit and hiding columns', async ({ page }) => {
   await page.goto('/api-client');
   await page.getByLabel('URL', { exact: true }).fill('https://api.example.com/users?page=2');
