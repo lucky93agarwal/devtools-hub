@@ -340,8 +340,8 @@ type Status = 'idle' | 'connecting' | 'open' | 'closed';
                       <pre class="max-h-72 overflow-auto rounded-lg bg-surface p-3 font-mono text-[13px] whitespace-pre-wrap break-all">{{ entry.text }}</pre>
                     }
                     <div class="flex gap-2">
-                      <button type="button" class="btn-small" (click)="copyEntry(entry)">
-                        <app-icon [path]="icons.copy" [size]="14" /> Copy
+                      <button type="button" class="btn-small px-2.5" aria-label="Copy message" data-tip="Copy message" (click)="copyEntry(entry)">
+                        <app-icon [path]="icons.copy" [size]="16" />
                       </button>
                       @if (entry.direction === 'in' || entry.direction === 'out') {
                         <button type="button" class="btn-small" (click)="reuse(entry)">Edit and send again</button>

@@ -287,7 +287,7 @@ test('Image Cropper crops with a dragged corner and a square shape', async ({ pa
 test('API Client sends a real request and shows the response', async ({ page }) => {
   await page.goto('/api-client');
   // The site's own manifest: same origin, so no CORS, and a JSON body.
-  await page.getByLabel('URL').fill(`${new URL(page.url()).origin}/site.webmanifest?v=1`);
+  await page.getByLabel('URL', { exact: true }).fill(`${new URL(page.url()).origin}/site.webmanifest?v=1`);
   await page.getByRole('button', { name: 'Send', exact: true }).click();
   await expect(page.getByText('200 OK')).toBeVisible();
   await expect(page.locator('app-json-view')).toContainText('"name": "DevTools24"');
@@ -338,7 +338,7 @@ test('API Client sample response shows types, tokens and copies any part', async
 
 test('API Client sends raw, GraphQL and binary bodies', async ({ page }) => {
   await page.goto('/api-client');
-  await page.getByLabel('URL').fill('https://api.example.com/graphql');
+  await page.getByLabel('URL', { exact: true }).fill('https://api.example.com/graphql');
   await page.getByLabel('Method').selectOption('POST');
   await page.getByRole('tab', { name: /Body/ }).click();
   for (const mode of ['none', 'form-data', 'x-www-form-urlencoded', 'raw', 'binary', 'GraphQL']) {
@@ -381,7 +381,7 @@ test('API Client builds a GraphQL query from the schema', async ({ page }) => {
   await page.goto('/api-client');
   await page.getByRole('button', { name: 'New', exact: true }).click();
   await page.getByRole('menuitem', { name: /GraphQL/ }).click();
-  await page.getByLabel('URL').fill('https://gql.test/graphql');
+  await page.getByLabel('URL', { exact: true }).fill('https://gql.test/graphql');
   await page.getByRole('tab', { name: /Query/ }).click();
   const explorer = page.getByRole('complementary', { name: 'Schema explorer' });
   await explorer.getByRole('button', { name: 'Expand country' }).click();
@@ -443,7 +443,7 @@ test('API Client lists and runs MCP tools', async ({ page }) => {
   await page.goto('/api-client');
   await page.getByRole('button', { name: 'New', exact: true }).click();
   await page.getByRole('menuitem').filter({ hasText: 'resources and prompts' }).click();
-  await page.getByLabel('URL').fill('https://mcp.test/mcp');
+  await page.getByLabel('URL', { exact: true }).fill('https://mcp.test/mcp');
   await page.getByRole('button', { name: 'Connect' }).click();
   await expect(page.getByText('Test server')).toBeVisible();
   await page.getByRole('button', { name: /Adds two numbers/ }).click();
@@ -460,7 +460,7 @@ test('API Client talks to a WebSocket server', async ({ page }) => {
   await page.goto('/api-client');
   await page.getByRole('button', { name: 'New', exact: true }).click();
   await page.getByRole('menuitem', { name: /WebSocket/ }).click();
-  await page.getByLabel('URL').fill('wss://echo.test/');
+  await page.getByLabel('URL', { exact: true }).fill('wss://echo.test/');
   await page.getByRole('button', { name: 'Connect' }).click();
   await expect(page.getByText('Connected', { exact: true })).toBeVisible();
   await typeInEditor(page, 'Message', 'hello');
@@ -487,7 +487,7 @@ test('API Client emits and receives Socket.IO events', async ({ page }) => {
   await page.goto('/api-client');
   await page.getByRole('button', { name: 'New', exact: true }).click();
   await page.getByRole('menuitem', { name: /Socket\.IO/ }).click();
-  await page.getByLabel('URL').fill('https://sio.test');
+  await page.getByLabel('URL', { exact: true }).fill('https://sio.test');
   await page.getByRole('button', { name: 'Connect' }).click();
   await expect(page.getByText('Connected', { exact: true })).toBeVisible();
   await page.getByLabel('Event name').fill('chat');
@@ -501,12 +501,12 @@ test('API Client emits and receives Socket.IO events', async ({ page }) => {
 
 test('API Client params support descriptions, bulk edit and hiding columns', async ({ page }) => {
   await page.goto('/api-client');
-  await page.getByLabel('URL').fill('https://api.example.com/users?page=2');
+  await page.getByLabel('URL', { exact: true }).fill('https://api.example.com/users?page=2');
   await page.getByLabel('Description 1').fill('Page number');
   await page.getByRole('button', { name: 'Bulk Edit' }).click();
   await expect(page.getByLabel('Keys as text')).toHaveValue('page:2');
   await page.getByLabel('Keys as text').fill('page:3\n//debug:true');
-  await expect(page.getByLabel('URL')).toHaveValue('https://api.example.com/users?page=3');
+  await expect(page.getByLabel('URL', { exact: true })).toHaveValue('https://api.example.com/users?page=3');
   await page.getByRole('button', { name: 'Key-Value Edit' }).click();
   await expect(page.getByLabel('Description 1')).toHaveValue('Page number');
 
@@ -517,7 +517,7 @@ test('API Client params support descriptions, bulk edit and hiding columns', asy
 
 test('API Client offers every auth type and signs AWS requests', async ({ page }) => {
   await page.goto('/api-client');
-  await page.getByLabel('URL').fill('https://abc.execute-api.us-east-1.amazonaws.com/prod/items');
+  await page.getByLabel('URL', { exact: true }).fill('https://abc.execute-api.us-east-1.amazonaws.com/prod/items');
   await page.getByRole('tab', { name: /Authorization/ }).click();
   const type = page.locator('app-auth-editor select').first();
   await expect(type.locator('option')).toHaveCount(14);
@@ -532,7 +532,7 @@ test('API Client offers every auth type and signs AWS requests', async ({ page }
 test('API Client explains a request the browser cannot complete', async ({ page }) => {
   await page.goto('/api-client');
   // Nothing listens on port 9, so the browser gets no response, as with a CORS refusal.
-  await page.getByLabel('URL').fill('http://127.0.0.1:9/nothing');
+  await page.getByLabel('URL', { exact: true }).fill('http://127.0.0.1:9/nothing');
   await page.getByRole('button', { name: 'Send', exact: true }).click();
   await expect(page.getByText('The browser could not get a response.')).toBeVisible();
   await expect(page.getByRole('button', { name: 'Copy as cURL' })).toBeVisible();

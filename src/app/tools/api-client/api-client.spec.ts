@@ -118,7 +118,9 @@ describe('ApiClient', () => {
     };
     const text = () => el.textContent!.replace(/\s+/g, ' ');
     const click = async (label: string) => {
-      const button = [...el.querySelectorAll('button')].find((b) => b.textContent?.replace(/\s+/g, ' ').trim() === label);
+      const button = [...el.querySelectorAll('button')].find(
+        (b) => b.textContent?.replace(/\s+/g, ' ').trim() === label || b.getAttribute('aria-label') === label,
+      );
       if (!button) throw new Error(`No button "${label}"`);
       button.click();
       await settle();
@@ -131,7 +133,7 @@ describe('ApiClient', () => {
     };
     /** Opens the New menu and picks a request kind. */
     const newOf = async (label: string) => {
-      [...el.querySelectorAll<HTMLButtonElement>('button')].find((b) => b.textContent!.trim() === 'New')!.click();
+      el.querySelector<HTMLButtonElement>('button[aria-label="New"]')!.click();
       await settle();
       [...el.querySelectorAll<HTMLButtonElement>('[role=menuitem]')].find((b) => b.textContent!.includes(label))!.click();
       await settle();

@@ -171,9 +171,11 @@ const TIMING_TEXT = {
                 type="button"
                 class="ml-auto flex shrink-0 items-center gap-1 rounded px-1.5 font-sans text-xs font-semibold text-muted opacity-0 group-hover:opacity-100 hover:bg-line hover:text-ink focus:opacity-100 [@media(hover:none)]:opacity-100"
                 [attr.aria-label]="'Copy ' + row.path"
+                data-tip="Copy"
+                data-tip-side="left"
                 (click)="copyRow(row)"
               >
-                <app-icon [path]="icons.copy" [size]="12" /> Copy
+                <app-icon [path]="icons.copy" [size]="14" />
               </button>
             }
           }
@@ -234,12 +236,12 @@ const TIMING_TEXT = {
             }
             <div class="flex items-center justify-between gap-2">
               <span class="text-xs font-semibold text-muted uppercase">Header</span>
-              <button type="button" class="btn-small px-2 py-0.5 text-xs" (click)="copy(token.header, 'Header')">Copy</button>
+              <button type="button" class="btn-small px-2 py-1" aria-label="Copy header" data-tip="Copy header" data-tip-side="left" (click)="copy(token.header, 'Header')"><app-icon [path]="icons.copy" [size]="14" /></button>
             </div>
             <pre class="overflow-x-auto rounded-lg bg-surface p-2 font-mono text-xs select-text">{{ token.header }}</pre>
             <div class="flex items-center justify-between gap-2">
               <span class="text-xs font-semibold text-muted uppercase">Payload</span>
-              <button type="button" class="btn-small px-2 py-0.5 text-xs" (click)="copy(token.payload, 'Payload')">Copy</button>
+              <button type="button" class="btn-small px-2 py-1" aria-label="Copy payload" data-tip="Copy payload" data-tip-side="left" (click)="copy(token.payload, 'Payload')"><app-icon [path]="icons.copy" [size]="14" /></button>
             </div>
             <pre class="overflow-x-auto rounded-lg bg-surface p-2 font-mono text-xs select-text">{{ token.payload }}</pre>
             <p class="text-xs text-muted">Decoded only: the signature is not checked.</p>

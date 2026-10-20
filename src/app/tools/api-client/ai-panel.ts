@@ -142,7 +142,7 @@ interface Turn extends ChatMessage {
             <div class="flex items-center gap-2 text-xs font-semibold text-muted uppercase">
               {{ turn.role === 'user' ? 'You' : turn.error ? 'Error' : ai().model }}
               @if (turn.role === 'assistant' && !turn.error) {
-                <button type="button" class="ml-auto normal-case hover:text-ink" [attr.aria-label]="'Copy answer ' + ($index + 1)" (click)="copy(turn.content)">
+                <button type="button" class="ml-auto normal-case hover:text-ink" [attr.aria-label]="'Copy answer ' + ($index + 1)" data-tip="Copy answer" data-tip-side="left" (click)="copy(turn.content)">
                   <app-icon [path]="icons.copy" [size]="14" />
                 </button>
               }

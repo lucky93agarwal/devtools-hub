@@ -40,4 +40,8 @@ export const ICONS = {
   check: 'M5 12l5 5 9-10',
   copy: 'M9 9h11v11H9zM5 15H4V4h11v1',
   download: 'M12 4v12M7 11l5 5 5-5M4 20h16',
+  plus: 'M12 5v14M5 12h14',
+  code: 'M8 7l-5 5 5 5M16 7l5 5-5 5M14 4l-4 16',
+  importFile: 'M12 4v11M7 10l5 5 5-5M5 20h14',
+  sparkle: 'M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8z',
 } as const;

@@ -247,3 +247,40 @@ select:not([multiple]):not([size]) {
 .dark select:not([multiple]):not([size]) {
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20' fill='none' stroke='%239ca3af' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 8l4 4 4-4'/%3E%3C/svg%3E");
 }
+
+/*
+ * Hover and keyboard-focus tooltip for icon buttons: data-tip="What it does".
+ * data-tip-side="left" or "bottom" when there is no room above.
+ */
+[data-tip] {
+  position: relative;
+}
+[data-tip]:hover::after,
+[data-tip]:focus-visible::after {
+  content: attr(data-tip);
+  position: absolute;
+  bottom: calc(100% + 6px);
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 40;
+  padding: 4px 8px;
+  border-radius: 6px;
+  background: var(--ink);
+  color: var(--page);
+  font: 500 12px/16px var(--font-sans, system-ui, sans-serif);
+  white-space: nowrap;
+  pointer-events: none;
+}
+[data-tip][data-tip-side='bottom']:hover::after,
+[data-tip][data-tip-side='bottom']:focus-visible::after {
+  top: calc(100% + 6px);
+  bottom: auto;
+}
+[data-tip][data-tip-side='left']:hover::after,
+[data-tip][data-tip-side='left']:focus-visible::after {
+  top: 50%;
+  bottom: auto;
+  left: auto;
+  right: calc(100% + 6px);
+  transform: translateY(-50%);
+}
