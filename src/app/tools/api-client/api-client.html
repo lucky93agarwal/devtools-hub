@@ -340,23 +340,28 @@
         }
         @case ('code') {
           <div class="card flex flex-col gap-3 p-3">
-            <div class="flex items-center justify-between gap-2">
-              <span class="text-sm font-semibold">cURL</span>
-              <button type="button" class="btn-small" (click)="copy(signedPreview().curl, 'cURL')">
+            <div class="flex flex-wrap items-center gap-2">
+              <span class="text-sm font-semibold">Code snippet</span>
+              <select
+                class="ml-auto rounded-lg border border-line bg-page px-2 py-1.5 text-sm font-semibold"
+                aria-label="Code language"
+                (change)="chooseSnippet($any($event.target).value)"
+              >
+                @for (lang of snippetLanguages; track lang.id) {
+                  <option [value]="lang.id" [selected]="snippetLanguage() === lang.id">{{ lang.label }}</option>
+                }
+              </select>
+              <button type="button" class="btn-small" (click)="copy(snippetCode(), snippetLabel())">
                 <app-icon [path]="icons.copy" [size]="14" /> Copy
               </button>
             </div>
             @if (signedPreview().note) {
               <p class="text-xs text-muted">{{ signedPreview().note }}</p>
             }
-            <pre class="overflow-x-auto rounded-xl bg-page p-3 font-mono text-[12px] leading-5">{{ signedPreview().curl }}</pre>
-            <div class="flex items-center justify-between gap-2">
-              <span class="text-sm font-semibold">JavaScript fetch</span>
-              <button type="button" class="btn-small" (click)="copy(signedPreview().fetch, 'Code')">
-                <app-icon [path]="icons.copy" [size]="14" /> Copy
-              </button>
-            </div>
-            <pre class="overflow-x-auto rounded-xl bg-page p-3 font-mono text-[12px] leading-5">{{ signedPreview().fetch }}</pre>
+            <pre class="max-h-[28rem] overflow-auto rounded-xl bg-page p-3 font-mono text-[12px] leading-5">{{ snippetCode() }}</pre>
+            @if (snippetLanguage() === 'postman-cli') {
+              <p class="text-xs text-muted">Install the Postman CLI with <code class="font-mono">npm install -g postman-cli</code>.</p>
+            }
           </div>
         }
       }

@@ -6,10 +6,11 @@ import { CodeEditor } from '../../shared/code-editor/code-editor';
 import { copyText, downloadBlob, downloadText, formatBytes } from '../../shared/file-utils';
 import { ICONS, Icon } from '../../shared/icon/icon';
 import { ToolInfoSection } from '../../shared/tool-info/tool-info';
-import { mergeUrlParams, prepareRequest, resolveVariables, urlWithParams, variableMap } from './build';
+import { PreparedRequest, mergeUrlParams, prepareRequest, resolveVariables, urlWithParams, variableMap } from './build';
 import { API_CLIENT_CONTENT, GRAPHQL_SAMPLE, MCP_SAMPLE_URL, MQTT_SAMPLE_URL, SAMPLE_PATH, SAMPLE_REQUEST, WEBSOCKET_SAMPLE_URL } from './content';
 import { nameFromUrl, parseCurl, toCurl, toFetchCode } from './curl';
 import { KvTable } from './kv-table';
+import { SNIPPET_LANGUAGES, snippet } from './snippets';
 import { JsonView } from './json-view';
 import { SearchBox, countMatches } from './search-box';
 import {
@@ -74,6 +75,17 @@ interface TreeRow {
   /** The method, or WS / SIO for live connections. */
   method?: string;
   collectionId: string;
+}
+
+const SNIPPET_KEY = 'dth-snippet-language';
+
+function readSnippetLanguage(): string {
+  try {
+    const id = localStorage.getItem(SNIPPET_KEY);
+    return id && SNIPPET_LANGUAGES.some((l) => l.id === id) ? id : 'curl';
+  } catch {
+    return 'curl';
+  }
 }
 
 /** What the sidebar shows before a request's name. */
@@ -141,7 +153,15 @@ export class ApiClient {
   protected readonly variables = computed(() => variableMap(...this.store.variables()));
   protected readonly prepared = computed(() => prepareRequest(this.draft(), this.variables(), this.store.effectiveAuth()));
   /** The request as it will be sent, signatures included, for the Code panel. */
-  protected readonly signedPreview = signal<{ curl: string; fetch: string; note: string }>({ curl: '', fetch: '', note: '' });
+  protected readonly signedPreview = signal<{ prepared: PreparedRequest | null; note: string }>({ prepared: null, note: '' });
+  protected readonly snippetLanguages = SNIPPET_LANGUAGES;
+  /** The language picked in the Code panel, remembered in this browser. */
+  protected readonly snippetLanguage = signal(readSnippetLanguage());
+  protected readonly snippetCode = computed(() => {
+    const prepared = this.signedPreview().prepared;
+    return prepared ? snippet(this.snippetLanguage(), prepared) : '';
+  });
+  protected readonly snippetLabel = computed(() => SNIPPET_LANGUAGES.find((l) => l.id === this.snippetLanguage())?.label ?? 'cURL');
   /** Which collection's auth settings are open in the sidebar. */
   protected readonly collectionAuthOpen = signal<string | null>(null);
   protected readonly tokenState = signal<'idle' | 'working'>('idle');
@@ -328,14 +348,11 @@ export class ApiClient {
       signRequest(prepared)
         .then((signed) =>
           this.signedPreview.set({
-            curl: toCurl(signed),
-            fetch: toFetchCode(signed),
+            prepared: signed,
             note: prepared.signWith ? 'This request is signed with the current time, so copied code works for a few minutes only.' : '',
           }),
         )
-        .catch((e) =>
-          this.signedPreview.set({ curl: toCurl(prepared), fetch: toFetchCode(prepared), note: e instanceof Error ? e.message : '' }),
-        );
+        .catch((e) => this.signedPreview.set({ prepared, note: e instanceof Error ? e.message : '' }));
     });
     inject(DestroyRef).onDestroy(() => {
       this.controller?.abort();
@@ -550,6 +567,15 @@ export class ApiClient {
   protected showJsonError(): void {
     const error = this.responseJsonError();
     if (error) this.responseEditor()?.revealError(error.line, error.column);
+  }
+
+  protected chooseSnippet(id: string): void {
+    this.snippetLanguage.set(id);
+    try {
+      localStorage.setItem(SNIPPET_KEY, id);
+    } catch {
+      // Storage blocked; the choice lasts for this visit.
+    }
   }
 
   protected stepSearch(direction: 1 | -1): void {

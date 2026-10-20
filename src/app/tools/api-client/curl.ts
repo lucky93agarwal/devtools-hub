@@ -4,7 +4,7 @@ import { ApiRequest, KeyValue, METHODS, Method, newRequest } from './model';
 /** cURL commands in and out, and the same request as JavaScript fetch() code. */
 
 /** Single-quotes a value for a POSIX shell. */
-const shellQuote = (text: string) => `'${text.replace(/'/g, `'\\''`)}'`;
+export const shellQuote = (text: string) => `'${text.replace(/'/g, `'\\''`)}'`;
 
 export function toCurl(prepared: PreparedRequest): string {
   const lines = [`curl --request ${prepared.method} ${shellQuote(prepared.url)}`];
