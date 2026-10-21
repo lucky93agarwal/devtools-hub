@@ -206,6 +206,9 @@ export interface Folder {
 /** A collection is a top-level folder, as in Postman. Its variables apply to its requests. */
 export interface Collection extends Folder {
   variables: KeyValue[];
+  /** Notes shown on the collection's Overview; Postman calls it the description. */
+  description?: string;
+  createdAt?: number;
 }
 
 export interface Environment {

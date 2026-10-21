@@ -13,6 +13,7 @@ import { nameFromUrl, parseCurl, toCurl, toFetchCode } from './curl';
 import { KvTable } from './kv-table';
 import { SNIPPET_LANGUAGES, snippet } from './snippets';
 import { SearchSelect } from './search-select';
+import { CollectionPanel } from './collection-panel';
 import { JsonView } from './json-view';
 import { SearchBox, countMatches } from './search-box';
 import {
@@ -113,7 +114,7 @@ const METHOD_COLOURS: Record<string, string> = {
 @Component({
   selector: 'app-api-client',
   host: { '(document:click)': 'closeMenus($event)' },
-  imports: [Icon, CodeEditor, ToolInfoSection, KvTable, AuthEditor, JsonView, SearchBox, RealtimePanel, GraphqlEditor, AiPanel, McpPanel, SearchSelect],
+  imports: [Icon, CodeEditor, ToolInfoSection, KvTable, AuthEditor, JsonView, SearchBox, RealtimePanel, GraphqlEditor, AiPanel, McpPanel, SearchSelect, CollectionPanel],
   templateUrl: './api-client.html',
 })
 export class ApiClient {
@@ -164,8 +165,6 @@ export class ApiClient {
     return prepared ? snippet(this.snippetLanguage(), prepared) : '';
   });
   protected readonly snippetLabel = computed(() => SNIPPET_LANGUAGES.find((l) => l.id === this.snippetLanguage())?.label ?? 'cURL');
-  /** Which collection's auth settings are open in the sidebar. */
-  protected readonly collectionAuthOpen = signal<string | null>(null);
   protected readonly tokenState = signal<'idle' | 'working'>('idle');
   protected readonly params = computed(() => this.draft().params);
   protected readonly headerCount = computed(() => this.draft().headers.filter((h) => h.enabled && h.key).length);
@@ -631,6 +630,7 @@ export class ApiClient {
   // Opening
 
   protected open(row: TreeRow): void {
+    this.collectionView.set(null);
     const collection = this.store.collections().find((c) => c.id === row.collectionId);
     const found = collection && findIn(collection, row.id);
     if (!found) return;
@@ -638,13 +638,69 @@ export class ApiClient {
     this.result.set({ kind: 'idle' });
   }
 
+  /** The collection shown in the main area instead of a request, when one is open. */
+  protected readonly collectionView = signal<string | null>(null);
+  /** Collections folded shut in the sidebar. */
+  protected readonly collapsed = signal(new Set<string>());
+
+  protected toggleCollapsed(id: string): void {
+    this.collapsed.update((set) => {
+      const next = new Set(set);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  protected openCollection(id: string): void {
+    this.collectionView.set(id);
+    this.collapsed.update((set) => {
+      const next = new Set(set);
+      next.delete(id);
+      return next;
+    });
+  }
+
+  protected addRequest(collectionId: string, folderId?: string): void {
+    this.store.addRequest(collectionId, folderId);
+    this.collectionView.set(null);
+    this.panel.set(null);
+    this.result.set({ kind: 'idle' });
+    this.requestTab.set('params');
+    this.collapsed.update((set) => {
+      const next = new Set(set);
+      next.delete(collectionId);
+      return next;
+    });
+  }
+
+  protected addFolder(collectionId: string, parentId?: string): void {
+    this.store.addFolder(collectionId, parentId);
+    this.collapsed.update((set) => {
+      const next = new Set(set);
+      next.delete(collectionId);
+      return next;
+    });
+  }
+
+  protected removeFolder(collectionId: string, folderId: string): void {
+    if (this.confirmDelete() !== folderId) {
+      this.confirmDelete.set(folderId);
+      return;
+    }
+    this.store.deleteFolder(collectionId, folderId);
+    this.confirmDelete.set(null);
+  }
+
   protected openHistory(entry: HistoryEntry): void {
+    this.collectionView.set(null);
     this.store.openNew(cloneRequest(entry.request));
     this.result.set({ kind: 'idle' });
   }
 
   protected newRequest(kind: RequestKind = 'http'): void {
     this.newMenu.set(false);
+    this.collectionView.set(null);
     this.panel.set(null);
     const label = REQUEST_KINDS.find((k) => k.value === kind)!.label;
     this.store.openNew(
@@ -763,6 +819,7 @@ export class ApiClient {
   protected newCollection(): void {
     const collection = this.store.addCollection(`Collection ${this.store.collections().length + 1}`);
     this.flash(`Added ${collection.name}`);
+    this.openCollection(collection.id);
   }
 
   protected async importFile(element: HTMLInputElement): Promise<void> {
@@ -834,10 +891,6 @@ export class ApiClient {
     if (minutes < 60) return `${minutes} min ago`;
     const hours = Math.round(minutes / 60);
     return hours < 24 ? `${hours} h ago` : new Date(at).toLocaleDateString();
-  }
-
-  protected collectionAuth(collection: Collection): Auth {
-    return collection.auth ?? { type: 'none' };
   }
 
   protected oauth2(): Extract<Auth, { type: 'oauth2' }> | null {
