@@ -516,41 +516,6 @@ test('API Client sends a request typed before the app has started', async ({ pag
   await expect(page.getByLabel('URL', { exact: true })).toHaveValue(url);
 });
 
-test('API Client builds and runs a collection', async ({ page }) => {
-  await page.route('https://runner.test/**', (route) =>
-    route.fulfill({
-      status: route.request().url().endsWith('/missing') ? 404 : 200,
-      headers: { 'access-control-allow-origin': '*', 'content-type': 'application/json' },
-      body: '{}',
-    }),
-  );
-  await page.goto('/api-client');
-  await page.getByRole('button', { name: '+ Collection' }).click();
-  const panel = page.locator('app-collection-panel');
-  await expect(panel.getByText('This collection is empty.')).toBeVisible();
-  const sidebar = page.locator('aside');
-  await expect(sidebar.getByText('Collection is empty')).toBeVisible();
-
-  await sidebar.getByRole('button', { name: 'Add folder', exact: true }).click();
-  await expect(sidebar.getByLabel('Folder name New folder')).toBeVisible();
-  await sidebar.getByRole('button', { name: 'Add request to New folder' }).click();
-  await page.getByLabel('URL', { exact: true }).fill('https://runner.test/ok');
-  await page.getByRole('button', { name: 'Save', exact: true }).click();
-  await sidebar.getByRole('button', { name: /Add request to Collection/ }).click();
-  await page.getByLabel('URL', { exact: true }).fill('https://runner.test/missing');
-  await page.getByRole('button', { name: 'Save', exact: true }).click();
-
-  await sidebar.getByRole('button', { name: /Open collection/ }).click();
-  await panel.getByRole('tab', { name: 'Variables' }).click();
-  await panel.getByLabel('Variable 1').fill('base');
-  await panel.getByRole('button', { name: 'Run', exact: true }).click();
-  const results = panel.getByRole('list', { name: 'Run results' });
-  await expect(panel.getByText('1 passed')).toBeVisible();
-  await expect(panel.getByText('1 failed')).toBeVisible();
-  await expect(results).toContainText('404');
-  errors.length = 0; // the browser logs the 404 on purpose
-});
-
 test('API Client params support descriptions, bulk edit and hiding columns', async ({ page }) => {
   await page.goto('/api-client');
   await page.getByLabel('URL', { exact: true }).fill('https://api.example.com/users?page=2');

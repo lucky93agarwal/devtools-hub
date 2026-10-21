@@ -192,14 +192,7 @@ export class ApiStore {
   // Collections
 
   addCollection(name: string): Collection {
-    const collection: Collection = {
-      id: newId(),
-      name: name.trim() || 'New collection',
-      requests: [],
-      folders: [],
-      variables: [],
-      createdAt: Date.now(),
-    };
+    const collection: Collection = { id: newId(), name: name.trim() || 'New collection', requests: [], folders: [], variables: [] };
     this.collections.update((list) => [...list, collection]);
     return collection;
   }
@@ -218,64 +211,6 @@ export class ApiStore {
 
   setCollectionVariables(id: string, variables: KeyValue[]): void {
     this.collections.update((list) => list.map((c) => (c.id === id ? { ...c, variables } : c)));
-  }
-
-  setCollectionDescription(id: string, description: string): void {
-    this.collections.update((list) => list.map((c) => (c.id === id ? { ...c, description } : c)));
-  }
-
-  /** A new, empty folder inside the collection or one of its folders. */
-  addFolder(collectionId: string, parentId = collectionId, name = 'New folder'): Folder {
-    const folder: Folder = { id: newId(), name, requests: [], folders: [] };
-    this.mutate((collections) => {
-      const collection = collections.find((c) => c.id === collectionId);
-      const parent = collection && findFolder(collection, parentId);
-      parent?.folders.push(folder);
-    });
-    return folder;
-  }
-
-  renameFolder(collectionId: string, folderId: string, name: string): void {
-    this.mutate((collections) => {
-      const collection = collections.find((c) => c.id === collectionId);
-      const folder = collection && findFolder(collection, folderId);
-      if (folder && name.trim()) folder.name = name.trim();
-    });
-  }
-
-  /** Removes a folder with everything in it. */
-  deleteFolder(collectionId: string, folderId: string): void {
-    const removed = new Set<string>();
-    this.mutate((collections) => {
-      const collection = collections.find((c) => c.id === collectionId);
-      const walk = (folder: Folder): boolean => {
-        const index = folder.folders.findIndex((f) => f.id === folderId);
-        if (index >= 0) {
-          const collect = (f: Folder) => {
-            f.requests.forEach((r) => removed.add(r.id));
-            f.folders.forEach(collect);
-          };
-          collect(folder.folders[index]);
-          folder.folders.splice(index, 1);
-          return true;
-        }
-        return folder.folders.some(walk);
-      };
-      if (collection) walk(collection);
-    });
-    if (removed.has(this.draftSource()?.requestId ?? '')) this.draftSource.set(null);
-  }
-
-  /** A new HTTP request saved in the collection or folder, opened for editing. */
-  addRequest(collectionId: string, folderId = collectionId): ApiRequest {
-    const request = newRequest({ name: 'New request' });
-    this.mutate((collections) => {
-      const collection = collections.find((c) => c.id === collectionId);
-      const folder = collection && findFolder(collection, folderId);
-      folder?.requests.push(request);
-    });
-    this.open(request, { collectionId, requestId: request.id });
-    return request;
   }
 
   deleteCollection(id: string): void {
