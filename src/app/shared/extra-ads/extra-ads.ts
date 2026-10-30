@@ -35,7 +35,7 @@ const ARRIVAL_DELAY_MS = 2500;
 /** How long a banner has to show an ad before our own card takes its place, in ms. */
 const FILL_WAIT_MS = 7000;
 /** The popup ad is shown up to this many times its real size. */
-const POPUP_MAX_SCALE = 1.6;
+const POPUP_MAX_SCALE = 2;
 
 export interface PopupConfig {
   enabled: boolean;
@@ -152,12 +152,12 @@ export class ExtraAd {
         class="m-auto rounded-2xl border border-line bg-page p-4 text-ink shadow-xl backdrop:bg-black/50"
         aria-label="Advertisement"
         (close)="open.set(false)"
-        (click)="closeOnBackdrop($event)"
+        (cancel)="$event.preventDefault()"
       >
         @if (open()) {
           <div class="flex items-center justify-between gap-4 pb-2">
             <span class="text-xs leading-4 text-muted">Advertisement</span>
-            <button type="button" class="btn-small" data-tip="Close" aria-label="Close ad" (click)="close()">
+            <button type="button" class="btn-small" data-tip="Close" data-tip-side="left" aria-label="Close ad" (click)="close()">
               <app-icon [path]="icons.close" [size]="16" />
             </button>
           </div>
@@ -210,11 +210,6 @@ export class ExtraAds {
 
   protected close(): void {
     this.popup()?.nativeElement.close();
-  }
-
-  /** A click on the dark area around the popup closes it. */
-  protected closeOnBackdrop(event: MouseEvent): void {
-    if (event.target === this.popup()?.nativeElement) this.close();
   }
 
   private onPageClick(event: MouseEvent): void {
