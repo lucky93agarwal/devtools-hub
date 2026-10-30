@@ -1,4 +1,4 @@
-import { bannerDocument, popupDue } from './extra-ads';
+import { bannerUrl, popupDue } from './extra-ads';
 
 describe('popupDue', () => {
   const config = { enabled: true, afterClicks: 3, everyMinutes: 5 };
@@ -19,11 +19,8 @@ describe('popupDue', () => {
   });
 });
 
-describe('bannerDocument', () => {
-  it('builds the banner page for a key and size', () => {
-    const html = bannerDocument('abc123', 160, 600);
-    expect(html).toContain('"key":"abc123"');
-    expect(html).toContain('"width":160');
-    expect(html).toContain('https://www.highperformanceformat.com/abc123/invoke.js');
+describe('bannerUrl', () => {
+  it('points at the ad frame page with the key and size', () => {
+    expect(bannerUrl('abc123', 160, 600)).toBe('/ad-frame?key=abc123&w=160&h=600');
   });
 });

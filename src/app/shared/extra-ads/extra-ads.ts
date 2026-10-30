@@ -30,15 +30,9 @@ export function popupDue(clicks: number, lastShown: number, now: number, config:
   return config.enabled && clicks >= config.afterClicks && now - lastShown >= config.everyMinutes * 60_000;
 }
 
-/** The page for one Adsterra banner, run in its own frame so several banners never clash. */
-export function bannerDocument(key: string, width: number, height: number): string {
-  const options = JSON.stringify({ key, format: 'iframe', height, width, params: {} });
-  return (
-    `<!doctype html><html><body style="margin:0">` +
-    `<script>atOptions = ${options};</script>` +
-    `<script src="https://www.highperformanceformat.com/${encodeURIComponent(key)}/invoke.js"></script>` +
-    `</body></html>`
-  );
+/** Address of public/ad-frame.html showing one Adsterra banner, so each banner has its own page. */
+export function bannerUrl(key: string, width: number, height: number): string {
+  return `/ad-frame?key=${encodeURIComponent(key)}&w=${width}&h=${height}`;
 }
 
 /** One banner ad: the network's ad when a key is set, otherwise our own "Advertise here" card. */
@@ -76,11 +70,11 @@ export class ExtraAd {
   private readonly frame = viewChild<ElementRef<HTMLIFrameElement>>('frame');
 
   constructor() {
-    // Set on the element directly: Angular strips srcdoc bindings as unsafe, and this
-    // page is ours, built from the network's key, not from user input.
+    // Set on the element directly: Angular treats a bound iframe src as unsafe, and this
+    // address is our own page built from the network's key, not from user input.
     effect(() => {
       const frame = this.frame()?.nativeElement;
-      if (frame) frame.srcdoc = bannerDocument(this.key(), this.width(), this.height());
+      if (frame) frame.src = bannerUrl(this.key(), this.width(), this.height());
     });
   }
 }

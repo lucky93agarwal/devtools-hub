@@ -9,6 +9,14 @@
   Permissions-Policy: camera=(), microphone=(), geolocation=(), payment=(), usb=()
   Strict-Transport-Security: max-age=31536000
 
+# The ad frame is shown inside this site's own pages.
+/ad-frame
+  ! X-Frame-Options
+  X-Frame-Options: SAMEORIGIN
+/ad-frame.html
+  ! X-Frame-Options
+  X-Frame-Options: SAMEORIGIN
+
 # File names with a content hash never change, so browsers may keep them for a year.
 /chunk-*
   Cache-Control: public, max-age=31536000, immutable

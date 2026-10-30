@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="robots" content="noindex">
+<title>Advertisement</title>
+<style>html,body{margin:0;padding:0;overflow:hidden;background:transparent}</style>
+</head>
+<body>
+<!--
+  Shows one Adsterra banner. The site's side ads and popup load this page in a
+  frame (/ad-frame?key=...&w=160&h=600), so each banner has its own page on
+  this domain and banners never share Adsterra's global settings.
+-->
+<script>
+  (function () {
+    var q = new URLSearchParams(location.search);
+    var key = q.get('key') || '';
+    var w = parseInt(q.get('w'), 10);
+    var h = parseInt(q.get('h'), 10);
+    if (!/^[a-f0-9]{32}$/.test(key) || !(w > 0 && w <= 1000) || !(h > 0 && h <= 1000)) return;
+    window.atOptions = { key: key, format: 'iframe', height: h, width: w, params: {} };
+    document.write('<script src="https://www.highperformanceformat.com/' + key + '/invoke.js"><\/script>');
+  })();
+</script>
+</body>
+</html>
