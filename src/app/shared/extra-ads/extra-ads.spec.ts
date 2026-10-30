@@ -15,13 +15,13 @@ describe('popupDue', () => {
 });
 
 describe('popupScale', () => {
-  it('enlarges the popup ad on big screens, up to 2 times', () => {
-    expect(popupScale(1500, 950)).toBe(2);
-    expect(popupScale(1470, 600)).toBe(1.8);
+  it('enlarges the popup ad on big screens, up to 1.25 times so it stays sharp', () => {
+    expect(popupScale(1500, 950)).toBe(1.25);
   });
 
   it('keeps it fitting on smaller screens and never shrinks it', () => {
     expect(popupScale(400, 800)).toBe(1.1);
+    expect(popupScale(370, 800)).toBe(1);
     expect(popupScale(320, 600)).toBe(1);
   });
 });

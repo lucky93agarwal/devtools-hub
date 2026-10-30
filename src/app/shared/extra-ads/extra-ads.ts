@@ -28,14 +28,14 @@ export function railsFit(path: string, screenWidth: number): boolean {
   return screenWidth >= (WIDE_PAGES.includes(page) ? RAIL_MIN_WIDTH.widePage : RAIL_MIN_WIDTH.narrowPage);
 }
 
-/** Where the popup remembers that it already opened on arrival in this browser session. */
+/** Where the popup remembers that it already opened on arrival in this browser. */
 const ARRIVAL_POPUP_KEY = 'popup-ad-arrival';
 /** How long after arrival the first popup opens, in ms, so the page shows first. */
 const ARRIVAL_DELAY_MS = 2500;
 /** How long a banner has to show an ad before our own card takes its place, in ms. */
 const FILL_WAIT_MS = 7000;
-/** The popup ad is shown up to this many times its real size. */
-const POPUP_MAX_SCALE = 2;
+/** The popup ad is shown up to this many times its real size; more makes the image blurry. */
+const POPUP_MAX_SCALE = 1.25;
 
 export interface PopupConfig {
   enabled: boolean;
@@ -222,16 +222,18 @@ export class ExtraAds {
     setTimeout(() => this.showPopup(), 300);
   }
 
-  /** Opens the popup once, shortly after a visitor first arrives in this browser session. */
+  /** Opens the popup once, shortly after a visitor's first ever visit in this browser. */
   private openOnArrival(): void {
     const config: PopupConfig = EXTRA_ADS.popup;
     if (!config.enabled || !config.onFirstLoad || this.automated()) return;
-    const storage = this.sessionStorage();
-    if (storage?.getItem(ARRIVAL_POPUP_KEY)) return;
+    const storage = this.localStorage();
+    // Storage blocked: skip, rather than open on every page load.
+    if (!storage) return;
     try {
-      storage?.setItem(ARRIVAL_POPUP_KEY, '1');
+      if (storage.getItem(ARRIVAL_POPUP_KEY)) return;
+      storage.setItem(ARRIVAL_POPUP_KEY, '1');
     } catch {
-      // Storage full or blocked: the popup may then open again on the next page load.
+      return;
     }
     setTimeout(() => this.showPopup(), ARRIVAL_DELAY_MS);
   }
@@ -253,9 +255,9 @@ export class ExtraAds {
     return !!this.document.defaultView?.navigator.webdriver;
   }
 
-  private sessionStorage(): Storage | null {
+  private localStorage(): Storage | null {
     try {
-      return this.document.defaultView?.sessionStorage ?? null;
+      return this.document.defaultView?.localStorage ?? null;
     } catch {
       return null;
     }

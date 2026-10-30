@@ -51,7 +51,7 @@ export const EXTRA_ADS = {
   popup: {
     /** Set to false to turn the popup ad off. */
     enabled: true,
-    /** Open once shortly after a visitor first arrives (once per browser session). */
+    /** Open once shortly after a visitor's first ever visit (once per browser). */
     onFirstLoad: true,
     /** Then open again after every this many clicks. */
     everyClicks: 5,
