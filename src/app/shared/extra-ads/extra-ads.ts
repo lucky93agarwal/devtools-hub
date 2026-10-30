@@ -4,7 +4,7 @@ import {
   DestroyRef,
   ElementRef,
   afterNextRender,
-  computed,
+  effect,
   inject,
   input,
   signal,
@@ -47,13 +47,12 @@ export function bannerDocument(key: string, width: number, height: number): stri
   template: `
     @if (key()) {
       <iframe
+        #frame
         title="Advertisement"
         class="block border-0"
         [width]="width()"
         [height]="height()"
-        [attr.srcdoc]="srcdoc()"
         scrolling="no"
-        loading="lazy"
       ></iframe>
     } @else {
       <a
@@ -74,7 +73,16 @@ export class ExtraAd {
   readonly width = input.required<number>();
   readonly height = input.required<number>();
   protected readonly siteName = SITE_NAME;
-  protected readonly srcdoc = computed(() => bannerDocument(this.key(), this.width(), this.height()));
+  private readonly frame = viewChild<ElementRef<HTMLIFrameElement>>('frame');
+
+  constructor() {
+    // Set on the element directly: Angular strips srcdoc bindings as unsafe, and this
+    // page is ours, built from the network's key, not from user input.
+    effect(() => {
+      const frame = this.frame()?.nativeElement;
+      if (frame) frame.srcdoc = bannerDocument(this.key(), this.width(), this.height());
+    });
+  }
 }
 
 /**
