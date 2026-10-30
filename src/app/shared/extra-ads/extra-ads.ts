@@ -13,6 +13,9 @@ import {
 import { EXTRA_ADS, SITE_NAME } from '../../core/app-config';
 import { ICONS, Icon } from '../icon/icon';
 
+/** Side ads show from this screen width, where the page leaves room beside it. */
+const WIDE_SCREEN_PX = 1600;
+
 /** Where the popup remembers when it last opened. */
 const LAST_POPUP_KEY = 'popup-ad-last';
 
@@ -84,9 +87,9 @@ export class ExtraAd {
   imports: [ExtraAd, Icon],
   template: `
     @if (ready()) {
-      @for (side of sides; track side) {
+      @for (side of wide() ? sides : []; track side) {
         <aside
-          class="fixed top-24 z-10 hidden flex-col gap-1 min-[1600px]:flex"
+          class="fixed top-24 z-10 flex flex-col gap-1"
           [class]="side === 'left' ? 'left-4' : 'right-4'"
           aria-label="Advertisement"
         >
@@ -117,22 +120,35 @@ export class ExtraAd {
 })
 export class ExtraAds {
   protected readonly sides = ['left', 'right'] as const;
-  protected readonly railKey = EXTRA_ADS.railKey;
-  protected readonly popupKey = EXTRA_ADS.popupKey;
+  protected railKey: string = EXTRA_ADS.railKey;
+  protected popupKey: string = EXTRA_ADS.popupKey;
   protected readonly icons = ICONS;
   protected readonly ready = signal(false);
   protected readonly open = signal(false);
+  /** True while the screen is wide enough for the side ads, so narrow screens never load them. */
+  protected readonly wide = signal(false);
   private readonly popup = viewChild<ElementRef<HTMLDialogElement>>('popup');
   private readonly document = inject(DOCUMENT);
   private clicks = 0;
 
   constructor() {
     const onClick = (event: MouseEvent) => this.onPageClick(event);
+    let query: MediaQueryList | undefined;
+    const onResize = () => this.wide.set(!!query?.matches);
     afterNextRender(() => {
+      const view = this.document.defaultView;
+      // Automated browsers (tests, crawlers) get our own cards instead of network ads.
+      if (view?.navigator.webdriver) this.railKey = this.popupKey = '';
+      query = view?.matchMedia?.(`(min-width: ${WIDE_SCREEN_PX}px)`);
+      query?.addEventListener('change', onResize);
+      onResize();
       this.ready.set(true);
       this.document.addEventListener('click', onClick);
     });
-    inject(DestroyRef).onDestroy(() => this.document.removeEventListener('click', onClick));
+    inject(DestroyRef).onDestroy(() => {
+      query?.removeEventListener('change', onResize);
+      this.document.removeEventListener('click', onClick);
+    });
   }
 
   protected close(): void {

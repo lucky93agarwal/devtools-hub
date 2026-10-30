@@ -45,9 +45,9 @@ export const ADS = {
  */
 export const EXTRA_ADS = {
   /** 160 x 600 banner, used for both side ads. */
-  railKey: '',
+  railKey: 'c59e81b34e3d365626477d469b324cde',
   /** 300 x 250 banner, used in the popup. */
-  popupKey: '',
+  popupKey: 'f8e426f4d247212ec83018234503a6cd',
   popup: {
     /** Set to false to turn the popup ad off. */
     enabled: true,
