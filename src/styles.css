@@ -284,3 +284,12 @@ select:not([multiple]):not([size]) {
   right: calc(100% + 6px);
   transform: translateY(-50%);
 }
+
+/*
+ * When Google has no ad for a slot (for example while the site is still under
+ * review) it marks the <ins> as unfilled; the reserved space is then removed
+ * instead of leaving an empty box with an "Advertisement" label.
+ */
+.ad-slot:has(ins.adsbygoogle[data-ad-status='unfilled']) {
+  display: none;
+}

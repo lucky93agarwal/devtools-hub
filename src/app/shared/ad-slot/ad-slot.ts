@@ -12,7 +12,7 @@ export const AD_PREVIEW_PARAM = 'ad-preview';
   selector: 'app-ad-slot',
   template: `
     @if (slot(); as id) {
-      <aside class="flex flex-col gap-1" aria-label="Advertisement">
+      <aside class="ad-slot flex flex-col gap-1" aria-label="Advertisement">
         <span class="text-xs leading-4 text-muted">Advertisement</span>
         <div class="min-h-[280px] overflow-hidden rounded-xl bg-surface">
           <ins
