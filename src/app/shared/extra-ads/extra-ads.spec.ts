@@ -1,4 +1,4 @@
-import { bannerUrl, popupDue } from './extra-ads';
+import { bannerUrl, popupDue, railsFit } from './extra-ads';
 
 describe('popupDue', () => {
   const config = { enabled: true, afterClicks: 3, everyMinutes: 5 };
@@ -22,5 +22,15 @@ describe('popupDue', () => {
 describe('bannerUrl', () => {
   it('points at the ad frame page with the key and size', () => {
     expect(bannerUrl('abc123', 160, 600)).toBe('/ad-frame?key=abc123&w=160&h=600');
+  });
+});
+
+describe('railsFit', () => {
+  it('needs less room beside the narrow tool pages than beside the wide ones', () => {
+    expect(railsFit('/json-formatter', 1440)).toBe(true);
+    expect(railsFit('/json-formatter?x=1', 1300)).toBe(false);
+    expect(railsFit('/', 1440)).toBe(false);
+    expect(railsFit('/api-client#a', 1440)).toBe(false);
+    expect(railsFit('/', 1600)).toBe(true);
   });
 });

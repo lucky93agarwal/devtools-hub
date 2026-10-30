@@ -4,17 +4,29 @@ import {
   DestroyRef,
   ElementRef,
   afterNextRender,
+  computed,
   effect,
   inject,
   input,
   signal,
   viewChild,
 } from '@angular/core';
+import { NavigationEnd, Router } from '@angular/router';
 import { EXTRA_ADS, SITE_NAME } from '../../core/app-config';
 import { ICONS, Icon } from '../icon/icon';
 
-/** Side ads show from this screen width, where the page leaves room beside it. */
-const WIDE_SCREEN_PX = 1600;
+/**
+ * Side ads show from these screen widths, where the page leaves room beside it:
+ * most pages are 960px wide, the home page and API Client 1200px.
+ */
+const RAIL_MIN_WIDTH = { narrowPage: 1360, widePage: 1600 };
+const WIDE_PAGES = ['/', '/api-client'];
+
+/** True when the side ads fit beside this page at this screen width. */
+export function railsFit(path: string, screenWidth: number): boolean {
+  const page = path.split(/[?#]/)[0] || '/';
+  return screenWidth >= (WIDE_PAGES.includes(page) ? RAIL_MIN_WIDTH.widePage : RAIL_MIN_WIDTH.narrowPage);
+}
 
 /** Where the popup remembers when it last opened. */
 const LAST_POPUP_KEY = 'popup-ad-last';
@@ -127,28 +139,34 @@ export class ExtraAds {
   protected readonly icons = ICONS;
   protected readonly ready = signal(false);
   protected readonly open = signal(false);
-  /** True while the screen is wide enough for the side ads, so narrow screens never load them. */
-  protected readonly wide = signal(false);
+  private readonly screenWidth = signal(0);
+  private readonly path = signal('/');
+  /** True while the side ads fit, so narrow screens never load them. */
+  protected readonly wide = computed(() => railsFit(this.path(), this.screenWidth()));
   private readonly popup = viewChild<ElementRef<HTMLDialogElement>>('popup');
   private readonly document = inject(DOCUMENT);
   private clicks = 0;
 
   constructor() {
     const onClick = (event: MouseEvent) => this.onPageClick(event);
-    let query: MediaQueryList | undefined;
-    const onResize = () => this.wide.set(!!query?.matches);
+    const view = this.document.defaultView;
+    const onResize = () => this.screenWidth.set(view?.innerWidth ?? 0);
+    const router = inject(Router);
+    const navigation = router.events.subscribe((event) => {
+      if (event instanceof NavigationEnd) this.path.set(event.urlAfterRedirects);
+    });
     afterNextRender(() => {
-      const view = this.document.defaultView;
       // Automated browsers (tests, crawlers) get our own cards instead of network ads.
       if (view?.navigator.webdriver) this.railKey = this.popupKey = '';
-      query = view?.matchMedia?.(`(min-width: ${WIDE_SCREEN_PX}px)`);
-      query?.addEventListener('change', onResize);
+      this.path.set(router.url);
       onResize();
+      view?.addEventListener('resize', onResize);
       this.ready.set(true);
       this.document.addEventListener('click', onClick);
     });
     inject(DestroyRef).onDestroy(() => {
-      query?.removeEventListener('change', onResize);
+      navigation.unsubscribe();
+      view?.removeEventListener('resize', onResize);
       this.document.removeEventListener('click', onClick);
     });
   }
