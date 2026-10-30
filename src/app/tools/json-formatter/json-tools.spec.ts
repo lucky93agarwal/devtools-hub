@@ -123,3 +123,52 @@ describe('position', () => {
     expect(position('ab\ncd', 4)).toEqual({ line: 2, column: 2, offset: 4 });
   });
 });
+
+describe('expandStrings', () => {
+  const expand = { expandStrings: true };
+
+  it('turns string values that hold JSON into JSON, at every level', () => {
+    const inner = JSON.stringify({ b: JSON.stringify([1, 2]) });
+    const result = minifyJson(JSON.stringify({ a: inner, c: 'text', d: '{not json}' }), expand);
+    expect(result).toEqual({ ok: true, output: '{"a":{"b":[1,2]},"c":"text","d":"{not json}"}', expanded: 2 });
+  });
+
+  it('keeps numbers exactly as written inside expanded strings', () => {
+    expect(minifyJson('{"a":"{\\"n\\":1.50,\\"big\\":12345678901234567890}"}', expand)).toEqual({
+      ok: true,
+      output: '{"a":{"n":1.50,"big":12345678901234567890}}',
+      expanded: 1,
+    });
+  });
+
+  it('leaves strings with plain values, numbers or broken JSON alone', () => {
+    expect(minifyJson('["42","true","[1,","  "]', expand)).toEqual({ ok: true, output: '["42","true","[1,","  "]', expanded: 0 });
+  });
+
+  it('unwraps input that is one whole JSON string', () => {
+    const text = JSON.stringify(JSON.stringify({ a: [1] }));
+    expect(formatJson(text, 2, expand)).toEqual({ ok: true, output: '{\n  "a": [\n    1\n  ]\n}', expanded: 1 });
+  });
+
+  it('reads escaped JSON pasted without its outer quotes', () => {
+    expect(minifyJson('  {\\"a\\":{\\"b\\":\\"x\\"}}  ', expand)).toEqual({ ok: true, output: '{"a":{"b":"x"}}', expanded: 1 });
+  });
+
+  it('still reports errors in text that is not escaped JSON', () => {
+    const result = minifyJson('{\\"a\\":', expand);
+    expect(result.ok).toBe(false);
+  });
+
+  it('does nothing when the option is off', () => {
+    expect(minifyJson('{"a":"[1]"}')).toEqual({ ok: true, output: '{"a":"[1]"}' });
+    expect(formatJson('{\\"a\\":1}').ok).toBe(false);
+  });
+
+  it('works with sorted keys', () => {
+    expect(minifyJson('{"z":"{\\"b\\":1,\\"a\\":2}"}', { expandStrings: true, sortKeys: true })).toEqual({
+      ok: true,
+      output: '{"z":{"a":2,"b":1}}',
+      expanded: 1,
+    });
+  });
+});

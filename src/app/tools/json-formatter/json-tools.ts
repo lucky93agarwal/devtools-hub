@@ -3,7 +3,7 @@
  * code can later run in a Web Worker or a shared tools library.
  */
 
-import { parseTree, printTree, sortTree } from './json-tree';
+import { expandJsonStrings, jsonInString, parseTree, printTree, sortTree } from './json-tree';
 
 export type Indent = 2 | 4 | '\t';
 
@@ -17,11 +17,23 @@ export interface JsonError {
   offset: number;
 }
 
-export type JsonResult = { ok: true; output: string } | { ok: false; error: JsonError };
+export type JsonResult =
+  | {
+      ok: true;
+      output: string;
+      /** How many strings holding JSON were turned into JSON, when that option is on. */
+      expanded?: number;
+    }
+  | { ok: false; error: JsonError };
 
 export interface FormatOptions {
   /** Sort object keys alphabetically at every level, so key order does not matter. */
   sortKeys?: boolean;
+  /**
+   * Turn string values that hold JSON, such as "{\"id\":1}", into the JSON itself.
+   * Also unwraps input that is one whole JSON string, quoted or copied without its quotes.
+   */
+  expandStrings?: boolean;
 }
 
 /** Pretty-prints JSON with the given indent. Keys, numbers and strings stay exactly as written. */
@@ -40,10 +52,11 @@ export interface JsonJob {
   text: string;
   indent: Indent;
   sortKeys?: boolean;
+  expandStrings?: boolean;
 }
 
 export function runJsonJob(job: JsonJob): JsonResult {
-  const options = { sortKeys: job.sortKeys };
+  const options = { sortKeys: job.sortKeys, expandStrings: job.expandStrings };
   return job.op === 'format' ? formatJson(job.text, job.indent, options) : minifyJson(job.text, options);
 }
 
@@ -60,19 +73,38 @@ function transform(text: string, indent: string | null, options: FormatOptions):
     return { ok: false, error: { message: 'Paste some JSON first.', line: 1, column: 1, offset: 0 } };
   }
   let value: unknown;
+  let expanded = 0;
   try {
     // The browser's parser is the fastest way to check the whole text is valid.
     value = JSON.parse(text);
   } catch (e) {
-    return { ok: false, error: findJsonError(text) ?? fallbackError(text, e) };
+    const unquoted = options.expandStrings ? unquotedJsonString(text) : null;
+    if (unquoted === null) return { ok: false, error: findJsonError(text) ?? fallbackError(text, e) };
+    // Text like {\"id\":1}, copied from a log or a string without its quotes.
+    text = unquoted;
+    value = JSON.parse(text);
+    expanded = 1;
   }
   try {
-    const tree = parseTree(text);
-    return { ok: true, output: printTree(options.sortKeys ? sortTree(tree) : tree, indent) };
+    let tree = parseTree(text.trim());
+    if (options.expandStrings) {
+      const result = expandJsonStrings(tree);
+      tree = result.node;
+      expanded += result.count;
+    }
+    const output = printTree(options.sortKeys ? sortTree(tree) : tree, indent);
+    return options.expandStrings ? { ok: true, output, expanded } : { ok: true, output };
   } catch {
     // Extremely deep nesting can overflow the stack; fall back to the browser's printer.
     return { ok: true, output: JSON.stringify(value, null, indent ?? undefined) };
   }
+}
+
+/** Reads text like {\"id\":1} (escaped JSON without the outer quotes) as JSON, or returns null. */
+function unquotedJsonString(text: string): string | null {
+  const trimmed = text.trim();
+  if (!trimmed.includes('\\"')) return null;
+  return jsonInString(`"${trimmed}"`);
 }
 
 /** Used only if the browser rejects JSON that our checker accepts. */

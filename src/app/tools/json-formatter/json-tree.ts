@@ -139,3 +139,53 @@ export function printTree(root: JsonNode, indent: string | null): string {
   print(root, 0);
   return parts.join('');
 }
+
+/** Deeper than this, JSON inside strings is left as a string. */
+const MAX_EXPAND_DEPTH = 20;
+
+/**
+ * Returns the JSON object or array held in a JSON string literal such as
+ * "{\"id\":1}", as text, or null when the string holds anything else.
+ */
+export function jsonInString(rawString: string): string | null {
+  if (rawString.charCodeAt(0) !== 34 || rawString.length < 4) return null;
+  let inner: string;
+  try {
+    inner = (JSON.parse(rawString) as string).trim();
+  } catch {
+    return null;
+  }
+  const first = inner[0];
+  const last = inner[inner.length - 1];
+  if (!((first === '{' && last === '}') || (first === '[' && last === ']'))) return null;
+  try {
+    JSON.parse(inner);
+  } catch {
+    return null;
+  }
+  return inner;
+}
+
+/**
+ * Replaces string values that hold JSON objects or arrays with the JSON itself,
+ * at every level, including strings inside those strings. `count` tells how many
+ * strings were expanded.
+ */
+export function expandJsonStrings(root: JsonNode): { node: JsonNode; count: number } {
+  let count = 0;
+  const expand = (node: JsonNode, depth: number): JsonNode => {
+    if (node.kind === 'raw') {
+      if (depth >= MAX_EXPAND_DEPTH) return node;
+      const inner = jsonInString(node.text);
+      if (inner === null) return node;
+      count++;
+      return expand(parseTree(inner), depth + 1);
+    }
+    if (node.kind === 'array') return { kind: 'array', items: node.items.map((item) => expand(item, depth)) };
+    return {
+      kind: 'object',
+      members: node.members.map((member) => ({ rawKey: member.rawKey, value: expand(member.value, depth) })),
+    };
+  };
+  return { node: expand(root, 0), count };
+}

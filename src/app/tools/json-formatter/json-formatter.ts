@@ -17,7 +17,7 @@ type Status =
   | { kind: 'empty' }
   | { kind: 'ready' }
   | { kind: 'working'; action: Action }
-  | { kind: 'valid'; action: Action }
+  | { kind: 'valid'; action: Action; expanded: number }
   | { kind: 'error'; error: JsonError }
   | { kind: 'problem'; message: string };
 
@@ -44,6 +44,8 @@ export class JsonFormatter {
   protected readonly input = signal('');
   protected readonly output = signal('');
   protected readonly indent = signal<Indent>(2);
+  /** Show JSON held in string values as JSON. */
+  protected readonly expandStrings = signal(true);
   protected readonly status = signal<Status>({ kind: 'empty' });
   protected readonly copyState = signal<'idle' | 'copied' | 'failed'>('idle');
   /** Name of the uploaded file, used for the download name. */
@@ -60,6 +62,10 @@ export class JsonFormatter {
   protected readonly problem = computed(() => {
     const status = this.status();
     return status.kind === 'problem' ? status.message : null;
+  });
+  protected readonly expanded = computed(() => {
+    const status = this.status();
+    return status.kind === 'valid' ? status.expanded : 0;
   });
   protected readonly working = computed(() => this.status().kind === 'working');
   protected readonly workingLabel = computed(() => {
@@ -91,17 +97,25 @@ export class JsonFormatter {
   }
 
   protected format(): Promise<void> {
-    return this.run({ op: 'format', text: this.input(), indent: this.indent() }, 'Formatted');
+    return this.run(this.job('format'), 'Formatted');
   }
 
   protected minify(): Promise<void> {
-    return this.run({ op: 'minify', text: this.input(), indent: this.indent() }, 'Minified');
+    return this.run(this.job('minify'), 'Minified');
   }
 
   /** Changing the indent re-formats right away if the output is formatted. */
   protected setIndent(indent: Indent): void {
     this.indent.set(indent);
     if (this.action() === 'Formatted') void this.format();
+  }
+
+  /** Turning JSON-string expansion on or off re-runs the last action right away. */
+  protected toggleExpandStrings(): void {
+    this.expandStrings.update((on) => !on);
+    const action = this.action();
+    if (action === 'Formatted') void this.format();
+    else if (action === 'Minified') void this.minify();
   }
 
   protected loadSample(kind: keyof typeof JSON_SAMPLES): void {
@@ -172,6 +186,10 @@ export class JsonFormatter {
     this.inputEditor().clearError();
   }
 
+  private job(op: JsonJob['op']): JsonJob {
+    return { op, text: this.input(), indent: this.indent(), expandStrings: this.expandStrings() };
+  }
+
   private async run(job: JsonJob, action: Action): Promise<void> {
     const id = ++this.jobId;
     this.status.set({ kind: 'working', action });
@@ -188,7 +206,7 @@ export class JsonFormatter {
     });
     if (result.ok) {
       this.output.set(result.output);
-      this.status.set({ kind: 'valid', action });
+      this.status.set({ kind: 'valid', action, expanded: result.expanded ?? 0 });
       this.inputEditor().clearError();
     } else {
       this.output.set('');

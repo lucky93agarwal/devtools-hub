@@ -82,6 +82,32 @@ describe('JsonFormatter', () => {
       expect(status()).toContain('Valid JSON. Formatted');
     });
 
+    it('loads the JSON-inside-strings sample and expands it', async () => {
+      const { input, output, status, click } = await setup();
+      await click('JSON inside strings');
+      expect(input.value).toContain('\\"orderId\\"');
+      expect(output.value).toContain('"orderId": 1042');
+      expect(output.value).toContain('"source": "mobile"');
+      expect(output.value).toContain('"Plain text stays a string."');
+      expect(status()).toContain('3 JSON strings expanded.');
+    });
+
+    it('loads the stringified sample and formats the JSON inside', async () => {
+      const { output, status, click } = await setup();
+      await click('Stringified JSON');
+      expect(output.value).toContain('\n  "name": "DevTools24"');
+      expect(status()).toContain('1 JSON string expanded.');
+    });
+
+    it('keeps JSON strings as strings when the option is off', async () => {
+      const { el, output, status, click, settle } = await setup();
+      await click('JSON inside strings');
+      el.querySelector<HTMLInputElement>('input[type=checkbox]')!.click();
+      await settle();
+      expect(output.value).toContain('"payload": "{');
+      expect(status()).not.toContain('expanded');
+    });
+
     it('loads the broken sample and points at the first error', async () => {
       const { inputEditor, status, click } = await setup();
       await click('JSON with errors');
