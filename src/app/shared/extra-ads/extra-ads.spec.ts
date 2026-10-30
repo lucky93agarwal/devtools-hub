@@ -1,21 +1,27 @@
-import { bannerUrl, popupDue, railsFit } from './extra-ads';
+import { bannerUrl, popupDue, popupScale, railsFit } from './extra-ads';
 
 describe('popupDue', () => {
-  const config = { enabled: true, afterClicks: 3, everyMinutes: 5 };
+  const config = { enabled: true, onFirstLoad: true, everyClicks: 5 };
 
-  it('waits for enough clicks', () => {
-    expect(popupDue(2, 0, 10_000_000, config)).toBe(false);
-    expect(popupDue(3, 0, 10_000_000, config)).toBe(true);
-  });
-
-  it('opens at most once in the set minutes', () => {
-    const now = 10_000_000;
-    expect(popupDue(5, now - 4 * 60_000, now, config)).toBe(false);
-    expect(popupDue(5, now - 5 * 60_000, now, config)).toBe(true);
+  it('opens on every fifth click', () => {
+    expect(popupDue(4, config)).toBe(false);
+    expect(popupDue(5, config)).toBe(true);
   });
 
   it('never opens when turned off', () => {
-    expect(popupDue(99, 0, 10_000_000, { ...config, enabled: false })).toBe(false);
+    expect(popupDue(99, { ...config, enabled: false })).toBe(false);
+    expect(popupDue(99, { ...config, everyClicks: 0 })).toBe(false);
+  });
+});
+
+describe('popupScale', () => {
+  it('enlarges the popup ad on big screens, up to 1.6 times', () => {
+    expect(popupScale(1500, 950)).toBe(1.6);
+  });
+
+  it('keeps it fitting on smaller screens and never shrinks it', () => {
+    expect(popupScale(400, 800)).toBe(1.1);
+    expect(popupScale(320, 600)).toBe(1);
   });
 });
 

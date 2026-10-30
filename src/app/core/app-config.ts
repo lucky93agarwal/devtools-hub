@@ -39,7 +39,7 @@ export const ADS = {
 
 /**
  * Ads from other networks, shown next to AdSense: two tall side ads on wide
- * screens and an occasional popup ad after clicks. Each value is a banner "key"
+ * screens and a popup ad on arrival and after clicks. Each value is a banner "key"
  * from an Adsterra publisher account (Websites, Get code, Banner). While a key is
  * empty, that place shows DevTools24's own "Advertise here" card instead.
  */
@@ -51,10 +51,10 @@ export const EXTRA_ADS = {
   popup: {
     /** Set to false to turn the popup ad off. */
     enabled: true,
-    /** The popup opens after this many clicks on a page... */
-    afterClicks: 3,
-    /** ...and at most once in this many minutes. */
-    everyMinutes: 5,
+    /** Open once shortly after a visitor first arrives (once per browser session). */
+    onFirstLoad: true,
+    /** Then open again after every this many clicks. */
+    everyClicks: 5,
   },
 } as const;
 

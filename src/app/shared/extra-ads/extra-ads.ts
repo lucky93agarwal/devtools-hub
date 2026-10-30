@@ -28,18 +28,30 @@ export function railsFit(path: string, screenWidth: number): boolean {
   return screenWidth >= (WIDE_PAGES.includes(page) ? RAIL_MIN_WIDTH.widePage : RAIL_MIN_WIDTH.narrowPage);
 }
 
-/** Where the popup remembers when it last opened. */
-const LAST_POPUP_KEY = 'popup-ad-last';
+/** Where the popup remembers that it already opened on arrival in this browser session. */
+const ARRIVAL_POPUP_KEY = 'popup-ad-arrival';
+/** How long after arrival the first popup opens, in ms, so the page shows first. */
+const ARRIVAL_DELAY_MS = 2500;
+/** How long a banner has to show an ad before our own card takes its place, in ms. */
+const FILL_WAIT_MS = 7000;
+/** The popup ad is shown up to this many times its real size. */
+const POPUP_MAX_SCALE = 1.6;
 
 export interface PopupConfig {
   enabled: boolean;
-  afterClicks: number;
-  everyMinutes: number;
+  onFirstLoad: boolean;
+  everyClicks: number;
 }
 
-/** True when the popup may open now, given the clicks so far and when it last opened. */
-export function popupDue(clicks: number, lastShown: number, now: number, config: PopupConfig = EXTRA_ADS.popup): boolean {
-  return config.enabled && clicks >= config.afterClicks && now - lastShown >= config.everyMinutes * 60_000;
+/** True when the popup should open after this many clicks since it last opened. */
+export function popupDue(clicks: number, config: PopupConfig = EXTRA_ADS.popup): boolean {
+  return config.enabled && config.everyClicks > 0 && clicks >= config.everyClicks;
+}
+
+/** How much to enlarge the 300 x 250 popup ad so it fills more of the screen but still fits. */
+export function popupScale(screenWidth: number, screenHeight: number): number {
+  const fit = Math.min((screenWidth - 64) / 300, (screenHeight - 140) / 250);
+  return Math.max(1, Math.min(POPUP_MAX_SCALE, Math.floor(fit * 20) / 20));
 }
 
 /** Address of public/ad-frame.html showing one Adsterra banner, so each banner has its own page. */
@@ -51,21 +63,25 @@ export function bannerUrl(key: string, width: number, height: number): string {
 @Component({
   selector: 'app-extra-ad',
   template: `
-    @if (key()) {
-      <iframe
-        #frame
-        title="Advertisement"
-        class="block border-0"
-        [width]="width()"
-        [height]="height()"
-        scrolling="no"
-      ></iframe>
+    @if (key() && !empty()) {
+      <div class="overflow-hidden" [style.width.px]="width() * scale()" [style.height.px]="height() * scale()">
+        <iframe
+          #frame
+          title="Advertisement"
+          class="block origin-top-left border-0"
+          [style.transform]="scale() === 1 ? null : 'scale(' + scale() + ')'"
+          [width]="width()"
+          [height]="height()"
+          scrolling="no"
+          (load)="checkFill()"
+        ></iframe>
+      </div>
     } @else {
       <a
         href="/contact"
         class="flex flex-col items-center justify-center gap-3 rounded-xl border border-line bg-surface p-4 text-center no-underline hover:border-brand"
-        [style.width.px]="width()"
-        [style.height.px]="height()"
+        [style.width.px]="width() * scale()"
+        [style.height.px]="height() * scale()"
       >
         <span class="font-heading text-lg leading-6 font-semibold text-ink">Your ad here</span>
         <span class="text-sm text-muted">Reach thousands of developers on {{ siteName }}.</span>
@@ -78,8 +94,13 @@ export class ExtraAd {
   readonly key = input('');
   readonly width = input.required<number>();
   readonly height = input.required<number>();
+  /** Shows the ad this many times larger than its real size. */
+  readonly scale = input(1);
   protected readonly siteName = SITE_NAME;
+  /** True when the network sent no ad, so our own card shows instead of an empty box. */
+  protected readonly empty = signal(false);
   private readonly frame = viewChild<ElementRef<HTMLIFrameElement>>('frame');
+  private fillTimer?: ReturnType<typeof setTimeout>;
 
   constructor() {
     // Set on the element directly: Angular treats a bound iframe src as unsafe, and this
@@ -88,6 +109,20 @@ export class ExtraAd {
       const frame = this.frame()?.nativeElement;
       if (frame) frame.src = bannerUrl(this.key(), this.width(), this.height());
     });
+    inject(DestroyRef).onDestroy(() => clearTimeout(this.fillTimer));
+  }
+
+  /** The ad page is on this site, so we can see whether the network put an ad in it. */
+  protected checkFill(): void {
+    clearTimeout(this.fillTimer);
+    this.fillTimer = setTimeout(() => {
+      try {
+        const page = this.frame()?.nativeElement.contentDocument;
+        if (page && !page.querySelector('iframe, img, a')) this.empty.set(true);
+      } catch {
+        // Not readable: leave the frame as it is.
+      }
+    }, FILL_WAIT_MS);
   }
 }
 
@@ -103,7 +138,7 @@ export class ExtraAd {
     @if (ready()) {
       @for (side of wide() ? sides : []; track side) {
         <aside
-          class="fixed top-24 z-10 flex flex-col gap-1"
+          class="fixed top-28 z-10 flex flex-col gap-1"
           [class]="side === 'left' ? 'left-4' : 'right-4'"
           aria-label="Advertisement"
         >
@@ -126,7 +161,7 @@ export class ExtraAd {
               <app-icon [path]="icons.close" [size]="16" />
             </button>
           </div>
-          <app-extra-ad [key]="popupKey" [width]="300" [height]="250" />
+          <app-extra-ad [key]="popupKey" [width]="300" [height]="250" [scale]="popupSize()" />
         }
       </dialog>
     }
@@ -139,6 +174,7 @@ export class ExtraAds {
   protected readonly icons = ICONS;
   protected readonly ready = signal(false);
   protected readonly open = signal(false);
+  protected readonly popupSize = signal(1);
   private readonly screenWidth = signal(0);
   private readonly path = signal('/');
   /** True while the side ads fit, so narrow screens never load them. */
@@ -163,6 +199,7 @@ export class ExtraAds {
       view?.addEventListener('resize', onResize);
       this.ready.set(true);
       this.document.addEventListener('click', onClick);
+      this.openOnArrival();
     });
     inject(DestroyRef).onDestroy(() => {
       navigation.unsubscribe();
@@ -183,34 +220,49 @@ export class ExtraAds {
   private onPageClick(event: MouseEvent): void {
     const dialog = this.popup()?.nativeElement;
     if (!dialog || this.open() || dialog.contains(event.target as Node)) return;
-    // Automated browsers (tests, crawlers) never get the popup.
-    if (this.document.defaultView?.navigator.webdriver) return;
+    if (this.automated()) return;
     this.clicks++;
-    const now = Date.now();
-    if (!popupDue(this.clicks, this.lastShown(), now)) return;
-    this.clicks = 0;
-    this.remember(now);
+    if (!popupDue(this.clicks)) return;
     // Open after the click has done its own job, so the popup never blocks it.
-    setTimeout(() => {
-      if (typeof dialog.showModal !== 'function') return;
-      this.open.set(true);
-      dialog.showModal();
-    }, 300);
+    setTimeout(() => this.showPopup(), 300);
   }
 
-  private lastShown(): number {
+  /** Opens the popup once, shortly after a visitor first arrives in this browser session. */
+  private openOnArrival(): void {
+    const config: PopupConfig = EXTRA_ADS.popup;
+    if (!config.enabled || !config.onFirstLoad || this.automated()) return;
+    const storage = this.sessionStorage();
+    if (storage?.getItem(ARRIVAL_POPUP_KEY)) return;
     try {
-      return Number(this.document.defaultView?.localStorage.getItem(LAST_POPUP_KEY)) || 0;
+      storage?.setItem(ARRIVAL_POPUP_KEY, '1');
     } catch {
-      return 0;
+      // Storage full or blocked: the popup may then open again on the next page load.
     }
+    setTimeout(() => this.showPopup(), ARRIVAL_DELAY_MS);
   }
 
-  private remember(time: number): void {
+  private showPopup(): void {
+    const dialog = this.popup()?.nativeElement;
+    if (!dialog || this.open() || typeof dialog.showModal !== 'function') return;
+    // Another dialog (a tool's own) is open: do not cover it.
+    if (this.document.querySelector('dialog[open]')) return;
+    const view = this.document.defaultView;
+    this.popupSize.set(popupScale(view?.innerWidth ?? 0, view?.innerHeight ?? 0));
+    this.clicks = 0;
+    this.open.set(true);
+    dialog.showModal();
+  }
+
+  /** Automated browsers (tests, crawlers) never get the popup. */
+  private automated(): boolean {
+    return !!this.document.defaultView?.navigator.webdriver;
+  }
+
+  private sessionStorage(): Storage | null {
     try {
-      this.document.defaultView?.localStorage.setItem(LAST_POPUP_KEY, String(time));
+      return this.document.defaultView?.sessionStorage ?? null;
     } catch {
-      // Storage blocked: the popup can then open again after the next few clicks.
+      return null;
     }
   }
 }
