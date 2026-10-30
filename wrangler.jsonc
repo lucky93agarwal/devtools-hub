@@ -9,6 +9,9 @@
     { "pattern": "devtools24.in", "custom_domain": true },
     { "pattern": "www.devtools24.in", "custom_domain": true }
   ],
+  // Keep the workers.dev address too, as a backup for networks whose DNS
+  // does not resolve the new domain yet.
+  "workers_dev": true,
   "assets": {
     "directory": "./dist/devtools-hub/browser",
     // Unknown URLs get 404.html with a 404 status (see scripts/postbuild.mjs).
