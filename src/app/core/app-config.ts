@@ -37,6 +37,27 @@ export const ADS = {
   },
 } as const;
 
+/**
+ * Ads from other networks, shown next to AdSense: two tall side ads on wide
+ * screens and an occasional popup ad after clicks. Each value is a banner "key"
+ * from an Adsterra publisher account (Websites, Get code, Banner). While a key is
+ * empty, that place shows DevTools24's own "Advertise here" card instead.
+ */
+export const EXTRA_ADS = {
+  /** 160 x 600 banner, used for both side ads. */
+  railKey: '',
+  /** 300 x 250 banner, used in the popup. */
+  popupKey: '',
+  popup: {
+    /** Set to false to turn the popup ad off. */
+    enabled: true,
+    /** The popup opens after this many clicks on a page... */
+    afterClicks: 3,
+    /** ...and at most once in this many minutes. */
+    everyMinutes: 5,
+  },
+} as const;
+
 /** Google Search Console "HTML tag" verification code (only the content value). Empty adds no tag. */
 export const GOOGLE_SITE_VERIFICATION = '';
 

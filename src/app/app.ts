@@ -3,10 +3,11 @@ import { Analytics } from './core/analytics';
 import { RouterOutlet } from '@angular/router';
 import { Header } from './layout/header/header';
 import { Footer } from './layout/footer/footer';
+import { ExtraAds } from './shared/extra-ads/extra-ads';
 
 @Component({
   selector: 'app-root',
-  imports: [RouterOutlet, Header, Footer],
+  imports: [RouterOutlet, Header, Footer, ExtraAds],
   template: `
     <a
       href="#main"
@@ -20,6 +21,7 @@ import { Footer } from './layout/footer/footer';
       </main>
       <app-footer />
     </div>
+    <app-extra-ads />
   `,
 })
 export class App {
