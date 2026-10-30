@@ -34,6 +34,7 @@ export class Footer {
   protected readonly lockIcon = ICONS.lock;
   protected readonly year = new Date().getFullYear();
   protected readonly links = [
+    { label: 'Guides', path: 'guides' },
     { label: 'About', path: 'about' },
     { label: 'Privacy', path: 'privacy' },
     { label: 'Terms', path: 'terms' },

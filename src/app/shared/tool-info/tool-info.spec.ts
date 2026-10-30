@@ -24,6 +24,7 @@ describe('ToolInfoSection', () => {
     expect([...el.querySelectorAll('h2')].map((h) => h.textContent?.trim())).toEqual([
       'About this JWT tool',
       'How to use it',
+      'Learn more',
       'Frequently asked questions',
     ]);
     expect(el.querySelectorAll('ol li')).toHaveLength(JWT_CONTENT.steps.length);

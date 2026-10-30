@@ -191,4 +191,5 @@ export const NAV_LINKS: readonly { label: string; path: string }[] = [
   { label: 'JSON to Code', path: 'json-to-code' },
   { label: 'Data', path: 'data-converter' },
   { label: 'API', path: 'api-client' },
+  { label: 'Guides', path: 'guides' },
 ];

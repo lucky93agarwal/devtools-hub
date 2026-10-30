@@ -1,7 +1,8 @@
-import { Component, DOCUMENT, OnDestroy, OnInit, inject, input } from '@angular/core';
+import { Component, DOCUMENT, OnDestroy, OnInit, computed, inject, input } from '@angular/core';
 import { SITE_NAME, SITE_URL } from '../../core/app-config';
 import { ToolInfo } from '../../core/tools';
 import { AdSlot } from '../ad-slot/ad-slot';
+import { guidesForTool } from '../../core/guides';
 
 export interface FaqItem {
   question: string;
@@ -52,6 +53,22 @@ const SCRIPT_ID = 'tool-structured-data';
 
       <ng-content />
 
+      @if (guides().length) {
+        <div>
+          <h2 class="text-2xl leading-8 sm:text-[28px] sm:leading-9">Learn more</h2>
+          <ul class="mt-3 flex flex-col gap-3">
+            @for (guide of guides(); track guide.slug) {
+              <li>
+                <a class="font-semibold text-brand underline underline-offset-2 hover:text-brand-strong" [href]="'/guides/' + guide.slug">{{
+                  guide.title
+                }}</a>
+                <p class="text-sm text-muted">{{ guide.description }}</p>
+              </li>
+            }
+          </ul>
+        </div>
+      }
+
       <app-ad-slot placement="beforeFaq" />
 
       <div>
@@ -80,6 +97,7 @@ const SCRIPT_ID = 'tool-structured-data';
 export class ToolInfoSection implements OnInit, OnDestroy {
   readonly tool = input.required<ToolInfo>();
   readonly content = input.required<ToolContent>();
+  protected readonly guides = computed(() => guidesForTool(this.tool().path));
 
   private readonly document = inject(DOCUMENT);
 

@@ -2,6 +2,7 @@ import { Type } from '@angular/core';
 import { Routes } from '@angular/router';
 import { TOOLS } from './core/tools';
 import { adsEnabled } from './core/ads';
+import { GUIDES } from './core/guides';
 
 const placeholder = () =>
   import('./pages/placeholder/placeholder-page').then((m) => m.PlaceholderPage);
@@ -70,6 +71,25 @@ const infoRoutes: Routes = [
   },
 ];
 
+/** The guides list and one page per guide, each prerendered with its own title. */
+const guideRoutes: Routes = [
+  {
+    path: 'guides',
+    title: 'Developer Guides',
+    loadComponent: () => import('./pages/guides/guide-page').then((m) => m.GuidesPage),
+    data: {
+      description:
+        'Practical guides to JSON, YAML, XML, JWTs, CORS, HTTP status codes, API authentication, image formats and app icons.',
+    },
+  },
+  ...GUIDES.map((guide) => ({
+    path: `guides/${guide.slug}`,
+    title: guide.title,
+    loadComponent: () => import('./pages/guides/guide-page').then((m) => m.GuidePage),
+    data: { description: guide.description },
+  })),
+];
+
 export const routes: Routes = [
   {
     path: '',
@@ -81,6 +101,7 @@ export const routes: Routes = [
     },
   },
   ...toolRoutes,
+  ...guideRoutes,
   ...infoRoutes,
   {
     // Hidden proof-of-concept page for the background remover; not linked and not indexed.

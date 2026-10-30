@@ -266,6 +266,7 @@ describe('JsonFormatter', () => {
       'About this JSON formatter',
       'How to use it',
       'Common JSON errors',
+      'Learn more',
       'Frequently asked questions',
     ]);
     expect(el.querySelectorAll('details')).toHaveLength(FAQ.length);
