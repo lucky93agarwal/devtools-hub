@@ -50,6 +50,21 @@ const toolComponents: Record<string, () => Promise<Type<unknown>>> = {
     import('./tools/mock-data-generator/mock-data-generator').then((m) => m.MockDataGenerator),
   'certificate-decoder': () =>
     import('./tools/certificate-decoder/certificate-decoder').then((m) => m.CertificateDecoder),
+  'json-schema-validator': () => import('./tools/json-schema-validator/json-schema-validator').then((m) => m.JsonSchemaValidator),
+  'string-escape': () => import('./tools/string-escape/string-escape').then((m) => m.StringEscape),
+  'password-generator': () => import('./tools/password-generator/password-generator').then((m) => m.PasswordGenerator),
+  'bcrypt-generator': () => import('./tools/bcrypt-generator/bcrypt-generator').then((m) => m.BcryptGenerator),
+  'screen-units': () => import('./tools/screen-units/screen-units').then((m) => m.ScreenUnits),
+  'localization-converter': () => import('./tools/localization-converter/localization-converter').then((m) => m.LocalizationConverter),
+  'markdown-editor': () => import('./tools/markdown-editor/markdown-editor').then((m) => m.MarkdownEditor),
+  'docker-compose-converter': () => import('./tools/docker-compose-converter/docker-compose-converter').then((m) => m.DockerComposeConverter),
+  'semver-calculator': () => import('./tools/semver-calculator/semver-calculator').then((m) => m.SemverCalculator),
+  'http-reference': () => import('./tools/http-reference/http-reference').then((m) => m.HttpReference),
+  'date-calculator': () => import('./tools/date-calculator/date-calculator').then((m) => m.DateCalculator),
+  'user-agent-parser': () => import('./tools/user-agent-parser/user-agent-parser').then((m) => m.UserAgentParser),
+  'data-size-converter': () => import('./tools/data-size-converter/data-size-converter').then((m) => m.DataSizeConverter),
+  'aes-encryption': () => import('./tools/aes-encryption/aes-encryption').then((m) => m.AesEncryption),
+  'totp-generator': () => import('./tools/totp-generator/totp-generator').then((m) => m.TotpGenerator),
 };
 
 /** Each tool is a lazy-loaded route with its own URL, title and description. */

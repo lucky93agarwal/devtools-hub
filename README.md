@@ -45,6 +45,21 @@ Free, privacy-first developer tools that run entirely in the browser. Nothing yo
 | [JSONPath and jq Playground](https://devtools24.in/json-query) | Live (real jq 1.8 as WebAssembly) |
 | [Mock Data Generator](https://devtools24.in/mock-data-generator) | Live (from a sample or JSON Schema; JSON, CSV, SQL) |
 | [SSL Certificate Decoder](https://devtools24.in/certificate-decoder) | Live (PEM/DER, chains, CSRs, fingerprints) |
+| [JSON Schema Validator](https://devtools24.in/json-schema-validator) | Live (draft-07, 2019-09, 2020-12 via Ajv) |
+| [String Escape and Unescape](https://devtools24.in/string-escape) | Live (JSON, JS, Java, HTML, XML, SQL, regex, Unicode) |
+| [Password and Secret Generator](https://devtools24.in/password-generator) | Live |
+| [bcrypt and Argon2 Hash Generator](https://devtools24.in/bcrypt-generator) | Live (hash and verify) |
+| [dp, px and sp Converter](https://devtools24.in/screen-units) | Live |
+| [Localization File Converter](https://devtools24.in/localization-converter) | Live (strings.xml, .strings, JSON, CSV) |
+| [Markdown Editor and Table Maker](https://devtools24.in/markdown-editor) | Live |
+| [docker run to Compose Converter](https://devtools24.in/docker-compose-converter) | Live (both ways) |
+| [Semver Range Calculator](https://devtools24.in/semver-calculator) | Live |
+| [HTTP Status Codes, Headers and MIME Types](https://devtools24.in/http-reference) | Live |
+| [Date Calculator](https://devtools24.in/date-calculator) | Live (ISO 8601 durations) |
+| [User-Agent Parser](https://devtools24.in/user-agent-parser) | Live |
+| [Data Size and Transfer Time Converter](https://devtools24.in/data-size-converter) | Live |
+| [AES Encryption and Decryption](https://devtools24.in/aes-encryption) | Live (OpenSSL compatible) |
+| [TOTP and 2FA Code Generator](https://devtools24.in/totp-generator) | Live (RFC 6238) |
 
 Site-wide: **Smart Paste** on the home page (recognises what you paste and opens the right tool with it), a **Ctrl+K / ⌘K
 search**, **starred and recent tools** (stored in the browser), **share links** that carry a tool's input after `#` (never
