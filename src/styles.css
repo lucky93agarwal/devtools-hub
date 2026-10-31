@@ -304,3 +304,25 @@ select:not([multiple]):not([size]) {
 .ad-slot:has(ins.adsbygoogle[data-ad-status='unfilled']) {
   display: none;
 }
+
+/* The left drawer with every tool slides in and out. */
+dialog.drawer {
+  translate: -100% 0;
+  transition:
+    translate 0.2s ease-out,
+    overlay 0.2s allow-discrete,
+    display 0.2s allow-discrete;
+}
+dialog.drawer[open] {
+  translate: 0 0;
+}
+@starting-style {
+  dialog.drawer[open] {
+    translate: -100% 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  dialog.drawer {
+    transition: none;
+  }
+}

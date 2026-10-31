@@ -54,9 +54,11 @@ test('Ctrl+K finds and opens a tool with the keyboard', async ({ page }) => {
 
 test('starred and recent tools show on the home page and survive a reload', async ({ page }) => {
   await page.goto('/');
+  await page.getByRole('tab', { name: /^Text and code/ }).click();
   await page.getByRole('button', { name: 'Star Regex Tester' }).click();
   await expect(page.getByRole('button', { name: 'Unstar Regex Tester' })).toHaveAttribute('aria-pressed', 'true');
-  await page.getByRole('link', { name: /^Hash Generator/ }).click();
+  await page.getByRole('tab', { name: /^Encode and hash/ }).click();
+  await page.getByRole('tabpanel').getByRole('link', { name: /^Hash Generator/ }).click();
   await expect(page).toHaveURL('/hash-generator');
   await page.goto('/');
   const yours = page.getByRole('region', { name: 'Your tools' });

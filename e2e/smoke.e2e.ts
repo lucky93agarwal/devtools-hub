@@ -6,15 +6,15 @@ import { typeInEditor, watchErrors } from './helpers';
 // against the production build. They catch pages that do not open or inputs
 // that cannot be used, which the unit tests (with fake editors) cannot see.
 
-/** Header link label, the page it opens and that page's H1. */
+/** Header link label, the page it opens and that page's H1; search words and tool name for the phone menu. */
 const NAV = [
-  { label: 'JSON', path: '/json-formatter', heading: 'JSON Formatter and Validator' },
-  { label: 'Compare', path: '/json-compare', heading: 'JSON Compare' },
-  { label: 'Images', path: '/image-converter', heading: 'Image Converter' },
-  { label: 'JWT', path: '/jwt', heading: /JWT/ },
-  { label: 'JSON to Code', path: '/json-to-code', heading: 'JSON to Code' },
-  { label: 'Data', path: '/data-converter', heading: 'Data Converter' },
-  { label: 'API', path: '/api-client', heading: 'API Client' },
+  { label: 'JSON', path: '/json-formatter', heading: 'JSON Formatter and Validator', search: 'json formatter', name: /^JSON Formatter and Validator/ },
+  { label: 'Compare', path: '/json-compare', heading: 'JSON Compare', search: 'json compare', name: /^JSON Compare/ },
+  { label: 'Images', path: '/image-converter', heading: 'Image Converter', search: 'image converter', name: /^Image Converter/ },
+  { label: 'JWT', path: '/jwt', heading: /JWT/, search: 'jwt', name: /^JWT/ },
+  { label: 'JSON to Code', path: '/json-to-code', heading: 'JSON to Code', search: 'json to code', name: /^JSON to Code/ },
+  { label: 'Data', path: '/data-converter', heading: 'Data Converter', search: 'data converter', name: /^Data Converter/ },
+  { label: 'API', path: '/api-client', heading: 'API Client', search: 'api client', name: /^API Client/ },
 ];
 
 let errors: string[];
@@ -30,7 +30,9 @@ test('home page loads', async ({ page }) => {
   await expect(page.getByRole('heading', { level: 1 })).toHaveText(
     'Developer tools that stay on your device',
   );
-  await expect(page.getByRole('link', { name: /Background Remover/ })).toBeVisible();
+  // One group of cards shows at a time; the Images tab shows the background remover.
+  await page.getByRole('tab', { name: /^Images/ }).click();
+  await expect(page.getByRole('tabpanel').getByRole('link', { name: /Background Remover/ })).toBeVisible();
 });
 
 test.describe('desktop header', () => {
@@ -46,35 +48,49 @@ test.describe('desktop header', () => {
     });
   }
 
-  // The background remover has no header link; it is opened from its home page card.
-  test('opens /background-remover from the home page', async ({ page }) => {
+  test('opens /background-remover from the home page sidebar', async ({ page }) => {
     await page.goto('/');
-    await page.getByRole('link', { name: /Background Remover/ }).click();
+    const sidebar = page.getByRole('navigation', { name: 'All tools by group' });
+    await sidebar.getByText('Images', { exact: true }).click();
+    await sidebar.getByRole('link', { name: 'Background Remover' }).click();
     await expect(page).toHaveURL('/background-remover');
     await expect(page.getByRole('heading', { level: 1 })).toHaveText('Background Remover');
   });
+
+  test('the All tools drawer finds and opens a tool', async ({ page }) => {
+    await page.goto('/json-formatter');
+    await page.getByRole('button', { name: 'All tools' }).click();
+    const drawer = page.getByRole('dialog', { name: 'All tools' });
+    await expect(drawer).toBeVisible();
+    // The current page's group is open and the page is marked.
+    await expect(drawer.locator('details[open] [aria-current="page"]')).toContainText('JSON Formatter');
+    await page.keyboard.type('cidr');
+    await drawer.getByRole('link', { name: /CIDR and Subnet Calculator/ }).click();
+    await expect(page).toHaveURL('/cidr-calculator');
+    await expect(drawer).toBeHidden();
+  });
 });
 
-test.describe('mobile menu', () => {
+test.describe('phone menu', () => {
   test.use({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true });
 
   for (const link of NAV) {
     test(`opens ${link.path}`, async ({ page }) => {
       await page.goto('/');
-      await page.getByRole('button', { name: 'Open menu' }).click();
-      await page
-        .locator('#mobile-menu')
-        .getByRole('link', { name: link.label, exact: true })
-        .click();
+      await page.getByRole('button', { name: 'All tools' }).click();
+      const drawer = page.getByRole('dialog', { name: 'All tools' });
+      await drawer.getByRole('searchbox').fill(link.search);
+      await drawer.getByRole('link', { name: link.name }).click();
       await expect(page).toHaveURL(link.path);
       await expect(page.getByRole('heading', { level: 1 })).toHaveText(link.heading);
-      await expect(page.locator('#mobile-menu')).toBeHidden();
+      await expect(drawer).toBeHidden();
     });
   }
 
   test('opens /background-remover from the home page', async ({ page }) => {
     await page.goto('/');
-    await page.getByRole('link', { name: /Background Remover/ }).click();
+    await page.getByRole('tab', { name: /^Images/ }).click();
+    await page.getByRole('tabpanel').getByRole('link', { name: /Background Remover/ }).click();
     await expect(page).toHaveURL('/background-remover');
     await expect(page.getByRole('heading', { level: 1 })).toHaveText('Background Remover');
   });

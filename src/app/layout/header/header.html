@@ -1,13 +1,26 @@
 <header class="sticky top-0 z-40 border-b border-line bg-page/90 backdrop-blur">
   <div class="container-page flex h-16 items-center justify-between gap-4">
-    <a routerLink="/" class="flex items-center gap-2 rounded-lg" (click)="closeMenu()">
-      <span
-        class="grid size-8 place-items-center rounded-lg bg-brand font-mono text-sm font-bold text-on-brand"
-        aria-hidden="true"
-        >&#123;&#125;</span
+    <div class="flex items-center gap-1">
+      <button
+        type="button"
+        class="-ml-2 grid size-11 place-items-center rounded-full text-muted hover:bg-surface hover:text-ink"
+        aria-label="All tools"
+        aria-controls="tools-drawer"
+        [attr.aria-expanded]="drawerOpen()"
+        title="All tools"
+        (click)="openDrawer()"
       >
-      <span class="font-heading text-lg font-semibold">{{ siteName }}</span>
-    </a>
+        <app-icon [path]="icons.menu" [size]="22" />
+      </button>
+      <a routerLink="/" class="flex items-center gap-2 rounded-lg">
+        <span
+          class="grid size-8 place-items-center rounded-lg bg-brand font-mono text-sm font-bold text-on-brand"
+          aria-hidden="true"
+          >&#123;&#125;</span
+        >
+        <span class="font-heading text-lg font-semibold">{{ siteName }}</span>
+      </a>
+    </div>
 
     <nav class="hidden md:block" aria-label="Main">
       <ul class="flex items-center gap-1">
@@ -46,37 +59,34 @@
         <app-icon [path]="theme.theme() === 'dark' ? icons.sun : icons.moon" [size]="20" />
       </button>
 
-      <button
-        type="button"
-        class="grid size-11 place-items-center rounded-full text-muted hover:bg-surface hover:text-ink md:hidden"
-        [attr.aria-label]="menuOpen() ? 'Close menu' : 'Open menu'"
-        [attr.aria-expanded]="menuOpen()"
-        aria-controls="mobile-menu"
-        (click)="toggleMenu()"
-      >
-        <app-icon [path]="menuOpen() ? icons.close : icons.menu" [size]="20" />
-      </button>
     </div>
   </div>
 
   <app-command-palette #palette />
 
-  @if (menuOpen()) {
-    <nav id="mobile-menu" class="border-t border-line md:hidden" aria-label="Main">
-      <ul class="container-page flex flex-col py-2">
-        @for (link of links; track link.path) {
-          <li>
-            <a
-              [routerLink]="'/' + link.path"
-              routerLinkActive="bg-surface !text-ink"
-              ariaCurrentWhenActive="page"
-              class="block rounded-xl px-3 py-3 font-semibold text-muted"
-              (click)="closeMenu()"
-              >{{ link.label }}</a
-            >
-          </li>
-        }
-      </ul>
-    </nav>
-  }
+  <dialog
+    #drawer
+    id="tools-drawer"
+    class="drawer m-0 h-dvh max-h-none w-[min(23rem,88vw)] max-w-none border-r border-line bg-page p-0 text-ink backdrop:bg-black/40"
+    aria-label="All tools"
+    (close)="drawerOpen.set(false)"
+    (click)="onDrawerClick($event)"
+  >
+    <div class="flex h-full flex-col">
+      <div class="flex h-16 shrink-0 items-center justify-between border-b border-line px-4">
+        <p class="font-heading text-lg font-semibold">All tools</p>
+        <button type="button" class="grid size-10 place-items-center rounded-full text-muted hover:bg-surface hover:text-ink" aria-label="Close" (click)="closeDrawer()">
+          <app-icon [path]="icons.close" [size]="20" />
+        </button>
+      </div>
+      <app-tool-nav #toolNav class="min-h-0 flex-1" label="All tools in the menu" (navigated)="closeDrawer()" />
+      <nav class="shrink-0 border-t border-line px-4 py-3 text-sm" aria-label="More pages">
+        <ul class="flex flex-wrap gap-x-4 gap-y-1 text-muted">
+          @for (link of pages; track link.path) {
+            <li><a [routerLink]="'/' + link.path" class="hover:text-ink" (click)="closeDrawer()">{{ link.label }}</a></li>
+          }
+        </ul>
+      </nav>
+    </div>
+  </dialog>
 </header>

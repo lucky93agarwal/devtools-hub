@@ -17,9 +17,8 @@ test.use({ permissions: ['clipboard-read', 'clipboard-write'] });
 
 test('home page groups the tools and links to the new ones', async ({ page }) => {
   await page.goto('/');
-  await expect(page.getByRole('heading', { name: 'Encode and hash', level: 3 })).toBeVisible();
-  await page.getByRole('link', { name: 'Encode and hash' }).click();
-  await page.getByRole('link', { name: /Hash Generator/ }).click();
+  await page.getByRole('tab', { name: /^Encode and hash/ }).click();
+  await page.getByRole('tabpanel').getByRole('link', { name: /Hash Generator/ }).click();
   await expect(page).toHaveURL('/hash-generator');
   // The links above each tool lead to the others in its group.
   await page.getByRole('navigation', { name: 'Encode and hash' }).getByRole('link', { name: 'Base64' }).click();
