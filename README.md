@@ -69,6 +69,10 @@ Free, privacy-first developer tools that run entirely in the browser. Nothing yo
 | [App Links and Universal Links Helper](https://devtools24.in/deep-link-checker) | Live |
 | [Mermaid Diagram Editor](https://devtools24.in/mermaid-editor) | Live (SVG and PNG export) |
 | [Code Screenshot Maker](https://devtools24.in/code-screenshot) | Live |
+| [Recipes: Chain Tools Together](https://devtools24.in/recipes) | Live (24 steps, saved and shareable recipes) |
+| [Kotlin Playground](https://devtools24.in/kotlin-playground) | Live (JetBrains Kotlin Playground; runs on JetBrains' server) |
+| [Dart and Flutter Playground (DartPad)](https://devtools24.in/dartpad) | Live (DartPad embed, loads on request) |
+| Browser extension ([extension/](extension/README.md)) | Built; Chrome Web Store listing needs the owner's account |
 
 Site-wide: **Smart Paste** on the home page (recognises what you paste and opens the right tool with it), a **Ctrl+K / ⌘K
 search**, **starred and recent tools** (stored in the browser), **share links** that carry a tool's input after `#` (never

@@ -867,6 +867,48 @@ export const TOOLS: readonly ToolInfo[] = [
     onHome: true,
     live: true,
   },
+  {
+    path: 'recipes',
+    name: 'Recipes: Chain Tools Together',
+    shortName: 'Recipes',
+    description: 'Run text through several tools in a row, such as Base64 decode then JSON format, and save your own recipes.',
+    seoTitle: 'Recipes: Chain Decode, Format and Convert Steps',
+    metaDescription:
+      'Chain developer tools: Base64 or URL decode, JWT payload, JSON format, YAML and CSV conversion, hashes and line tools. See every step. Save and share recipes.',
+    icon: 'M4 6h4v4H4zM16 14h4v4h-4zM8 8h4a2 2 0 0 1 2 2v4a2 2 0 0 0 2 2',
+    phase: 11,
+    category: 'text',
+    onHome: true,
+    live: true,
+  },
+  {
+    path: 'kotlin-playground',
+    name: 'Kotlin Playground',
+    shortName: 'Kotlin',
+    description: 'Write and run Kotlin online with the official JetBrains playground.',
+    seoTitle: 'Kotlin Playground: Run Kotlin Online',
+    metaDescription:
+      'Write and run Kotlin code online with the official JetBrains Kotlin Playground. Samples for data classes, null safety and sealed classes. No set-up.',
+    icon: 'M4 4h16L12 12l8 8H4z',
+    phase: 11,
+    category: 'text',
+    onHome: true,
+    live: true,
+  },
+  {
+    path: 'dartpad',
+    name: 'Dart and Flutter Playground (DartPad)',
+    shortName: 'DartPad',
+    description: 'Run Dart and Flutter code online with DartPad, or open a GitHub gist.',
+    seoTitle: 'DartPad: Run Dart and Flutter Code Online',
+    metaDescription:
+      'Run Dart and Flutter code online with the official DartPad editor from Google, or open shared code from a GitHub gist. No SDK to install.',
+    icon: 'M5 14l7-10 7 10-7 6zM9 14h6',
+    phase: 11,
+    category: 'text',
+    onHome: true,
+    live: true,
+  },
 ];
 
 /** Links in the top bar, in display order. */

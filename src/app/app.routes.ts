@@ -74,6 +74,9 @@ const toolComponents: Record<string, () => Promise<Type<unknown>>> = {
   'deep-link-checker': () => import('./tools/deep-link-checker/deep-link-checker').then((m) => m.DeepLinkChecker),
   'mermaid-editor': () => import('./tools/mermaid-editor/mermaid-editor').then((m) => m.MermaidEditor),
   'code-screenshot': () => import('./tools/code-screenshot/code-screenshot').then((m) => m.CodeScreenshot),
+  'recipes': () => import('./tools/recipes/recipes').then((m) => m.Recipes),
+  'kotlin-playground': () => import('./tools/kotlin-playground/kotlin-playground').then((m) => m.KotlinPlayground),
+  'dartpad': () => import('./tools/dartpad/dartpad').then((m) => m.Dartpad),
 };
 
 /** Each tool is a lazy-loaded route with its own URL, title and description. */

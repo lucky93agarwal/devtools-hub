@@ -55,6 +55,20 @@ import { InfoPage } from './info-page';
         file straight from the server it points to.
       </p>
 
+      <h2>Kotlin Playground and DartPad</h2>
+      <p>
+        These two pages are the only tools whose code runs on someone else's server. When you run code in the Kotlin
+        Playground, it is sent to JetBrains' Kotlin compiler service (api.kotlinlang.org). DartPad is Google's own
+        editor shown inside the page; it loads from dartpad.dev only after you press Open DartPad, and compiles your code
+        on Google's servers. Each service handles your code under its own privacy policy, so do not paste secrets there.
+      </p>
+
+      <h2>Browser extension</h2>
+      <p>
+        The DevTools24 browser extension collects nothing. When you send selected text to a tool, the text is put in
+        the link after the # sign, as with Share links, and opened on this site.
+      </p>
+
       <h2>Hosting and server logs</h2>
       <p>
         The site is hosted on Cloudflare. Like any web host, Cloudflare receives the technical details your browser sends

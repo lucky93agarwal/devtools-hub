@@ -1,0 +1,312 @@
+[
+ {
+  "path": "json-formatter",
+  "name": "JSON Formatter and Validator",
+  "description": "Format, minify and validate JSON with clear error messages."
+ },
+ {
+  "path": "json-compare",
+  "name": "JSON Compare",
+  "description": "See what was added, removed or changed between two JSON documents."
+ },
+ {
+  "path": "image-converter",
+  "name": "Image Converter",
+  "description": "Convert up to 15 images at once between JPG, PNG, WebP, AVIF, HEIC, GIF, TIFF, ICO and more."
+ },
+ {
+  "path": "jwt",
+  "name": "JWT Decoder and Verifier",
+  "description": "Decode, verify and create JSON Web Tokens without sending them anywhere."
+ },
+ {
+  "path": "image-resizer",
+  "name": "Image Resizer",
+  "description": "Resize images to an exact size, by percent or for social media, and keep files under a size limit."
+ },
+ {
+  "path": "image-cropper",
+  "name": "Image Cropper",
+  "description": "Crop images with a free or fixed shape, rotate and flip them, or cut a circle."
+ },
+ {
+  "path": "background-remover",
+  "name": "Background Remover",
+  "description": "Remove an image background on your own device and download a transparent PNG."
+ },
+ {
+  "path": "api-client",
+  "name": "API Client",
+  "description": "Send HTTP requests and read responses, with collections, environments and Postman import."
+ },
+ {
+  "path": "json-to-code",
+  "name": "JSON to Code",
+  "description": "Turn JSON into model classes for Kotlin, Java, TypeScript, Dart, Swift, C#, Python, Go, Rust, PHP and Ruby."
+ },
+ {
+  "path": "data-converter",
+  "name": "Data Converter",
+  "description": "Convert between JSON, YAML, XML and CSV, in either direction."
+ },
+ {
+  "path": "xml-formatter",
+  "name": "XML Formatter and Validator",
+  "description": "Format, minify and validate XML, keeping comments, CDATA and attributes as written."
+ },
+ {
+  "path": "yaml-validator",
+  "name": "YAML Validator and Formatter",
+  "description": "Check YAML for mistakes and format it, with errors shown by line."
+ },
+ {
+  "path": "app-icon-generator",
+  "name": "App Icon Generator",
+  "description": "Create every Android and iOS app icon size from one image, ready for your project."
+ },
+ {
+  "path": "base64",
+  "name": "Base64 Encode and Decode",
+  "description": "Encode text or files to Base64 and decode Base64 back to text, files and images."
+ },
+ {
+  "path": "url-encoder",
+  "name": "URL Encoder, Decoder and Parser",
+  "description": "Encode and decode URLs and query values, and split a URL into its parts and parameters."
+ },
+ {
+  "path": "hash-generator",
+  "name": "Hash Generator",
+  "description": "Make MD5, SHA-1, SHA-256, SHA-512, SHA-3 and CRC32 hashes and HMACs of text or files."
+ },
+ {
+  "path": "uuid-generator",
+  "name": "UUID, ULID and NanoID Generator",
+  "description": "Generate UUID v4 and v7, ULID and NanoID values in bulk, and inspect any UUID."
+ },
+ {
+  "path": "qr-code-generator",
+  "name": "QR Code Generator",
+  "description": "Make QR codes for links, text and Wi-Fi, and download them as PNG or SVG."
+ },
+ {
+  "path": "gitignore-generator",
+  "name": ".gitignore Generator",
+  "description": "Build a .gitignore for your languages, frameworks, editors and operating systems."
+ },
+ {
+  "path": "timestamp-converter",
+  "name": "Unix Timestamp Converter",
+  "description": "Turn Unix timestamps into dates and back, in any time zone, in seconds or milliseconds."
+ },
+ {
+  "path": "cron-expression",
+  "name": "Cron Expression Explainer",
+  "description": "See what a cron expression means in plain words and when it runs next."
+ },
+ {
+  "path": "number-base-converter",
+  "name": "Number Base Converter",
+  "description": "Convert numbers between binary, octal, decimal, hexadecimal and any base up to 36."
+ },
+ {
+  "path": "chmod-calculator",
+  "name": "Chmod Calculator",
+  "description": "Work out Unix file permissions as numbers like 755 and as rwxr-xr-x, and back."
+ },
+ {
+  "path": "color-converter",
+  "name": "Color Converter and Contrast Checker",
+  "description": "Convert colours between HEX, RGB, HSL and OKLCH, and check text contrast for WCAG."
+ },
+ {
+  "path": "cidr-calculator",
+  "name": "CIDR and Subnet Calculator",
+  "description": "Find the network, broadcast, host range and mask of any IPv4 or IPv6 CIDR block."
+ },
+ {
+  "path": "text-diff",
+  "name": "Text Diff Checker",
+  "description": "Compare two texts or code files side by side and see every added, removed or changed line."
+ },
+ {
+  "path": "case-converter",
+  "name": "Case Converter and Text Tools",
+  "description": "Switch text between camelCase, snake_case, kebab-case and more, then sort, dedupe and count lines."
+ },
+ {
+  "path": "sql-formatter",
+  "name": "SQL Formatter",
+  "description": "Format and beautify SQL queries for MySQL, PostgreSQL, SQL Server, SQLite and more."
+ },
+ {
+  "path": "code-beautifier",
+  "name": "HTML, CSS and JavaScript Beautifier",
+  "description": "Beautify or minify HTML, CSS and JavaScript, for reading minified code or shrinking your own."
+ },
+ {
+  "path": "env-converter",
+  "name": ".env Converter",
+  "description": "Convert .env files to JSON, YAML or shell exports, and JSON or YAML back to .env."
+ },
+ {
+  "path": "curl-to-code",
+  "name": "cURL to Code Converter",
+  "description": "Turn a cURL command into code for Python, JavaScript, Go, Java, PHP and 30 more."
+ },
+ {
+  "path": "regex-tester",
+  "name": "Regex Tester",
+  "description": "Test regular expressions with highlighted matches, groups, replace and a plain-English explanation."
+ },
+ {
+  "path": "json-query",
+  "name": "JSONPath and jq Playground",
+  "description": "Query JSON with JSONPath or the real jq, with examples and live results."
+ },
+ {
+  "path": "mock-data-generator",
+  "name": "Mock Data Generator",
+  "description": "Make realistic fake records from one sample or a JSON Schema, as JSON, CSV or SQL."
+ },
+ {
+  "path": "certificate-decoder",
+  "name": "SSL Certificate Decoder",
+  "description": "Read an SSL/TLS certificate, chain or CSR: names, expiry, issuer, key and fingerprints."
+ },
+ {
+  "path": "json-schema-validator",
+  "name": "JSON Schema Validator",
+  "description": "Check JSON against a JSON Schema and see every problem with its exact path."
+ },
+ {
+  "path": "string-escape",
+  "name": "String Escape and Unescape",
+  "description": "Escape or unescape text for JSON, JavaScript, Java, HTML, XML, SQL, regex and Unicode."
+ },
+ {
+  "path": "password-generator",
+  "name": "Password and Secret Generator",
+  "description": "Make strong passwords and random secrets for JWT keys, API keys and databases."
+ },
+ {
+  "path": "bcrypt-generator",
+  "name": "bcrypt and Argon2 Hash Generator",
+  "description": "Hash passwords with bcrypt or Argon2id and check whether a password matches a hash."
+ },
+ {
+  "path": "screen-units",
+  "name": "dp, px and sp Converter",
+  "description": "Convert screen sizes between Android dp and sp, pixels, iOS points and CSS rem."
+ },
+ {
+  "path": "localization-converter",
+  "name": "Localization File Converter",
+  "description": "Convert translations between Android strings.xml, iOS .strings, JSON and CSV."
+ },
+ {
+  "path": "markdown-editor",
+  "name": "Markdown Editor and Table Maker",
+  "description": "Write Markdown with a live preview, and turn spreadsheet cells into a Markdown table."
+ },
+ {
+  "path": "docker-compose-converter",
+  "name": "docker run to Compose Converter",
+  "description": "Turn docker run commands into docker-compose.yml services, and back."
+ },
+ {
+  "path": "semver-calculator",
+  "name": "Semver Range Calculator",
+  "description": "See which versions a range like ^1.2.3 allows, sort versions and find the next one."
+ },
+ {
+  "path": "http-reference",
+  "name": "HTTP Status Codes, Headers and MIME Types",
+  "description": "Look up every HTTP status code, common header and MIME type, with when to use each."
+ },
+ {
+  "path": "date-calculator",
+  "name": "Date Calculator",
+  "description": "Count days, months and working days between dates, add time to a date and read ISO 8601 durations."
+ },
+ {
+  "path": "user-agent-parser",
+  "name": "User-Agent Parser",
+  "description": "See the browser, operating system, device and bot behind any User-Agent string."
+ },
+ {
+  "path": "data-size-converter",
+  "name": "Data Size and Transfer Time Converter",
+  "description": "Convert between bytes, KB, MB, MiB and GB, and see how long a transfer takes."
+ },
+ {
+  "path": "aes-encryption",
+  "name": "AES Encryption and Decryption",
+  "description": "Encrypt and decrypt text with a password using AES-256, compatible with OpenSSL."
+ },
+ {
+  "path": "totp-generator",
+  "name": "TOTP and 2FA Code Generator",
+  "description": "Show the current one-time code for a 2FA secret and make otpauth links and QR codes."
+ },
+ {
+  "path": "stack-trace-decoder",
+  "name": "Stack Trace and Source Map Decoder",
+  "description": "Turn a minified JavaScript stack trace back into original files and lines with a source map."
+ },
+ {
+  "path": "svg-converter",
+  "name": "SVG Optimizer and VectorDrawable Converter",
+  "description": "Shrink SVG files and convert them to Android VectorDrawable XML or Jetpack Compose ImageVector."
+ },
+ {
+  "path": "key-generator",
+  "name": "Key Pair and JWK Generator",
+  "description": "Make RSA, EC and Ed25519 key pairs, and convert keys between PEM and JWK."
+ },
+ {
+  "path": "git-helper",
+  "name": "Git Command Helper",
+  "description": "Find the Git commands to undo, fix and clean up, from a plain-language search."
+ },
+ {
+  "path": "kubernetes-explainer",
+  "name": "Kubernetes YAML Explainer",
+  "description": "Paste Kubernetes YAML to see what each resource does and find common mistakes."
+ },
+ {
+  "path": "openapi-viewer",
+  "name": "OpenAPI Viewer and Validator",
+  "description": "View an OpenAPI or Swagger spec as endpoints, check it for errors and copy cURL commands."
+ },
+ {
+  "path": "deep-link-checker",
+  "name": "App Links and Universal Links Helper",
+  "description": "Make and check assetlinks.json and apple-app-site-association, and test deep links."
+ },
+ {
+  "path": "mermaid-editor",
+  "name": "Mermaid Diagram Editor",
+  "description": "Write flowcharts, sequence and ER diagrams as text and download them as SVG or PNG."
+ },
+ {
+  "path": "code-screenshot",
+  "name": "Code Screenshot Maker",
+  "description": "Turn code into a clean, syntax-coloured image for slides, posts and docs."
+ },
+ {
+  "path": "recipes",
+  "name": "Recipes: Chain Tools Together",
+  "description": "Run text through several tools in a row, such as Base64 decode then JSON format, and save your own recipes."
+ },
+ {
+  "path": "kotlin-playground",
+  "name": "Kotlin Playground",
+  "description": "Write and run Kotlin online with the official JetBrains playground."
+ },
+ {
+  "path": "dartpad",
+  "name": "Dart and Flutter Playground (DartPad)",
+  "description": "Run Dart and Flutter code online with DartPad, or open a GitHub gist."
+ }
+]

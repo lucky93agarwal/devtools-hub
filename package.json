@@ -40,6 +40,7 @@
     "jq-wasm": "^3.0.0-jq-1.8.2",
     "js-beautify": "^2.0.3",
     "jsonpath-plus": "^11.2.1",
+    "kotlin-playground": "^1.34.0",
     "libheif-js": "^1.23.5",
     "marked": "^18.1.1",
     "mermaid": "^12.2.0",

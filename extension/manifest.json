@@ -1,0 +1,13 @@
+{
+  "manifest_version": 3,
+  "name": "DevTools24",
+  "short_name": "DevTools24",
+  "version": "1.0.0",
+  "description": "Open selected text in DevTools24: format JSON, decode JWT, Base64 and URLs, explain cron. Search 60+ developer tools.",
+  "homepage_url": "https://devtools24.in",
+  "action": { "default_popup": "popup.html", "default_title": "DevTools24" },
+  "background": { "service_worker": "background.js", "type": "module" },
+  "permissions": ["contextMenus"],
+  "icons": { "16": "icons/icon-16.png", "48": "icons/icon-48.png", "128": "icons/icon-128.png" },
+  "commands": { "_execute_action": { "suggested_key": { "default": "Alt+Shift+D" }, "description": "Open DevTools24 search" } }
+}
