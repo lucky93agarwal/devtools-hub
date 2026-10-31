@@ -2,7 +2,7 @@
  * Puts a tool's input into the part of the address after #, which browsers never send to a server.
  * Used by Share link buttons and by Smart Paste to open a tool with data already filled in.
  */
-import { afterNextRender, inject } from '@angular/core';
+import { DestroyRef, afterNextRender, inject } from '@angular/core';
 import { Router } from '@angular/router';
 import { deflateSync, inflateSync, strFromU8, strToU8 } from 'fflate';
 
@@ -48,6 +48,15 @@ export function readFragment(hash: string): SharedData | null {
   return match ? decodeShared(match[1]) : null;
 }
 
+/** The open tool's handler, so History can put an older input back without reloading the page. */
+const appliers = new Set<(data: SharedData) => void>();
+
+/** Gives `data` to the tool on the page now, as if it had been opened with it. Returns false when none listens. */
+export function restoreShared(data: SharedData): boolean {
+  appliers.forEach((apply) => apply(data));
+  return appliers.size > 0;
+}
+
 /** Data handed to the next tool page opened inside the app, such as by Smart Paste. */
 let pending: { path: string; data: SharedData } | null = null;
 
@@ -66,6 +75,8 @@ export function onSharedInput(apply: (data: SharedData) => void): void {
   const router = inject(Router);
   const navigation = router.currentNavigation();
   const target = (navigation?.finalUrl ? router.serializeUrl(navigation.finalUrl) : router.url).split(/[?#]/)[0].replace(/^\//, '');
+  appliers.add(apply);
+  inject(DestroyRef).onDestroy(() => appliers.delete(apply));
   afterNextRender(() => {
     if (pending && pending.path === target) {
       const { data } = pending;
@@ -77,5 +88,26 @@ export function onSharedInput(apply: (data: SharedData) => void): void {
     if (!data) return;
     history.replaceState(history.state, '', location.pathname + location.search);
     apply(data);
+  });
+}
+
+/** Files handed to the next tool page, such as a file dropped anywhere on the site. */
+let pendingFiles: { path: string; files: File[] } | null = null;
+
+export function prefillFiles(path: string, files: File[]): void {
+  pendingFiles = { path: path.replace(/^\//, ''), files };
+}
+
+/** Like onSharedInput, for tools that take files: calls `apply` once with files dropped elsewhere on the site. */
+export function onSharedFiles(apply: (files: File[]) => void): void {
+  const router = inject(Router);
+  const navigation = router.currentNavigation();
+  const target = (navigation?.finalUrl ? router.serializeUrl(navigation.finalUrl) : router.url).split(/[?#]/)[0].replace(/^\//, '');
+  afterNextRender(() => {
+    if (pendingFiles && pendingFiles.path === target) {
+      const { files } = pendingFiles;
+      pendingFiles = null;
+      apply(files);
+    }
   });
 }

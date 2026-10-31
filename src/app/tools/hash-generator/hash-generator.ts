@@ -1,6 +1,6 @@
 import { Component, DestroyRef, computed, effect, inject, signal } from '@angular/core';
 import { Analytics, sizeBucket } from '../../core/analytics';
-import { onSharedInput } from '../../core/shared-input';
+import { onSharedFiles, onSharedInput } from '../../core/shared-input';
 import { TOOLS } from '../../core/tools';
 import { CopyButton } from '../../shared/copy-button/copy-button';
 import { formatBytes } from '../../shared/file-utils';
@@ -179,6 +179,11 @@ export class HashGenerator {
       this.run++;
     });
     onSharedInput((data) => this.onText(data['input'] ?? ''));
+    onSharedFiles((files) => {
+      this.source.set('file');
+      this.file.set(files[0]);
+      void this.hashChosenFile();
+    });
     // Empty text still has hashes (of zero bytes), but showing them before anything is typed is confusing.
     effect(() => {
       if (this.source() === 'text' && !this.text()) this.digests.set(null);

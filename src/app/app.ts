@@ -6,10 +6,11 @@ import { RouterOutlet } from '@angular/router';
 import { Header } from './layout/header/header';
 import { Footer } from './layout/footer/footer';
 import { ExtraAds } from './shared/extra-ads/extra-ads';
+import { GlobalActions } from './shared/global-actions/global-actions';
 
 @Component({
   selector: 'app-root',
-  imports: [RouterOutlet, Header, Footer, ExtraAds],
+  imports: [RouterOutlet, Header, Footer, ExtraAds, GlobalActions],
   template: `
     <a
       href="#main"
@@ -24,6 +25,7 @@ import { ExtraAds } from './shared/extra-ads/extra-ads';
       <app-footer />
     </div>
     <app-extra-ads />
+    <app-global-actions />
   `,
 })
 export class App {

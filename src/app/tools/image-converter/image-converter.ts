@@ -1,5 +1,6 @@
 import { Component, DestroyRef, computed, inject, signal } from '@angular/core';
 import { Analytics } from '../../core/analytics';
+import { onSharedFiles } from '../../core/shared-input';
 import { TOOLS } from '../../core/tools';
 import { downloadBlob, formatBytes } from '../../shared/file-utils';
 import { ICONS, Icon } from '../../shared/icon/icon';
@@ -101,6 +102,7 @@ export class ImageConverter {
   private nextId = 0;
 
   constructor() {
+    onSharedFiles((files) => this.addFiles(files));
     inject(DestroyRef).onDestroy(() => this.items().forEach((item) => URL.revokeObjectURL(item.previewUrl)));
   }
 

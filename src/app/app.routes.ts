@@ -106,6 +106,12 @@ const infoRoutes: Routes = [
     data: { description: 'The terms for using the free developer tools on DevTools24.' },
   },
   {
+    path: 'your-data',
+    title: 'Your saved data',
+    loadComponent: () => import('./pages/your-data/your-data').then((m) => m.YourData),
+    data: { description: 'Your saved inputs, history and settings in this browser, with backup, restore and clear.', noindex: true },
+  },
+  {
     path: 'contact',
     title: 'Contact',
     loadComponent: () => import('./pages/info/contact-page').then((m) => m.ContactPage),

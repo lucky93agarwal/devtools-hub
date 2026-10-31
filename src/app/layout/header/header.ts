@@ -3,6 +3,7 @@ import { RouterLink, RouterLinkActive } from '@angular/router';
 import { NAV_LINKS } from '../../core/tools';
 import { SITE_NAME } from '../../core/app-config';
 import { ThemeService } from '../../core/theme.service';
+import { InstallPrompt } from '../../core/install-prompt';
 import { CommandPalette } from '../../shared/command-palette/command-palette';
 import { ICONS, Icon } from '../../shared/icon/icon';
 import { ToolNav } from '../../shared/tool-nav/tool-nav';
@@ -14,11 +15,13 @@ import { ToolNav } from '../../shared/tool-nav/tool-nav';
 })
 export class Header {
   protected readonly theme = inject(ThemeService);
+  protected readonly install = inject(InstallPrompt);
   protected readonly links = NAV_LINKS;
   protected readonly siteName = SITE_NAME;
   protected readonly icons = ICONS;
   protected readonly pages = [
     { label: 'Guides', path: 'guides' },
+    { label: 'Your data', path: 'your-data' },
     { label: 'About', path: 'about' },
     { label: 'Privacy', path: 'privacy' },
     { label: 'Contact', path: 'contact' },

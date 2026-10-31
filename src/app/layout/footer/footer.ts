@@ -35,6 +35,7 @@ export class Footer {
   protected readonly year = new Date().getFullYear();
   protected readonly links = [
     { label: 'Guides', path: 'guides' },
+    { label: 'Your data', path: 'your-data' },
     { label: 'About', path: 'about' },
     { label: 'Privacy', path: 'privacy' },
     { label: 'Terms', path: 'terms' },
