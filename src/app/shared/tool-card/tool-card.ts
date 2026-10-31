@@ -15,7 +15,7 @@ import { Icon } from '../icon/icon';
       <span class="grid size-11 place-items-center rounded-xl bg-page text-brand">
         <app-icon [path]="tool().icon" />
       </span>
-      <h3 class="text-xl leading-7 group-hover:text-brand">{{ tool().name }}</h3>
+      <h4 class="text-xl leading-7 group-hover:text-brand">{{ tool().name }}</h4>
       <p class="text-sm leading-5 text-muted">{{ tool().description }}</p>
     </a>
   `,

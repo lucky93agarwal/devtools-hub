@@ -60,6 +60,10 @@ export class DiffViewer {
   readonly modifiedLabel = input('Changed');
   /** Collapse unchanged lines so only the differences and a little context show. */
   readonly onlyChanges = input(false);
+  /** Two columns, or one column with removed and added lines interleaved. */
+  readonly sideBySide = input(true);
+  /** Treat lines that differ only in leading or trailing whitespace as equal. */
+  readonly ignoreWhitespace = input(false);
 
   /** Emitted each time Monaco finishes computing the differences. */
   readonly diffUpdated = output<DiffStats>();
@@ -101,6 +105,11 @@ export class DiffViewer {
     });
 
     effect(() => {
+      const options = { renderSideBySide: this.sideBySide(), ignoreTrimWhitespace: this.ignoreWhitespace() };
+      if (this.ready()) this.diffEditor?.updateOptions(options);
+    });
+
+    effect(() => {
       const name = this.theme.theme() === 'dark' ? 'dth-dark' : 'dth-light';
       if (this.ready()) this.monaco?.editor.setTheme(name);
     });
@@ -120,10 +129,10 @@ export class DiffViewer {
       readOnly: true,
       domReadOnly: true,
       originalEditable: false,
-      renderSideBySide: true,
+      renderSideBySide: this.sideBySide(),
       useInlineViewWhenSpaceIsLimited: true,
       renderSideBySideInlineBreakpoint: 640,
-      ignoreTrimWhitespace: false,
+      ignoreTrimWhitespace: this.ignoreWhitespace(),
       renderIndicators: true,
       renderOverviewRuler: false,
       hideUnchangedRegions: { enabled: this.onlyChanges() },

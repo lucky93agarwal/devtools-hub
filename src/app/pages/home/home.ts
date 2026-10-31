@@ -1,6 +1,6 @@
 import { Component } from '@angular/core';
 import { RouterLink } from '@angular/router';
-import { TOOLS } from '../../core/tools';
+import { TOOLS, TOOL_CATEGORIES } from '../../core/tools';
 import { GUIDES } from '../../core/guides';
 import { ICONS, Icon } from '../../shared/icon/icon';
 import { ToolCard } from '../../shared/tool-card/tool-card';
@@ -34,13 +34,23 @@ import { ToolCard } from '../../shared/tool-card/tool-card';
       </ul>
     </section>
 
-    <section class="container-page" aria-labelledby="tools-heading">
+    <section id="tools" class="container-page" aria-labelledby="tools-heading">
       <h2 id="tools-heading" class="sr-only">All tools</h2>
-      <ul class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        @for (tool of tools; track tool.path) {
-          <li><app-tool-card [tool]="tool" /></li>
+      <nav aria-label="Tool groups" class="flex flex-wrap justify-center gap-2">
+        @for (group of groups; track group.id) {
+          <a [href]="'#group-' + group.id" class="chip hover:text-ink">{{ group.label }}</a>
         }
-      </ul>
+      </nav>
+      @for (group of groups; track group.id) {
+        <div class="mt-10 scroll-mt-20" [id]="'group-' + group.id">
+          <h3 class="text-xl leading-7">{{ group.label }}</h3>
+          <ul class="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            @for (tool of group.tools; track tool.path) {
+              <li><app-tool-card [tool]="tool" /></li>
+            }
+          </ul>
+        </div>
+      }
     </section>
 
     <section class="container-page mt-16" aria-labelledby="why-heading">
@@ -82,7 +92,10 @@ import { ToolCard } from '../../shared/tool-card/tool-card';
   `,
 })
 export class Home {
-  protected readonly tools = TOOLS.filter((tool) => tool.onHome);
+  protected readonly groups = TOOL_CATEGORIES.map((category) => ({
+    ...category,
+    tools: TOOLS.filter((tool) => tool.onHome && tool.category === category.id),
+  })).filter((group) => group.tools.length);
   protected readonly icons = ICONS;
   protected readonly chips = ['No login', 'No uploads', 'Free'];
   protected readonly guides = GUIDES.slice(0, 6);

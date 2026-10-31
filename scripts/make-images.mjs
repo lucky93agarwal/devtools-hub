@@ -20,7 +20,7 @@ const BRAND = '#4f46e5';
 function readTools() {
   const source = readFileSync('src/app/core/tools.ts', 'utf8');
   const tools = [];
-  for (const match of source.matchAll(/path: '([^']+)',\s*name: '([^']+)',\s*description:\s*'([^']+)'/g)) {
+  for (const match of source.matchAll(/path: '([^']+)',\s*name: '([^']+)',\s*(?:shortName: '[^']+',\s*)?description:\s*'([^']+)'/g)) {
     tools.push({ path: match[1], name: match[2], description: match[3] });
   }
   return tools;

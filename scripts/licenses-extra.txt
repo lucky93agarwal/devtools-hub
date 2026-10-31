@@ -39,3 +39,10 @@ https://github.com/catdad-experiments/libheif-js (its full licence is above).
 
 /ort/ (ONNX Runtime Web, MIT, licence above) and /models/u2netp.onnx (U2-Net,
 Apache-2.0, see /models/u2netp.LICENSE.txt).
+
+--------------------------------------------------------------------------------
+
+.gitignore templates in the .gitignore Generator
+From github/gitignore (https://github.com/github/gitignore), dedicated to the public
+domain under CC0 1.0 Universal (https://creativecommons.org/publicdomain/zero/1.0/).
+No attribution is required; it is given here as thanks.

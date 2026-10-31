@@ -23,7 +23,24 @@ Free, privacy-first developer tools that run entirely in the browser. Nothing yo
 | [XML Formatter and Validator](https://devtools24.in/xml-formatter) | Live |
 | [YAML Validator and Formatter](https://devtools24.in/yaml-validator) | Live |
 | [App Icon Generator](https://devtools24.in/app-icon-generator) | Live (Android and iOS) |
-| App Icon Generator | Planned |
+| [Base64 Encode and Decode](https://devtools24.in/base64) | Live (text, files, images, data URIs) |
+| [URL Encoder, Decoder and Parser](https://devtools24.in/url-encoder) | Live (editable query parameters) |
+| [Hash Generator](https://devtools24.in/hash-generator) | Live (MD5, SHA-1/2/3, CRC32, HMAC, large files) |
+| [UUID, ULID and NanoID Generator](https://devtools24.in/uuid-generator) | Live (v4, v7, inspector) |
+| [QR Code Generator](https://devtools24.in/qr-code-generator) | Live (links, Wi-Fi, email, phone; PNG and SVG) |
+| [.gitignore Generator](https://devtools24.in/gitignore-generator) | Live (64 github/gitignore templates) |
+| [Unix Timestamp Converter](https://devtools24.in/timestamp-converter) | Live (any time zone, s/ms/µs/ns) |
+| [Cron Expression Explainer](https://devtools24.in/cron-expression) | Live (plain English, next runs) |
+| [Number Base Converter](https://devtools24.in/number-base-converter) | Live (bases 2–36, two’s complement) |
+| [Chmod Calculator](https://devtools24.in/chmod-calculator) | Live (numbers, symbols, special bits) |
+| [Color Converter and Contrast Checker](https://devtools24.in/color-converter) | Live (HEX, RGB, HSL, OKLCH, Android, Swift, Flutter, WCAG) |
+| [CIDR and Subnet Calculator](https://devtools24.in/cidr-calculator) | Live (IPv4 and IPv6, subnets) |
+| [Text Diff Checker](https://devtools24.in/text-diff) | Live |
+| [Case Converter and Text Tools](https://devtools24.in/case-converter) | Live (naming styles, sort, dedupe, counts) |
+| [SQL Formatter](https://devtools24.in/sql-formatter) | Live (16 dialects) |
+| [HTML, CSS and JavaScript Beautifier](https://devtools24.in/code-beautifier) | Live (beautify and minify) |
+| [.env Converter](https://devtools24.in/env-converter) | Live (JSON, YAML, shell, Docker Compose, Kubernetes) |
+| [cURL to Code Converter](https://devtools24.in/curl-to-code) | Live (35 languages) |
 
 ## Deployment
 

@@ -83,7 +83,8 @@
 
   h1,
   h2,
-  h3 {
+  h3,
+  h4 {
     @apply font-heading font-semibold;
   }
 
@@ -117,6 +118,16 @@
 
   .card {
     @apply rounded-xl border border-line bg-surface;
+  }
+
+  /* Text box, number box or select. */
+  .field {
+    @apply rounded-xl border border-line bg-page px-3 py-2 text-sm leading-5 disabled:opacity-50;
+  }
+
+  /* Multi-line input or output for code and data. */
+  .field-code {
+    @apply w-full resize-y rounded-xl border border-line bg-surface p-4 font-mono text-sm leading-[22px];
   }
 
   .container-page {

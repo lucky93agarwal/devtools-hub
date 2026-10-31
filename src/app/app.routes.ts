@@ -23,6 +23,27 @@ const toolComponents: Record<string, () => Promise<Type<unknown>>> = {
   'xml-formatter': () => import('./tools/text-formatter/text-formatter').then((m) => m.TextFormatter),
   'yaml-validator': () => import('./tools/text-formatter/text-formatter').then((m) => m.TextFormatter),
   'app-icon-generator': () => import('./tools/app-icon/app-icon-generator').then((m) => m.AppIconGenerator),
+  base64: () => import('./tools/base64/base64-tool').then((m) => m.Base64Tool),
+  'url-encoder': () => import('./tools/url-encoder/url-encoder').then((m) => m.UrlEncoder),
+  'hash-generator': () => import('./tools/hash-generator/hash-generator').then((m) => m.HashGenerator),
+  'uuid-generator': () => import('./tools/uuid-generator/uuid-generator').then((m) => m.UuidGenerator),
+  'qr-code-generator': () => import('./tools/qr-code-generator/qr-code-generator').then((m) => m.QrCodeGenerator),
+  'gitignore-generator': () =>
+    import('./tools/gitignore-generator/gitignore-generator').then((m) => m.GitignoreGenerator),
+  'timestamp-converter': () =>
+    import('./tools/timestamp-converter/timestamp-converter').then((m) => m.TimestampConverter),
+  'cron-expression': () => import('./tools/cron-expression/cron-expression').then((m) => m.CronExpression),
+  'number-base-converter': () =>
+    import('./tools/number-base-converter/number-base-converter').then((m) => m.NumberBaseConverter),
+  'chmod-calculator': () => import('./tools/chmod-calculator/chmod-calculator').then((m) => m.ChmodCalculator),
+  'color-converter': () => import('./tools/color-converter/color-converter').then((m) => m.ColorConverter),
+  'cidr-calculator': () => import('./tools/cidr-calculator/cidr-calculator').then((m) => m.CidrCalculator),
+  'text-diff': () => import('./tools/text-diff/text-diff').then((m) => m.TextDiff),
+  'case-converter': () => import('./tools/case-converter/case-converter').then((m) => m.CaseConverter),
+  'sql-formatter': () => import('./tools/sql-formatter/sql-formatter').then((m) => m.SqlFormatter),
+  'code-beautifier': () => import('./tools/code-beautifier/code-beautifier').then((m) => m.CodeBeautifier),
+  'env-converter': () => import('./tools/env-converter/env-converter').then((m) => m.EnvConverter),
+  'curl-to-code': () => import('./tools/curl-to-code/curl-to-code').then((m) => m.CurlToCode),
 };
 
 /** Each tool is a lazy-loaded route with its own URL, title and description. */
