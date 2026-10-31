@@ -1,13 +1,15 @@
-import { Component } from '@angular/core';
+import { Component, computed, inject } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { TOOLS, TOOL_CATEGORIES } from '../../core/tools';
 import { GUIDES } from '../../core/guides';
 import { ICONS, Icon } from '../../shared/icon/icon';
 import { ToolCard } from '../../shared/tool-card/tool-card';
+import { SmartPaste } from '../../shared/smart-paste/smart-paste';
+import { UserTools } from '../../core/user-tools';
 
 @Component({
   selector: 'app-home',
-  imports: [RouterLink, Icon, ToolCard],
+  imports: [RouterLink, Icon, ToolCard, SmartPaste],
   template: `
     <section class="container-page pt-12 pb-10 text-center sm:pt-20">
       <h1 class="mx-auto max-w-3xl text-[28px] leading-9 sm:text-[40px] sm:leading-12">
@@ -33,6 +35,27 @@ import { ToolCard } from '../../shared/tool-card/tool-card';
         }
       </ul>
     </section>
+
+    <section class="container-page pb-10">
+      <app-smart-paste />
+    </section>
+
+    @if (yourTools().length) {
+      <section class="container-page mb-10" aria-labelledby="your-tools-heading">
+        <h2 id="your-tools-heading" class="text-xl leading-7">Your tools</h2>
+        <p class="mt-1 text-sm text-muted">Starred and recently used, remembered in this browser only.</p>
+        <ul class="mt-4 flex flex-wrap gap-2">
+          @for (tool of yourTools(); track tool.path) {
+            <li>
+              <a [routerLink]="'/' + tool.path" class="chip hover:border-brand hover:text-ink">
+                <app-icon [path]="user.isFavourite(tool.path) ? icons.star : icons.clock" [size]="14" [filled]="user.isFavourite(tool.path)" />
+                {{ tool.shortName ?? tool.name }}
+              </a>
+            </li>
+          }
+        </ul>
+      </section>
+    }
 
     <section id="tools" class="container-page" aria-labelledby="tools-heading">
       <h2 id="tools-heading" class="sr-only">All tools</h2>
@@ -97,6 +120,11 @@ export class Home {
     tools: TOOLS.filter((tool) => tool.onHome && tool.category === category.id),
   })).filter((group) => group.tools.length);
   protected readonly icons = ICONS;
+  protected readonly user = inject(UserTools);
+  protected readonly yourTools = computed(() => {
+    const favourites = this.user.favourites();
+    return UserTools.tools([...favourites, ...this.user.recent().filter((p) => !favourites.includes(p))]);
+  });
   protected readonly chips = ['No login', 'No uploads', 'Free'];
   protected readonly guides = GUIDES.slice(0, 6);
 }

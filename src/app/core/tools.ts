@@ -475,6 +475,62 @@ export const TOOLS: readonly ToolInfo[] = [
     onHome: true,
     live: true,
   },
+  {
+    path: 'regex-tester',
+    name: 'Regex Tester',
+    shortName: 'Regex',
+    description: 'Test regular expressions with highlighted matches, groups, replace and a plain-English explanation.',
+    seoTitle: 'Regex Tester with Explanation and Replace',
+    metaDescription:
+      'Test JavaScript regular expressions live: highlighted matches, capture groups, replace, a plain-English explanation and code for Python, Java and Go.',
+    icon: 'M17 4v8M13.5 6l7 4M13.5 10l7-4M5 17h3v3H5z',
+    phase: 8,
+    category: 'text',
+    onHome: true,
+    live: true,
+  },
+  {
+    path: 'json-query',
+    name: 'JSONPath and jq Playground',
+    shortName: 'JSONPath / jq',
+    description: 'Query JSON with JSONPath or the real jq, with examples and live results.',
+    seoTitle: 'JSONPath and jq Playground Online',
+    metaDescription:
+      'Try JSONPath expressions and jq filters on your JSON with live results. Runs the real jq 1.8 as WebAssembly, with examples to start from. Nothing uploaded.',
+    icon: 'M8 4H7a2 2 0 0 0-2 2v4l-2 2 2 2v4a2 2 0 0 0 2 2h1M15 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM17 15l3 3',
+    phase: 8,
+    category: 'json',
+    onHome: true,
+    live: true,
+  },
+  {
+    path: 'mock-data-generator',
+    name: 'Mock Data Generator',
+    shortName: 'Mock Data',
+    description: 'Make realistic fake records from one sample or a JSON Schema, as JSON, CSV or SQL.',
+    seoTitle: 'Mock Data Generator: JSON, CSV and SQL',
+    metaDescription:
+      'Generate realistic test data from one sample record or a JSON Schema: names, emails, phones, dates and prices. Download as JSON, CSV or SQL INSERT.',
+    icon: 'M4 6c0-1.7 3.6-3 8-3s8 1.3 8 3-3.6 3-8 3-8-1.3-8-3zM4 6v6c0 1.7 3.6 3 8 3M20 6v4M18 14v6M15 17h6',
+    phase: 8,
+    category: 'generate',
+    onHome: true,
+    live: true,
+  },
+  {
+    path: 'certificate-decoder',
+    name: 'SSL Certificate Decoder',
+    shortName: 'Certificate',
+    description: 'Read an SSL/TLS certificate, chain or CSR: names, expiry, issuer, key and fingerprints.',
+    seoTitle: 'SSL Certificate Decoder: PEM, X.509, CSR',
+    metaDescription:
+      'Decode SSL/TLS certificates, chains and CSRs in PEM or DER: domain names, expiry, issuer, key size, key usage and SHA-256 fingerprint. Free and private.',
+    icon: 'M12 3l7 3v5c0 4.4-3 8.3-7 10-4-1.7-7-5.6-7-10V6zM9 12l2 2 4-4',
+    phase: 8,
+    category: 'api',
+    onHome: true,
+    live: true,
+  },
 ];
 
 /** Links in the top bar, in display order. */

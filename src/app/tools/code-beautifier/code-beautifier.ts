@@ -1,10 +1,12 @@
 import { Component, DestroyRef, computed, effect, inject, signal, viewChild } from '@angular/core';
 import { Analytics } from '../../core/analytics';
+import { onSharedInput } from '../../core/shared-input';
 import { TOOLS } from '../../core/tools';
 import { CodeEditor } from '../../shared/code-editor/code-editor';
 import { CopyButton } from '../../shared/copy-button/copy-button';
 import { downloadText, formatBytes } from '../../shared/file-utils';
 import { ICONS, Icon } from '../../shared/icon/icon';
+import { ShareButton } from '../../shared/share-button/share-button';
 import { ToolGroupNav } from '../../shared/tool-group-nav/tool-group-nav';
 import { ToolInfoSection } from '../../shared/tool-info/tool-info';
 import { CodeLanguage, beautify, byteSize, detectLanguage, minify } from './beautify';
@@ -19,7 +21,7 @@ const LANGUAGES: { value: CodeLanguage; label: string; extension: string; mime: 
 
 @Component({
   selector: 'app-code-beautifier',
-  imports: [Icon, CodeEditor, CopyButton, ToolGroupNav, ToolInfoSection],
+  imports: [Icon, CodeEditor, CopyButton, ShareButton, ToolGroupNav, ToolInfoSection],
   template: `
     <div class="container-tool pt-10 sm:pt-16">
       <app-tool-group-nav [tool]="tool" />
@@ -68,6 +70,7 @@ const LANGUAGES: { value: CodeLanguage; label: string; extension: string; mime: 
         <div class="flex gap-2">
           <button type="button" class="btn-small" (click)="loadSample()">Try a sample</button>
           <button type="button" class="btn-small" [disabled]="!input()" (click)="setInput('')">Clear</button>
+          <app-share-button [path]="tool.path" [data]="input().trim() ? { input: input(), language: language() } : null" />
         </div>
       </div>
 
@@ -163,6 +166,11 @@ export class CodeBeautifier {
       const mode = this.mode();
       const indent = this.indent();
       void this.process(code, language, mode, indent);
+    });
+    onSharedInput((data) => {
+      const language = LANGUAGES.find((l) => l.value === data['language'])?.value ?? detectLanguage(data['input'] ?? '');
+      if (language) this.chooseLanguage(language);
+      this.setInput(data['input'] ?? '');
     });
     inject(DestroyRef).onDestroy(() => clearTimeout(this.timer));
   }

@@ -1,8 +1,10 @@
 import { Component, computed, signal } from '@angular/core';
+import { onSharedInput } from '../../core/shared-input';
 import { TOOLS } from '../../core/tools';
 import { CopyButton } from '../../shared/copy-button/copy-button';
 import { formatBytes } from '../../shared/file-utils';
 import { ICONS, Icon } from '../../shared/icon/icon';
+import { ShareButton } from '../../shared/share-button/share-button';
 import { ToolGroupNav } from '../../shared/tool-group-nav/tool-group-nav';
 import { ToolInfoSection } from '../../shared/tool-info/tool-info';
 import { CASE_CONTENT } from './content';
@@ -10,7 +12,7 @@ import { CASE_STYLES, DEFAULT_LINE_OPTIONS, LineOptions, SortMode, applyLineTool
 
 @Component({
   selector: 'app-case-converter',
-  imports: [Icon, CopyButton, ToolGroupNav, ToolInfoSection],
+  imports: [Icon, CopyButton, ShareButton, ToolGroupNav, ToolInfoSection],
   template: `
     <div class="container-tool pt-10 sm:pt-16">
       <app-tool-group-nav [tool]="tool" />
@@ -19,7 +21,10 @@ import { CASE_STYLES, DEFAULT_LINE_OPTIONS, LineOptions, SortMode, applyLineTool
 
       <div class="mt-8 flex items-center justify-between gap-2">
         <label for="case-input" class="text-sm leading-5 font-semibold">Text</label>
-        <button type="button" class="btn-small" [disabled]="!text()" (click)="text.set('')">Clear</button>
+        <span class="flex gap-2">
+          <button type="button" class="btn-small" [disabled]="!text()" (click)="text.set('')">Clear</button>
+          <app-share-button [path]="tool.path" [data]="text() ? { input: text() } : null" />
+        </span>
       </div>
       <textarea
         id="case-input"
@@ -115,6 +120,10 @@ export class CaseConverter {
   protected readonly bytes = computed(() => formatBytes(this.counts().bytes) + ' as UTF-8');
   protected readonly lineResult = computed(() => (this.text() ? applyLineTools(this.text(), this.lineOptions()) : ''));
   protected readonly resultLines = computed(() => (this.lineResult() ? this.lineResult().split('\n').length : 0));
+
+  constructor() {
+    onSharedInput((data) => this.text.set(data['input'] ?? ''));
+  }
 
   protected setOption(key: keyof LineOptions, value: boolean): void {
     this.lineOptions.update((o) => ({ ...o, [key]: value }));

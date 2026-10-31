@@ -1,4 +1,5 @@
 import { Component, DestroyRef, computed, effect, inject, signal, viewChild } from '@angular/core';
+import { onSharedInput } from '../../core/shared-input';
 import { TOOLS } from '../../core/tools';
 import { CodeEditor } from '../../shared/code-editor/code-editor';
 import { CopyButton } from '../../shared/copy-button/copy-button';
@@ -173,6 +174,10 @@ export class EnvConverter {
       const name = this.name();
       const upper = this.upper();
       void this.convert(text, direction, target, name, upper);
+    });
+    onSharedInput((data) => {
+      this.direction.set('from-env');
+      this.setInput(data['input'] ?? '');
     });
     inject(DestroyRef).onDestroy(() => clearTimeout(this.timer));
   }

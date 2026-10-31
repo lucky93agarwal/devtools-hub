@@ -1,10 +1,12 @@
 import { Component, DestroyRef, computed, inject, signal, viewChild } from '@angular/core';
 import { Analytics, sizeBucket } from '../../core/analytics';
 import { LIMITS } from '../../core/app-config';
+import { onSharedInput } from '../../core/shared-input';
 import { TOOLS } from '../../core/tools';
 import { CodeEditor } from '../../shared/code-editor/code-editor';
 import { baseName, copyText, downloadText, formatBytes } from '../../shared/file-utils';
 import { ICONS, Icon } from '../../shared/icon/icon';
+import { ShareButton } from '../../shared/share-button/share-button';
 import { ToolInfoSection } from '../../shared/tool-info/tool-info';
 import { JsonRunner } from './json-runner';
 import { Indent, JsonError, JsonJob, JsonResult, countLines } from './json-tools';
@@ -26,7 +28,7 @@ const COPIED_MS = 2000;
 
 @Component({
   selector: 'app-json-formatter',
-  imports: [Icon, CodeEditor, ToolInfoSection],
+  imports: [Icon, CodeEditor, ShareButton, ToolInfoSection],
   templateUrl: './json-formatter.html',
 })
 export class JsonFormatter {
@@ -85,6 +87,11 @@ export class JsonFormatter {
 
   constructor() {
     inject(DestroyRef).onDestroy(() => clearTimeout(this.copyTimer));
+    onSharedInput((data) => {
+      this.fileName.set(null);
+      this.setInput(data['input'] ?? '');
+      void this.format();
+    });
   }
 
   protected onInput(value: string): void {

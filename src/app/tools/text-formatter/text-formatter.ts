@@ -2,10 +2,12 @@ import { Component, DestroyRef, computed, effect, inject, signal, viewChild } fr
 import { ActivatedRoute } from '@angular/router';
 import { Analytics, sizeBucket } from '../../core/analytics';
 import { LIMITS } from '../../core/app-config';
+import { onSharedInput } from '../../core/shared-input';
 import { TOOLS } from '../../core/tools';
 import { CodeEditor } from '../../shared/code-editor/code-editor';
 import { baseName, copyText, downloadText, formatBytes } from '../../shared/file-utils';
 import { ICONS, Icon } from '../../shared/icon/icon';
+import { ShareButton } from '../../shared/share-button/share-button';
 import { ToolInfoSection } from '../../shared/tool-info/tool-info';
 import { TEXT_CONTENT, TEXT_SAMPLES, TextFormat } from './content';
 import { formatXml, minifyXml } from './xml-format';
@@ -22,7 +24,7 @@ const COPIED_MS = 2000;
 /** The XML Formatter and the YAML Validator: the same page, with the format taken from the address. */
 @Component({
   selector: 'app-text-formatter',
-  imports: [Icon, CodeEditor, ToolInfoSection],
+  imports: [Icon, CodeEditor, ShareButton, ToolInfoSection],
   templateUrl: './text-formatter.html',
 })
 export class TextFormatter {
@@ -84,6 +86,10 @@ export class TextFormatter {
     inject(DestroyRef).onDestroy(() => {
       clearTimeout(this.timer);
       clearTimeout(this.copyTimer);
+    });
+    onSharedInput((data) => {
+      this.fileName = null;
+      this.setText(data['input'] ?? '');
     });
   }
 

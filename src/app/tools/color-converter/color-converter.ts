@@ -1,7 +1,9 @@
 import { Component, computed, signal } from '@angular/core';
+import { onSharedInput } from '../../core/shared-input';
 import { TOOLS } from '../../core/tools';
 import { CopyButton } from '../../shared/copy-button/copy-button';
 import { ICONS, Icon } from '../../shared/icon/icon';
+import { ShareButton } from '../../shared/share-button/share-button';
 import { ToolGroupNav } from '../../shared/tool-group-nav/tool-group-nav';
 import { ToolInfoSection } from '../../shared/tool-info/tool-info';
 import { Rgba, contrast, formats, parseColor, toHex } from './color';
@@ -40,7 +42,7 @@ class ColorInput {
 
 @Component({
   selector: 'app-color-converter',
-  imports: [Icon, CopyButton, ToolGroupNav, ToolInfoSection],
+  imports: [Icon, CopyButton, ShareButton, ToolGroupNav, ToolInfoSection],
   template: `
     <div class="container-tool pt-10 sm:pt-16">
       <app-tool-group-nav [tool]="tool" />
@@ -52,7 +54,10 @@ class ColorInput {
           <div class="size-full" [style.background-color]="main.color() ? css(main.color()!) : 'transparent'"></div>
         </div>
         <div class="flex flex-col gap-3">
-          <label for="color-input" class="text-sm leading-5 font-semibold">Colour</label>
+          <div class="flex items-center justify-between gap-2">
+            <label for="color-input" class="text-sm leading-5 font-semibold">Colour</label>
+            <app-share-button [path]="tool.path" [data]="main.text().trim() ? { input: main.text() } : null" />
+          </div>
           <div class="flex gap-2">
             <input
               type="color"
@@ -170,6 +175,10 @@ export class ColorConverter {
     const background = this.backgroundColor.color();
     return text && background ? contrast(text, background) : null;
   });
+
+  constructor() {
+    onSharedInput((data) => this.main.text.set(data['input'] ?? ''));
+  }
 
   protected css(c: Rgba): string {
     return `rgb(${c.r} ${c.g} ${c.b} / ${c.a})`;

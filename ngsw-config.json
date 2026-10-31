@@ -1,0 +1,24 @@
+{
+  "$schema": "./node_modules/@angular/service-worker/config/schema.json",
+  "index": "/index.csr.html",
+  "navigationRequestStrategy": "freshness",
+  "navigationUrls": ["/**", "!/**/*.*", "!/**/*__*", "!/**/*__*/**", "!/ad-frame"],
+  "assetGroups": [
+    {
+      "name": "app",
+      "installMode": "prefetch",
+      "updateMode": "prefetch",
+      "resources": {
+        "files": ["/index.csr.html", "/favicon.ico", "/site.webmanifest", "/main-*.js", "/polyfills-*.js", "/styles-*.css", "/icons/**"]
+      }
+    },
+    {
+      "name": "tools",
+      "installMode": "lazy",
+      "updateMode": "lazy",
+      "resources": {
+        "files": ["/chunk-*.js", "/worker-*.js", "/monaco/**", "/media/**", "/jq/**", "/avif/**", "/ort/**", "/models/**", "/samples/**"]
+      }
+    }
+  ]
+}

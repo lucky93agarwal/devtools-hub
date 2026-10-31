@@ -3,11 +3,12 @@ import { RouterLink, RouterLinkActive } from '@angular/router';
 import { NAV_LINKS } from '../../core/tools';
 import { SITE_NAME } from '../../core/app-config';
 import { ThemeService } from '../../core/theme.service';
+import { CommandPalette } from '../../shared/command-palette/command-palette';
 import { ICONS, Icon } from '../../shared/icon/icon';
 
 @Component({
   selector: 'app-header',
-  imports: [RouterLink, RouterLinkActive, Icon],
+  imports: [RouterLink, RouterLinkActive, Icon, CommandPalette],
   templateUrl: './header.html',
 })
 export class Header {

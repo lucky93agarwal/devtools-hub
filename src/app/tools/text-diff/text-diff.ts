@@ -1,9 +1,11 @@
 import { Component, DestroyRef, computed, inject, signal } from '@angular/core';
 import { Analytics } from '../../core/analytics';
+import { onSharedInput } from '../../core/shared-input';
 import { TOOLS } from '../../core/tools';
 import { CodeEditor } from '../../shared/code-editor/code-editor';
 import { DiffStats, DiffViewer } from '../../shared/code-editor/diff-viewer';
 import { ICONS, Icon } from '../../shared/icon/icon';
+import { ShareButton } from '../../shared/share-button/share-button';
 import { ToolGroupNav } from '../../shared/tool-group-nav/tool-group-nav';
 import { ToolInfoSection } from '../../shared/tool-info/tool-info';
 import { describeStats } from '../json-compare/compare-tools';
@@ -13,7 +15,7 @@ const DEBOUNCE_MS = 300;
 
 @Component({
   selector: 'app-text-diff',
-  imports: [Icon, CodeEditor, DiffViewer, ToolGroupNav, ToolInfoSection],
+  imports: [Icon, CodeEditor, DiffViewer, ShareButton, ToolGroupNav, ToolInfoSection],
   template: `
     <div class="container-tool pt-10 sm:pt-16">
       <app-tool-group-nav [tool]="tool" />
@@ -25,6 +27,7 @@ const DEBOUNCE_MS = 300;
           <button type="button" class="btn-small" (click)="loadSample()">Try a sample</button>
           <button type="button" class="btn-small" [disabled]="!original() && !changed()" (click)="swap()">Swap sides</button>
           <button type="button" class="btn-small" [disabled]="!original() && !changed()" (click)="clear()">Clear</button>
+          <app-share-button [path]="tool.path" [data]="original() || changed() ? { original: original(), changed: changed() } : null" />
         </div>
         <label class="flex items-center gap-2 text-sm leading-5">
           <input type="checkbox" class="size-4 accent-brand" [checked]="ignoreWhitespace()" (change)="ignoreWhitespace.set($any($event.target).checked)" />
@@ -110,6 +113,11 @@ export class TextDiff {
   private timer?: ReturnType<typeof setTimeout>;
 
   constructor() {
+    onSharedInput((data) => {
+      this.original.set(data['original'] ?? '');
+      this.changed.set(data['changed'] ?? '');
+      this.settle();
+    });
     inject(DestroyRef).onDestroy(() => clearTimeout(this.timer));
   }
 

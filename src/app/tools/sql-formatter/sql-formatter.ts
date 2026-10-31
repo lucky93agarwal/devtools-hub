@@ -1,10 +1,12 @@
 import { Component, DestroyRef, effect, inject, signal, viewChild } from '@angular/core';
 import { Analytics } from '../../core/analytics';
+import { onSharedInput } from '../../core/shared-input';
 import { TOOLS } from '../../core/tools';
 import { CodeEditor } from '../../shared/code-editor/code-editor';
 import { CopyButton } from '../../shared/copy-button/copy-button';
 import { downloadText } from '../../shared/file-utils';
 import { ICONS, Icon } from '../../shared/icon/icon';
+import { ShareButton } from '../../shared/share-button/share-button';
 import { ToolGroupNav } from '../../shared/tool-group-nav/tool-group-nav';
 import { ToolInfoSection } from '../../shared/tool-info/tool-info';
 import { SQL_CONTENT, SQL_SAMPLE } from './content';
@@ -14,7 +16,7 @@ const DEBOUNCE_MS = 250;
 
 @Component({
   selector: 'app-sql-formatter',
-  imports: [Icon, CodeEditor, CopyButton, ToolGroupNav, ToolInfoSection],
+  imports: [Icon, CodeEditor, CopyButton, ShareButton, ToolGroupNav, ToolInfoSection],
   template: `
     <div class="container-tool pt-10 sm:pt-16">
       <app-tool-group-nav [tool]="tool" />
@@ -63,6 +65,7 @@ const DEBOUNCE_MS = 250;
         <div class="flex gap-2">
           <button type="button" class="btn-small" (click)="loadSample()">Try a sample</button>
           <button type="button" class="btn-small" [disabled]="!input()" (click)="setInput('')">Clear</button>
+          <app-share-button [path]="tool.path" [data]="input().trim() ? { input: input(), dialect: dialect() } : null" />
         </div>
       </div>
 
@@ -143,6 +146,10 @@ export class SqlFormatter {
       const options = { dialect: this.dialect(), keywordCase: this.keywordCase(), indent: this.indent() };
       const oneLine = this.oneLine();
       void this.format(sql, options, oneLine);
+    });
+    onSharedInput((data) => {
+      if (DIALECTS.some((d) => d.value === data['dialect'])) this.dialect.set(data['dialect'] as Dialect);
+      this.setInput(data['input'] ?? '');
     });
     inject(DestroyRef).onDestroy(() => clearTimeout(this.timer));
   }

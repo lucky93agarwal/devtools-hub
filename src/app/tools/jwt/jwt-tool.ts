@@ -1,6 +1,7 @@
 import { Component, DestroyRef, PLATFORM_ID, computed, effect, inject, signal } from '@angular/core';
 import { Analytics } from '../../core/analytics';
 import { isPlatformBrowser } from '@angular/common';
+import { onSharedInput } from '../../core/shared-input';
 import { TOOLS } from '../../core/tools';
 import { copyText } from '../../shared/file-utils';
 import { ICONS, Icon } from '../../shared/icon/icon';
@@ -99,6 +100,10 @@ export class JwtTool {
   private verifyId = 0;
 
   constructor() {
+    onSharedInput((data) => {
+      this.mode.set('decode');
+      this.onInput(data['token'] ?? '');
+    });
     const destroyRef = inject(DestroyRef);
     destroyRef.onDestroy(() => clearTimeout(this.copyTimer));
     // Keep "expires in 5 minutes" and the badge current while the page is open.

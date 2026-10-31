@@ -6,6 +6,8 @@
 //    Pages marked noindex (such as "coming soon" tools) are left out of the sitemap.
 // 3. Publishes the licences of the libraries in the site at /third-party-licenses.txt.
 // 4. Writes ads.txt when an AdSense publisher ID is set in app-config.ts.
+// 5. Rebuilds the service worker's file list (ngsw.json) from the final files.
+import { execFileSync } from 'node:child_process';
 import { copyFileSync, readFileSync, writeFileSync } from 'node:fs';
 
 const out = 'dist/devtools-hub/browser';
@@ -67,3 +69,8 @@ const home = urls.find((url) => new URL(url).pathname === '/');
 if (!home) throw new Error('The home page is missing from the sitemap');
 writeFileSync(`${out}/robots.txt`, `User-agent: *\nAllow: /\n\nSitemap: ${new URL('/sitemap.xml', home)}\n`);
 console.log(`Created sitemap.xml with ${urls.length} pages, and robots.txt`);
+
+// 5. The steps above changed index.csr.html after Angular hashed it for the service worker, which would then
+//    refuse to install. Write ngsw.json again from the final files.
+execFileSync(process.execPath, ['node_modules/@angular/service-worker/ngsw-config.js', out, 'ngsw-config.json', '/'], { stdio: 'inherit' });
+console.log('Rebuilt ngsw.json for the service worker');

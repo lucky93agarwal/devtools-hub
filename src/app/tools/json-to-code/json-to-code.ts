@@ -2,6 +2,7 @@ import { Component, DestroyRef, computed, effect, inject, signal, viewChild } fr
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { Analytics, sizeBucket } from '../../core/analytics';
 import { LIMITS } from '../../core/app-config';
+import { onSharedInput } from '../../core/shared-input';
 import { TOOLS } from '../../core/tools';
 import { CodeEditor } from '../../shared/code-editor/code-editor';
 import { copyText, downloadText, formatBytes } from '../../shared/file-utils';
@@ -80,6 +81,7 @@ export class JsonToCode {
     // ?to=typescript-interface opens the page with that output chosen.
     const requested = inject(ActivatedRoute).snapshot.queryParamMap.get('to');
     if (requested) this.chooseTarget(requested, false);
+    onSharedInput((data) => this.setText(data['input'] ?? ''));
 
     effect(() => {
       const error = this.error();

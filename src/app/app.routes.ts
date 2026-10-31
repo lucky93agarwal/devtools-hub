@@ -44,6 +44,12 @@ const toolComponents: Record<string, () => Promise<Type<unknown>>> = {
   'code-beautifier': () => import('./tools/code-beautifier/code-beautifier').then((m) => m.CodeBeautifier),
   'env-converter': () => import('./tools/env-converter/env-converter').then((m) => m.EnvConverter),
   'curl-to-code': () => import('./tools/curl-to-code/curl-to-code').then((m) => m.CurlToCode),
+  'regex-tester': () => import('./tools/regex-tester/regex-tester').then((m) => m.RegexTester),
+  'json-query': () => import('./tools/json-query/json-query').then((m) => m.JsonQuery),
+  'mock-data-generator': () =>
+    import('./tools/mock-data-generator/mock-data-generator').then((m) => m.MockDataGenerator),
+  'certificate-decoder': () =>
+    import('./tools/certificate-decoder/certificate-decoder').then((m) => m.CertificateDecoder),
 };
 
 /** Each tool is a lazy-loaded route with its own URL, title and description. */

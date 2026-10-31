@@ -1,7 +1,9 @@
 import { Component, DestroyRef, afterNextRender, computed, inject, signal } from '@angular/core';
+import { onSharedInput } from '../../core/shared-input';
 import { TOOLS } from '../../core/tools';
 import { CopyButton } from '../../shared/copy-button/copy-button';
 import { ICONS, Icon } from '../../shared/icon/icon';
+import { ShareButton } from '../../shared/share-button/share-button';
 import { ToolGroupNav } from '../../shared/tool-group-nav/tool-group-nav';
 import { ToolInfoSection } from '../../shared/tool-info/tool-info';
 import { TIMESTAMP_CONTENT } from './content';
@@ -9,7 +11,7 @@ import { UNIT_LABELS, Unit, currentZoneName, isoInZone, msToWallTime, parseTime,
 
 @Component({
   selector: 'app-timestamp-converter',
-  imports: [Icon, CopyButton, ToolGroupNav, ToolInfoSection],
+  imports: [Icon, CopyButton, ShareButton, ToolGroupNav, ToolInfoSection],
   template: `
     <div class="container-tool pt-10 sm:pt-16">
       <app-tool-group-nav [tool]="tool" />
@@ -46,7 +48,10 @@ import { UNIT_LABELS, Unit, currentZoneName, isoInZone, msToWallTime, parseTime,
       </div>
 
       <section class="mt-8" aria-labelledby="to-date-heading">
-        <h2 id="to-date-heading" class="text-xl leading-7">Timestamp to date</h2>
+        <div class="flex flex-wrap items-center justify-between gap-2">
+          <h2 id="to-date-heading" class="text-xl leading-7">Timestamp to date</h2>
+          <app-share-button [path]="tool.path" [data]="input().trim() ? { input: input() } : null" />
+        </div>
         <div class="mt-4 flex flex-wrap gap-3">
           <label for="ts-input" class="sr-only">Unix timestamp or date</label>
           <input
@@ -162,6 +167,10 @@ export class TimestampConverter {
       this.now.set(Date.now());
       this.useNow();
       timer = setInterval(() => this.now.set(Date.now()), 1000);
+    });
+    onSharedInput((data) => {
+      this.input.set(data['input'] ?? '');
+      this.unit.set('auto');
     });
     inject(DestroyRef).onDestroy(() => clearInterval(timer));
   }

@@ -1,10 +1,12 @@
 import { Component, computed, effect, inject, signal } from '@angular/core';
 import { Analytics, sizeBucket } from '../../core/analytics';
 import { LIMITS } from '../../core/app-config';
+import { onSharedInput } from '../../core/shared-input';
 import { TOOLS } from '../../core/tools';
 import { CopyButton } from '../../shared/copy-button/copy-button';
 import { baseName, downloadBlob, downloadText, formatBytes } from '../../shared/file-utils';
 import { ICONS, Icon } from '../../shared/icon/icon';
+import { ShareButton } from '../../shared/share-button/share-button';
 import { ToolGroupNav } from '../../shared/tool-group-nav/tool-group-nav';
 import { ToolInfoSection } from '../../shared/tool-info/tool-info';
 import { bytesToBase64, bytesToText, decodeBase64, extensionFor, textToBase64, wrapLines } from './base64';
@@ -14,7 +16,7 @@ type Mode = 'encode' | 'decode';
 
 @Component({
   selector: 'app-base64-tool',
-  imports: [Icon, CopyButton, ToolGroupNav, ToolInfoSection],
+  imports: [Icon, CopyButton, ShareButton, ToolGroupNav, ToolInfoSection],
   template: `
     <div class="container-tool pt-10 sm:pt-16">
       <app-tool-group-nav [tool]="tool" />
@@ -67,6 +69,7 @@ type Mode = 'encode' | 'decode';
                 </button>
               }
               <button type="button" class="btn-small" [disabled]="!input() && !file()" (click)="clear()">Clear</button>
+              <app-share-button [path]="tool.path" [data]="input() && !file() ? { input: input(), mode: mode() } : null" />
             </div>
             <input #fileInput type="file" class="sr-only" tabindex="-1" aria-hidden="true" (change)="onFileChosen(fileInput)" />
           </div>
@@ -205,6 +208,11 @@ export class Base64Tool {
   });
 
   constructor() {
+    onSharedInput((data) => {
+      this.mode.set(data['mode'] === 'decode' ? 'decode' : 'encode');
+      this.file.set(null);
+      this.input.set(data['input'] ?? '');
+    });
     effect((onCleanup) => {
       const decoded = this.decodedFile();
       const url = decoded?.mime?.startsWith('image/') ? URL.createObjectURL(decoded.blob) : null;

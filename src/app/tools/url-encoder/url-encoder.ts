@@ -1,7 +1,9 @@
 import { Component, computed, signal } from '@angular/core';
+import { onSharedInput } from '../../core/shared-input';
 import { TOOLS } from '../../core/tools';
 import { CopyButton } from '../../shared/copy-button/copy-button';
 import { ICONS, Icon } from '../../shared/icon/icon';
+import { ShareButton } from '../../shared/share-button/share-button';
 import { ToolGroupNav } from '../../shared/tool-group-nav/tool-group-nav';
 import { ToolInfoSection } from '../../shared/tool-info/tool-info';
 import { URL_CONTENT } from './content';
@@ -11,7 +13,7 @@ const SAMPLE_URL = 'https://api.example.com:8443/v1/search?q=caf%C3%A9%20%26%20b
 
 @Component({
   selector: 'app-url-encoder',
-  imports: [Icon, CopyButton, ToolGroupNav, ToolInfoSection],
+  imports: [Icon, CopyButton, ShareButton, ToolGroupNav, ToolInfoSection],
   template: `
     <div class="container-tool pt-10 sm:pt-16">
       <app-tool-group-nav [tool]="tool" />
@@ -80,7 +82,10 @@ const SAMPLE_URL = 'https://api.example.com:8443/v1/search?q=caf%C3%A9%20%26%20b
       <section class="mt-12" aria-labelledby="parse-heading">
         <div class="flex flex-wrap items-center justify-between gap-2">
           <h2 id="parse-heading" class="text-xl leading-7">Parse a URL</h2>
-          <button type="button" class="btn-small" (click)="loadUrl(sample)">Try a sample URL</button>
+          <span class="flex gap-2">
+            <button type="button" class="btn-small" (click)="loadUrl(sample)">Try a sample URL</button>
+            <app-share-button [path]="tool.path" [data]="urlInput().trim() ? { url: urlInput() } : null" />
+          </span>
         </div>
         <label for="url-input" class="sr-only">URL to parse</label>
         <input
@@ -194,6 +199,16 @@ export class UrlEncoder {
     const p = this.parts();
     return p ? buildUrl(p) : '';
   });
+
+  constructor() {
+    onSharedInput((data) => {
+      if (data['url']) this.loadUrl(data['url']);
+      if (data['text'] !== undefined) {
+        this.direction.set(data['direction'] === 'decode' ? 'decode' : 'encode');
+        this.text.set(data['text']);
+      }
+    });
+  }
 
   protected loadUrl(value: string): void {
     this.urlInput.set(value);

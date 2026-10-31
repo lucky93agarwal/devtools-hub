@@ -1,5 +1,6 @@
 import { Component, afterNextRender, computed, inject, signal } from '@angular/core';
 import { Analytics } from '../../core/analytics';
+import { onSharedInput } from '../../core/shared-input';
 import { TOOLS } from '../../core/tools';
 import { CopyButton } from '../../shared/copy-button/copy-button';
 import { downloadText } from '../../shared/file-utils';
@@ -162,6 +163,7 @@ export class UuidGenerator {
   constructor() {
     // Made in the browser only, so every visitor gets their own ids rather than ones baked into the page.
     afterNextRender(() => this.regenerate(false));
+    onSharedInput((data) => this.toInspect.set(data['inspect'] ?? ''));
   }
 
   protected setKind(kind: IdKind): void {

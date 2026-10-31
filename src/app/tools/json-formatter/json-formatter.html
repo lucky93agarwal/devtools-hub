@@ -18,6 +18,7 @@
       >
         Clear
       </button>
+      <app-share-button [path]="tool.path" [data]="input().trim() ? { input: input() } : null" />
     </div>
 
     <div class="flex items-center gap-2" role="radiogroup" aria-labelledby="indent-label">

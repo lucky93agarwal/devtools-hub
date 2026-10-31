@@ -46,3 +46,34 @@ Apache-2.0, see /models/u2netp.LICENSE.txt).
 From github/gitignore (https://github.com/github/gitignore), dedicated to the public
 domain under CC0 1.0 Universal (https://creativecommons.org/publicdomain/zero/1.0/).
 No attribution is required; it is given here as thanks.
+
+--------------------------------------------------------------------------------
+
+/jq/jq.wasm (jq for the JSONPath and jq Playground, from the jq-wasm package)
+jq 1.8.2 (https://jqlang.org) compiled to WebAssembly by jq-wasm
+(https://github.com/owenthereal/jq-wasm, MIT, Copyright (c) 2024 Owen Ou).
+
+  jq: Copyright (C) 2012 Stephen Dolan and jq contributors. MIT licence.
+  jq also contains code under other permissive licences (dtoa by David M. Gay,
+  decNumber under the ICU licence); see https://github.com/jqlang/jq/blob/master/COPYING
+
+  Oniguruma (regular expressions inside jq): Copyright (c) 2002-2021 K.Kosako.
+  BSD 2-Clause licence: https://github.com/kkos/oniguruma/blob/master/COPYING
+
+  Permission is hereby granted, free of charge, to any person obtaining a copy
+  of this software and associated documentation files (the "Software"), to deal
+  in the Software without restriction, including without limitation the rights
+  to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+  copies of the Software, and to permit persons to whom the Software is
+  furnished to do so, subject to the following conditions:
+
+  The above copyright notice and this permission notice shall be included in
+  all copies or substantial portions of the Software.
+
+  THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+  IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+  FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+  AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+  LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+  OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+  THE SOFTWARE.

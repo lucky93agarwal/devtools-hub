@@ -1,8 +1,10 @@
 import { Component, afterNextRender, computed, signal } from '@angular/core';
 import cronstrue from 'cronstrue';
+import { onSharedInput } from '../../core/shared-input';
 import { TOOLS } from '../../core/tools';
 import { CopyButton } from '../../shared/copy-button/copy-button';
 import { ICONS, Icon } from '../../shared/icon/icon';
+import { ShareButton } from '../../shared/share-button/share-button';
 import { ToolGroupNav } from '../../shared/tool-group-nav/tool-group-nav';
 import { ToolInfoSection } from '../../shared/tool-info/tool-info';
 import { CRON_CONTENT } from './content';
@@ -12,7 +14,7 @@ const FIELD_NAMES = ['Minute', 'Hour', 'Day of month', 'Month', 'Day of week'];
 
 @Component({
   selector: 'app-cron-expression',
-  imports: [Icon, CopyButton, ToolGroupNav, ToolInfoSection],
+  imports: [Icon, CopyButton, ShareButton, ToolGroupNav, ToolInfoSection],
   template: `
     <div class="container-tool pt-10 sm:pt-16">
       <app-tool-group-nav [tool]="tool" />
@@ -31,6 +33,7 @@ const FIELD_NAMES = ['Minute', 'Hour', 'Day of month', 'Month', 'Day of week'];
           (input)="expression.set($any($event.target).value)"
         />
         <app-copy-button [text]="expression().trim()" />
+        <app-share-button [path]="tool.path" [data]="expression().trim() ? { input: expression() } : null" />
       </div>
       <div class="mt-3 flex flex-wrap gap-2">
         @for (preset of presets; track preset.expression) {
@@ -149,6 +152,7 @@ export class CronExpression {
 
   constructor() {
     afterNextRender(() => this.now.set(Date.now()));
+    onSharedInput((data) => this.expression.set(data['input'] ?? ''));
   }
 
   protected formatRun(run: Date): string {

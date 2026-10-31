@@ -1,5 +1,6 @@
 import { Component, ElementRef, afterRenderEffect, computed, inject, signal, viewChild } from '@angular/core';
 import { Analytics } from '../../core/analytics';
+import { onSharedInput } from '../../core/shared-input';
 import { TOOLS } from '../../core/tools';
 import { downloadBlob, downloadText } from '../../shared/file-utils';
 import { ICONS, Icon } from '../../shared/icon/icon';
@@ -245,6 +246,10 @@ export class QrCodeGenerator {
   private readonly analytics = inject(Analytics);
 
   constructor() {
+    onSharedInput((data) => {
+      this.kind.set('text');
+      this.text.set(data['input'] ?? '');
+    });
     // Browser only: there is no canvas while the page is prerendered.
     afterRenderEffect(() => {
       const modules = this.modules();

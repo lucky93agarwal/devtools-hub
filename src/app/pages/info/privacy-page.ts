@@ -32,8 +32,16 @@ import { InfoPage } from './info-page';
         You do not need an account to use any tool. The site itself does not set cookies{{
           adsOn ? '; the advertising cookies described below come from Google' : ''
         }}. It may save small preferences, such as the light or dark theme, in your browser's local storage, and the API
-        Client keeps the requests, collections, environments and history you create there too. These never leave your
-        device and you can clear them in your browser settings.
+        Client keeps the requests, collections, environments and history you create there too, as does the list of tools
+        you star or used recently. These never leave your device and you can clear them in your browser settings.
+      </p>
+      <p>
+        So that tools keep working offline, the site's own code and files are kept in your browser's cache by a service
+        worker. It stores only the site's files, never what you type or upload.
+      </p>
+      <p>
+        A Share link puts the tool's input into the link itself, after the # sign. Browsers never send that part to a
+        server, but anyone you give the link to can read the data in it.
       </p>
 
       <h2>Requests you send with the API Client</h2>

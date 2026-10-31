@@ -14,6 +14,8 @@ export default defineConfig({
   use: {
     baseURL: 'http://127.0.0.1:4317',
     trace: 'retain-on-failure',
+    // The service worker caches pages between tests; only the offline test turns it on.
+    serviceWorkers: 'block',
   },
   projects: [{ name: 'chromium', use: { ...devices['Desktop Chrome'] } }],
   webServer: {

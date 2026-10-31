@@ -1,5 +1,7 @@
 import { Component, afterNextRender, inject } from '@angular/core';
 import { Analytics } from './core/analytics';
+import { UserTools } from './core/user-tools';
+import { AppUpdates } from './core/app-updates';
 import { RouterOutlet } from '@angular/router';
 import { Header } from './layout/header/header';
 import { Footer } from './layout/footer/footer';
@@ -27,6 +29,9 @@ import { ExtraAds } from './shared/extra-ads/extra-ads';
 export class App {
   constructor() {
     const analytics = inject(Analytics);
+    // Starts remembering recently used tools for the home page and the search box.
+    inject(UserTools);
+    inject(AppUpdates);
     afterNextRender(() => analytics.load());
   }
 }

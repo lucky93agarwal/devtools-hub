@@ -1,7 +1,9 @@
 import { Component, computed, signal } from '@angular/core';
+import { onSharedInput } from '../../core/shared-input';
 import { TOOLS } from '../../core/tools';
 import { CopyButton } from '../../shared/copy-button/copy-button';
 import { ICONS, Icon } from '../../shared/icon/icon';
+import { ShareButton } from '../../shared/share-button/share-button';
 import { ToolGroupNav } from '../../shared/tool-group-nav/tool-group-nav';
 import { ToolInfoSection } from '../../shared/tool-info/tool-info';
 import { addressType, blockSize, contains, formatAddress, formatIpv6, hostRange, maskOf, parseBlock, subnets, toCidr } from './cidr';
@@ -18,14 +20,17 @@ function count(n: bigint): string {
 
 @Component({
   selector: 'app-cidr-calculator',
-  imports: [Icon, CopyButton, ToolGroupNav, ToolInfoSection],
+  imports: [Icon, CopyButton, ShareButton, ToolGroupNav, ToolInfoSection],
   template: `
     <div class="container-tool pt-10 sm:pt-16">
       <app-tool-group-nav [tool]="tool" />
       <h1 class="mt-6 text-[28px] leading-9 sm:text-[40px] sm:leading-12">{{ tool.name }}</h1>
       <p class="mt-3 text-muted">{{ tool.description }}</p>
 
-      <label for="cidr-input" class="mt-8 block text-sm leading-5 font-semibold">CIDR block or address</label>
+      <div class="mt-8 flex items-center justify-between gap-2">
+        <label for="cidr-input" class="text-sm leading-5 font-semibold">CIDR block or address</label>
+        <app-share-button [path]="tool.path" [data]="input().trim() ? { input: input() } : null" />
+      </div>
       <input
         id="cidr-input"
         class="field mt-2 w-full font-mono text-lg"
@@ -215,6 +220,10 @@ export class CidrCalculator {
     const b = this.block();
     return b ? 1n << BigInt((b.family === 4 ? 32 : 128) - this.splitPrefix()) : 0n;
   });
+
+  constructor() {
+    onSharedInput((data) => this.input.set(data['input'] ?? ''));
+  }
 
   protected chooseSplit(prefix: number): void {
     this.chosenSplit.set(prefix);

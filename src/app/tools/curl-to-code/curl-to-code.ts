@@ -1,5 +1,6 @@
 import { Component, computed, inject, signal } from '@angular/core';
 import { Analytics } from '../../core/analytics';
+import { onSharedInput } from '../../core/shared-input';
 import { TOOLS } from '../../core/tools';
 import { CodeEditor } from '../../shared/code-editor/code-editor';
 import { CopyButton } from '../../shared/copy-button/copy-button';
@@ -117,6 +118,10 @@ export class CurlToCode {
   protected readonly label = computed(() => SNIPPET_LANGUAGES.find((l) => l.id === this.language())?.label ?? 'Code');
 
   private readonly analytics = inject(Analytics);
+
+  constructor() {
+    onSharedInput((data) => this.command.set(data['input'] ?? ''));
+  }
 
   protected choose(id: string): void {
     this.language.set(id);

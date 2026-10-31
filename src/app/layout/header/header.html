@@ -28,6 +28,17 @@
     <div class="flex items-center gap-1">
       <button
         type="button"
+        class="flex h-11 items-center gap-2 rounded-full px-3 text-muted hover:bg-surface hover:text-ink"
+        aria-label="Search tools"
+        aria-keyshortcuts="Control+K Meta+K /"
+        title="Search tools (Ctrl+K)"
+        (click)="palette.show()"
+      >
+        <app-icon [path]="icons.search" [size]="20" />
+        <kbd class="hidden rounded border border-line px-1.5 text-xs leading-5 lg:inline">Ctrl K</kbd>
+      </button>
+      <button
+        type="button"
         class="grid size-11 place-items-center rounded-full text-muted hover:bg-surface hover:text-ink"
         [attr.aria-label]="theme.theme() === 'dark' ? 'Switch to light theme' : 'Switch to dark theme'"
         (click)="theme.toggle()"
@@ -47,6 +58,8 @@
       </button>
     </div>
   </div>
+
+  <app-command-palette #palette />
 
   @if (menuOpen()) {
     <nav id="mobile-menu" class="border-t border-line md:hidden" aria-label="Main">

@@ -9,7 +9,7 @@ import { Component, input } from '@angular/core';
       [attr.width]="size()"
       [attr.height]="size()"
       viewBox="0 0 24 24"
-      fill="none"
+      [attr.fill]="filled() ? 'currentColor' : 'none'"
       stroke="currentColor"
       stroke-width="2"
       stroke-linecap="round"
@@ -26,6 +26,8 @@ export class Icon {
   readonly path = input.required<string>();
   readonly size = input(24);
   readonly label = input<string>();
+  /** Fill the shape too, for example a starred star. */
+  readonly filled = input(false);
 }
 
 /** Icons used by the layout. */
@@ -44,4 +46,9 @@ export const ICONS = {
   code: 'M8 7l-5 5 5 5M16 7l5 5-5 5M14 4l-4 16',
   importFile: 'M12 4v11M7 10l5 5 5-5M5 20h14',
   sparkle: 'M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8z',
+  link: 'M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1',
+  star: 'M12 3l2.8 5.6 6.2.9-4.5 4.4 1 6.1L12 17.1 6.5 20l1-6.1L3 9.5l6.2-.9z',
+  search: 'M11 18a7 7 0 1 0 0-14 7 7 0 0 0 0 14zM20 20l-4-4',
+  clock: 'M12 7v5l3 2M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18z',
+  clipboard: 'M9 4h6v3H9zM9 5H6v15h12V5h-3',
 } as const;
