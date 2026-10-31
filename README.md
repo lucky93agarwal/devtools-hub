@@ -60,6 +60,15 @@ Free, privacy-first developer tools that run entirely in the browser. Nothing yo
 | [Data Size and Transfer Time Converter](https://devtools24.in/data-size-converter) | Live |
 | [AES Encryption and Decryption](https://devtools24.in/aes-encryption) | Live (OpenSSL compatible) |
 | [TOTP and 2FA Code Generator](https://devtools24.in/totp-generator) | Live (RFC 6238) |
+| [Stack Trace and Source Map Decoder](https://devtools24.in/stack-trace-decoder) | Live (source maps, Java and Kotlin traces) |
+| [SVG Optimizer and VectorDrawable Converter](https://devtools24.in/svg-converter) | Live (SVGO, VectorDrawable, Compose) |
+| [Key Pair and JWK Generator](https://devtools24.in/key-generator) | Live (RSA, EC, Ed25519, PEM and JWK) |
+| [Git Command Helper](https://devtools24.in/git-helper) | Live |
+| [Kubernetes YAML Explainer](https://devtools24.in/kubernetes-explainer) | Live |
+| [OpenAPI Viewer and Validator](https://devtools24.in/openapi-viewer) | Live (OpenAPI 3, Swagger 2.0) |
+| [App Links and Universal Links Helper](https://devtools24.in/deep-link-checker) | Live |
+| [Mermaid Diagram Editor](https://devtools24.in/mermaid-editor) | Live (SVG and PNG export) |
+| [Code Screenshot Maker](https://devtools24.in/code-screenshot) | Live |
 
 Site-wide: **Smart Paste** on the home page (recognises what you paste and opens the right tool with it), a **Ctrl+K / ⌘K
 search**, **starred and recent tools** (stored in the browser), **share links** that carry a tool's input after `#` (never

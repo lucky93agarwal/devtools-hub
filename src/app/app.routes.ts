@@ -65,6 +65,15 @@ const toolComponents: Record<string, () => Promise<Type<unknown>>> = {
   'data-size-converter': () => import('./tools/data-size-converter/data-size-converter').then((m) => m.DataSizeConverter),
   'aes-encryption': () => import('./tools/aes-encryption/aes-encryption').then((m) => m.AesEncryption),
   'totp-generator': () => import('./tools/totp-generator/totp-generator').then((m) => m.TotpGenerator),
+  'stack-trace-decoder': () => import('./tools/stack-trace-decoder/stack-trace-decoder').then((m) => m.StackTraceDecoder),
+  'svg-converter': () => import('./tools/svg-converter/svg-converter').then((m) => m.SvgConverter),
+  'key-generator': () => import('./tools/key-generator/key-generator').then((m) => m.KeyGenerator),
+  'git-helper': () => import('./tools/git-helper/git-helper').then((m) => m.GitHelper),
+  'kubernetes-explainer': () => import('./tools/kubernetes-explainer/kubernetes-explainer').then((m) => m.KubernetesExplainer),
+  'openapi-viewer': () => import('./tools/openapi-viewer/openapi-viewer').then((m) => m.OpenapiViewer),
+  'deep-link-checker': () => import('./tools/deep-link-checker/deep-link-checker').then((m) => m.DeepLinkChecker),
+  'mermaid-editor': () => import('./tools/mermaid-editor/mermaid-editor').then((m) => m.MermaidEditor),
+  'code-screenshot': () => import('./tools/code-screenshot/code-screenshot').then((m) => m.CodeScreenshot),
 };
 
 /** Each tool is a lazy-loaded route with its own URL, title and description. */

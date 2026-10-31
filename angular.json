@@ -50,7 +50,7 @@
             "server": "src/main.server.ts",
             "serviceWorker": "ngsw-config.json",
             "outputMode": "static",
-            "allowedCommonJsDependencies": ["pako", "papaparse", "utif", "cronstrue", "js-beautify", "acorn", "nearley", "@jridgewell/resolve-uri", "source-map-js/lib/source-map-generator.js", "ajv", "ajv-formats", "semver", "bowser", "fast-deep-equal", "json-schema-traverse", "fast-uri"],
+            "allowedCommonJsDependencies": ["pako", "papaparse", "utif", "cronstrue", "js-beautify", "acorn", "nearley", "@jridgewell/resolve-uri", "source-map-js/lib/source-map-generator.js", "ajv", "ajv-formats", "semver", "bowser", "fast-deep-equal", "json-schema-traverse", "fast-uri", "source-map-js", "cytoscape-fcose", "cytoscape-cose-bilkent", "@braintree/sanitize-url", "elkjs/lib/elk.bundled.js", "dayjs", "dayjs/plugin/isoWeek.js", "dayjs/plugin/customParseFormat.js", "dayjs/plugin/advancedFormat.js", "dayjs/plugin/duration.js"],
             "security": {
               "allowedHosts": []
             },
