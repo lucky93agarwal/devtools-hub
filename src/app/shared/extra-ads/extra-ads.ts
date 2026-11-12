@@ -135,7 +135,7 @@ export class ExtraAd {
   selector: 'app-extra-ads',
   imports: [ExtraAd, Icon],
   template: `
-    @if (ready()) {
+    @if (enabled && ready()) {
       @for (side of wide() ? sides : []; track side) {
         <aside
           class="fixed top-28 z-10 flex flex-col gap-1"
@@ -168,6 +168,7 @@ export class ExtraAd {
   `,
 })
 export class ExtraAds {
+  protected readonly enabled: boolean = EXTRA_ADS.enabled;
   protected readonly sides = ['left', 'right'] as const;
   protected railKey: string = EXTRA_ADS.railKey;
   protected popupKey: string = EXTRA_ADS.popupKey;
@@ -192,6 +193,7 @@ export class ExtraAds {
       if (event instanceof NavigationEnd) this.path.set(event.urlAfterRedirects);
     });
     afterNextRender(() => {
+      if (!this.enabled) return;
       // Automated browsers (tests, crawlers) get our own cards instead of network ads.
       if (view?.navigator.webdriver) this.railKey = this.popupKey = '';
       this.path.set(router.url);

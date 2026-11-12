@@ -44,6 +44,11 @@ export const ADS = {
  * empty, that place shows DevTools24's own "Advertise here" card instead.
  */
 export const EXTRA_ADS = {
+  /**
+   * Master switch for these ads (side ads and popup). Off while AdSense reviews
+   * the site: intrusive popups and gambling ads count against approval.
+   */
+  enabled: false,
   /** 160 x 600 banner, used for both side ads. */
   railKey: 'c59e81b34e3d365626477d469b324cde',
   /** 300 x 250 banner, used in the popup. */
