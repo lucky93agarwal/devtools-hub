@@ -4,12 +4,12 @@ import { ToolContent } from '../../shared/tool-info/tool-info';
 export const IMAGE_CONTENT: ToolContent = {
   aboutHeading: 'About this image converter',
   about:
-    'Convert JPG, PNG, WebP, AVIF, HEIC, GIF, BMP, TIFF, ICO and SVG images in batches of up to 15, right in your ' +
+    'Convert JPG, PNG, WebP, AVIF, HEIC, GIF, BMP, TIFF, ICO and SVG images in batches of up to 50, right in your ' +
     'browser. Save them as JPG, PNG, WebP, AVIF, GIF, BMP, TIFF or ICO, set the quality for JPG, WebP and AVIF, resize ' +
     'if you need smaller pictures, and download each image or all of them as one ZIP file. Your images are never ' +
     'uploaded, which keeps private photos and screenshots on your device.',
   steps: [
-    'Drop up to 15 images on the box, choose them with Choose images, or paste them.',
+    'Drop up to 50 images or a whole folder on the box, choose them with Choose images or Choose folder, or paste them.',
     'Pick the format to convert to, for example JPG, WebP or ICO.',
     'Optionally set the quality, resize the images or add a suffix to the file names.',
     'Choose Convert, then download single images or Download all as ZIP.',
@@ -54,7 +54,7 @@ export const IMAGE_CONTENT: ToolContent = {
     {
       question: 'Are there limits?',
       answer:
-        'Up to 15 images per batch, 20 MB per image and 150 MB per batch. The limits protect phones from running out ' +
+        'Up to 50 images per batch, 20 MB per image and 150 MB per batch. The limits protect phones from running out ' +
         'of memory. If you choose more, the first ones are kept and the page tells you what was left out.',
     },
   ],

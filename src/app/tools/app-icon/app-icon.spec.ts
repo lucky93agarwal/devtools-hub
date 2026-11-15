@@ -90,7 +90,8 @@ describe('AppIconGenerator', () => {
   it('previews the icons and warns that a small image will be blurry', async () => {
     const { el, choose, text } = await setup();
     await choose();
-    expect(el.querySelectorAll('ul img')).toHaveLength(4);
+    // 4 icon previews, 5 launcher shapes and the icon on two home screens.
+    expect(el.querySelectorAll('img')).toHaveLength(11);
     expect(text()).toContain('This image is 512×512 px. Use at least 1024×1024 px');
   });
 

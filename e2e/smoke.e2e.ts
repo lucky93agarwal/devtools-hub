@@ -163,7 +163,7 @@ test('Image Converter opens HEIC, TIFF and SVG and saves every output format', a
   // Chromium cannot open HEIC or TIFF itself, so these use the bundled readers.
   const files = ['small.heic', 'small.tiff', 'small.svg'].map((name) => `e2e/fixtures/${name}`);
   await (await chooser).setFiles(files);
-  await expect(page.getByText('3 / 15')).toBeVisible();
+  await expect(page.getByText('3 / 50')).toBeVisible();
 
   for (const format of ['AVIF', 'GIF', 'BMP', 'TIFF', 'ICO', 'JPG']) {
     await page.getByRole('radio', { name: format, exact: true }).click();
@@ -248,7 +248,10 @@ test('App Icon Generator previews icons and downloads the ZIP', async ({ page })
   await page.getByRole('button', { name: 'Choose image' }).click();
   await (await chooser).setFiles('e2e/fixtures/photo.png');
   await expect(page.getByText('Use at least 1024×1024 px')).toBeVisible();
-  await expect(page.locator('ul img')).toHaveCount(4);
+  // Four icon previews and five launcher shapes, plus the icon on two home screens.
+  await expect(page.locator('ul img')).toHaveCount(9);
+  await expect(page.getByText('Squircle (Samsung)')).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'On a home screen' })).toBeVisible();
   const download = page.waitForEvent('download');
   await page.getByRole('button', { name: 'Download 21 files (ZIP)' }).click();
   expect((await download).suggestedFilename()).toBe('app-icons.zip');

@@ -79,7 +79,7 @@ describe('ImageConverter', () => {
 
   it('shows the drop zone and no list at first', async () => {
     const { text, counter } = await setup();
-    expect(text()).toContain('Drop up to 15 images here');
+    expect(text()).toContain('Drop up to 50 images here');
     expect(counter()).toBeUndefined();
   });
 
@@ -87,16 +87,16 @@ describe('ImageConverter', () => {
     const { choose, rows, counter } = await setup();
     await choose([png('one.png'), new File(['xx'], 'two.jpg', { type: 'image/jpeg' })]);
     expect(rows()).toEqual(['one.png PNG · 1 B', 'two.jpg JPG · 2 B']);
-    expect(counter()).toBe('2 / 15');
+    expect(counter()).toBe('2 / 50');
   });
 
-  it('keeps 15 of 20 chosen images, says so and disables the drop zone', async () => {
+  it('keeps 50 of 55 chosen images, says so and disables the drop zone', async () => {
     const { el, choose, rows, counter, text } = await setup();
-    await choose(Array.from({ length: 20 }, (_, i) => png(`photo-${i + 1}.png`)));
-    expect(rows()).toHaveLength(15);
-    expect(rows()[14]).toContain('photo-15.png');
-    expect(counter()).toBe('15 / 15');
-    expect(text()).toContain('5 images left out because a batch holds up to 15. The first 15 were kept.');
+    await choose(Array.from({ length: 55 }, (_, i) => png(`photo-${i + 1}.png`)));
+    expect(rows()).toHaveLength(50);
+    expect(rows()[49]).toContain('photo-50.png');
+    expect(counter()).toBe('50 / 50');
+    expect(text()).toContain('5 images left out because a batch holds up to 50. The first 50 were kept.');
     expect(text()).toContain('The batch is full');
     expect(el.querySelector<HTMLButtonElement>('app-upload-box button')!.disabled).toBe(true);
   });
@@ -113,7 +113,7 @@ describe('ImageConverter', () => {
     await choose([png('a.png'), png('b.png')]);
     await click('Remove a.png');
     expect(rows()).toEqual(['b.png PNG · 1 B']);
-    expect(counter()).toBe('1 / 15');
+    expect(counter()).toBe('1 / 50');
     expect(revoked).toEqual(['blob:1']);
   });
 
@@ -123,7 +123,7 @@ describe('ImageConverter', () => {
     await click('Clear all');
     expect(rows()).toEqual([]);
     expect(revoked).toEqual(['blob:1', 'blob:2']);
-    expect(text()).toContain('Drop up to 15 images here');
+    expect(text()).toContain('Drop up to 50 images here');
   });
 
   it('frees previews when the page is left', async () => {

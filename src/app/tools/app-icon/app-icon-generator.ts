@@ -9,7 +9,19 @@ import { UploadBox } from '../../shared/upload-box/upload-box';
 import { buildZip } from '../image-converter/zip';
 import { APP_ICON_CONTENT } from './content';
 import { IconStyle, planIcons } from './icon-plan';
-import { IconRenderer, LoadedImage } from './icon-renderer';
+import { DrawOptions, IconRenderer, LoadedImage } from './icon-renderer';
+
+/**
+ * Shapes Android launchers cut the adaptive icon into, as CSS border-radius values,
+ * so the preview shows the icon the way different phones show it.
+ */
+export const LAUNCHER_SHAPES: readonly { label: string; radius: string }[] = [
+  { label: 'Circle (Pixel)', radius: '50%' },
+  { label: 'Squircle (Samsung)', radius: '32%' },
+  { label: 'Rounded square', radius: '18%' },
+  { label: 'Teardrop', radius: '50% 50% 50% 14%' },
+  { label: 'Square', radius: '6%' },
+];
 
 /** Smaller images get blurry at 1024 px, so suggest a bigger one. */
 const RECOMMENDED_SIZE = 1024;
@@ -38,8 +50,15 @@ export class AppIconGenerator {
   protected readonly note = signal('');
   protected readonly error = signal('');
   protected readonly zipping = signal(false);
-  /** Object URLs of the three previews. */
-  protected readonly previews = signal<Record<IconStyle | 'ios', string> | null>(null);
+  /** Optional photo or pattern behind the icon instead of the colour. */
+  protected readonly backgroundImage = signal<LoadedImage | null>(null);
+  protected readonly backgroundName = signal('');
+  /** Name shown under the icon in the phone preview. */
+  protected readonly appName = signal('My App');
+  protected readonly wallpaper = signal<'light' | 'dark'>('dark');
+  protected readonly shapes = LAUNCHER_SHAPES;
+  /** Object URLs of the previews. */
+  protected readonly previews = signal<Record<'square' | 'round' | 'foreground' | 'adaptive' | 'ios', string> | null>(null);
 
   protected readonly plan = computed(() =>
     planIcons({
@@ -47,6 +66,7 @@ export class AppIconGenerator {
       ios: this.ios(),
       iosAllSizes: this.iosAllSizes(),
       background: this.background(),
+      backgroundLayer: !!this.backgroundImage(),
     }),
   );
   protected readonly fileCount = computed(() => this.plan().images.length + this.plan().texts.length);
@@ -60,14 +80,45 @@ export class AppIconGenerator {
     // Redraw the previews when the image or the look changes.
     effect(() => {
       const image = this.image();
-      const options = { background: this.background(), padding: this.padding() / 100 };
+      const options = this.drawOptions();
       if (!image) return;
       void this.updatePreviews(image, options);
     });
     inject(DestroyRef).onDestroy(() => {
       this.revokePreviews();
       this.image()?.close();
+      this.backgroundImage()?.close();
     });
+  }
+
+  private drawOptions() {
+    return { background: this.background(), padding: this.padding() / 100, backgroundImage: this.backgroundImage() };
+  }
+
+  /** A background layer image: Android gets it as its own PNG layer, iOS and the square icons draw it behind. */
+  protected async chooseBackground(element: HTMLInputElement): Promise<void> {
+    const file = element.files?.[0];
+    element.value = '';
+    if (!file) return;
+    if (file.size > LIMITS.MAX_IMAGE_BYTES) {
+      this.error.set(`This image is ${formatBytes(file.size)}. The limit is ${this.maxSize}.`);
+      return;
+    }
+    try {
+      const loaded = await this.renderer.load(file);
+      this.backgroundImage()?.close();
+      this.backgroundImage.set(loaded);
+      this.backgroundName.set(file.name);
+      this.error.set('');
+    } catch {
+      this.error.set('This background image could not be read. Choose a PNG, JPG, WebP or SVG file.');
+    }
+  }
+
+  protected removeBackground(): void {
+    this.backgroundImage()?.close();
+    this.backgroundImage.set(null);
+    this.backgroundName.set('');
   }
 
   protected async choose(files: File[]): Promise<void> {
@@ -110,7 +161,7 @@ export class AppIconGenerator {
     if (!image || this.zipping()) return;
     this.zipping.set(true);
     try {
-      const options = { background: this.background(), padding: this.padding() / 100 };
+      const options = this.drawOptions();
       const plan = this.plan();
       const files: { name: string; blob: Blob }[] = [];
       for (const icon of plan.images) {
@@ -126,10 +177,16 @@ export class AppIconGenerator {
     }
   }
 
-  private async updatePreviews(image: LoadedImage, options: { background: string; padding: number }): Promise<void> {
+  private async updatePreviews(image: LoadedImage, options: DrawOptions): Promise<void> {
     const run = ++this.previewRun;
     const url = async (style: IconStyle) => URL.createObjectURL(await this.renderer.png(image, 192, style, options));
-    const next = { square: await url('square'), round: await url('round'), foreground: await url('foreground'), ios: '' };
+    const next = {
+      square: await url('square'),
+      round: await url('round'),
+      foreground: await url('foreground'),
+      adaptive: await url('adaptive'),
+      ios: '',
+    };
     next.ios = next.square;
     if (run !== this.previewRun) {
       for (const value of new Set(Object.values(next))) URL.revokeObjectURL(value);

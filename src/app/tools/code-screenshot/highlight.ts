@@ -121,5 +121,37 @@ export const BACKDROPS = [
   { id: 'ocean', label: 'Ocean', css: ['#0ea5e9', '#14b8a6'] },
   { id: 'forest', label: 'Forest', css: ['#16a34a', '#65a30d'] },
   { id: 'mono', label: 'Grey', css: ['#94a3b8', '#475569'] },
+  { id: 'candy', label: 'Candy', css: ['#f472b6', '#818cf8'] },
+  { id: 'peach', label: 'Peach', css: ['#fdba74', '#fca5a5'] },
+  { id: 'mint', label: 'Mint', css: ['#6ee7b7', '#93c5fd'] },
+  { id: 'night', label: 'Night sky', css: ['#0f172a', '#4338ca'] },
+  { id: 'gold', label: 'Gold', css: ['#facc15', '#f97316'] },
+  { id: 'aurora', label: 'Aurora', css: ['#22d3ee', '#a3e635'] },
+  { id: 'custom', label: 'Custom…', css: ['#6366f1', '#ec4899'] },
   { id: 'none', label: 'None', css: [] as string[] },
 ];
+
+/** Window title bars the image can use. */
+export const FRAMES = [
+  { id: 'mac', label: 'macOS' },
+  { id: 'windows', label: 'Windows' },
+  { id: 'plain', label: 'Title only' },
+  { id: 'none', label: 'No frame' },
+] as const;
+export type FrameId = (typeof FRAMES)[number]['id'];
+
+/** Drop shadow under the window. */
+export const SHADOWS = [
+  { id: 'none', label: 'None', blur: 0, offset: 0, alpha: 0 },
+  { id: 'soft', label: 'Soft', blur: 24, offset: 8, alpha: 0.25 },
+  { id: 'medium', label: 'Medium', blur: 30, offset: 12, alpha: 0.35 },
+  { id: 'strong', label: 'Strong', blur: 50, offset: 24, alpha: 0.5 },
+] as const;
+export type ShadowId = (typeof SHADOWS)[number]['id'];
+
+/** Height of the title bar for a frame, in CSS pixels. */
+export function frameHeight(frame: FrameId, hasTitle: boolean): number {
+  if (frame === 'none') return 14;
+  if (frame === 'plain') return hasTitle ? 40 : 14;
+  return frame === 'windows' ? 36 : 40;
+}

@@ -5,6 +5,8 @@ export interface DrawOptions {
   background: string;
   /** Space around the image, from 0 to 0.4 of the icon. */
   padding: number;
+  /** Drawn behind the icon instead of the colour, covering the whole square. */
+  backgroundImage?: LoadedImage | null;
 }
 
 /** A source image, ready to be drawn at any size. */
@@ -51,11 +53,20 @@ export class IconRenderer {
       context.arc(size / 2, size / 2, size / 2, 0, Math.PI * 2);
       context.clip();
     }
-    // The adaptive foreground stays transparent; Android puts the background colour behind it.
+    // The adaptive foreground stays transparent; Android puts the background layer behind it.
     if (style !== 'foreground') {
       context.fillStyle = options.background;
       context.fillRect(0, 0, size, size);
+      const back = options.backgroundImage;
+      if (back) {
+        // Cover the square like a wallpaper, cropping the longer side.
+        const scale = Math.max(size / back.width, size / back.height);
+        const w = back.width * scale;
+        const h = back.height * scale;
+        context.drawImage(back.source, (size - w) / 2, (size - h) / 2, w, h);
+      }
     }
+    if (style === 'background') return canvas;
     const box = placement(image.width, image.height, size, style, options.padding);
     context.drawImage(image.source, box.x, box.y, box.width, box.height);
     return canvas;

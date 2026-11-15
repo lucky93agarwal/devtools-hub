@@ -1,3 +1,4 @@
+import { QUALITY_PRESETS } from '../image-converter/image-formats';
 import { Component, DestroyRef, computed, inject, signal } from '@angular/core';
 import { Analytics } from '../../core/analytics';
 import { TOOLS } from '../../core/tools';
@@ -62,6 +63,7 @@ export class ImageResizer {
   protected readonly presetId = signal(PRESETS[0].id);
   protected readonly output = signal<OutputFormat>('same');
   protected readonly quality = signal(90);
+  protected readonly qualityPresets = QUALITY_PRESETS;
   protected readonly background = signal('#ffffff');
   /** Size limit in KB, or null for none. */
   protected readonly maxKb = signal<number | null>(null);

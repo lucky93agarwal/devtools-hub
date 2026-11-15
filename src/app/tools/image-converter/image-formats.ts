@@ -135,3 +135,10 @@ export async function readHeic(buffer: ArrayBuffer): Promise<ImageData> {
     image.free?.();
   }
 }
+
+/** One-click quality settings for lossy formats. */
+export const QUALITY_PRESETS: readonly { label: string; value: number }[] = [
+  { label: 'Smallest', value: 60 },
+  { label: 'Balanced', value: 80 },
+  { label: 'High', value: 90 },
+];

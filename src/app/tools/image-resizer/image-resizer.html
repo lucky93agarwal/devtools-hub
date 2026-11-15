@@ -10,6 +10,7 @@
     [hint]="'JPG, PNG, WebP, HEIC and more, up to ' + formatBytes(limits.maxImageBytes) + ' each.'"
     [accept]="accept"
     [multiple]="true"
+    [folders]="true"
     [filter]="false"
     [disabled]="full()"
     (filesSelected)="addFiles($event)"
@@ -148,6 +149,19 @@
             [attr.aria-valuetext]="quality() + ' percent'"
             (input)="quality.set($any($event.target).valueAsNumber); changed()"
           />
+          <span class="flex gap-1">
+            @for (preset of qualityPresets; track preset.value) {
+              <button
+                type="button"
+                class="btn-small"
+                [class.!border-brand]="quality() === preset.value"
+                [attr.aria-pressed]="quality() === preset.value"
+                (click)="quality.set(preset.value); changed()"
+              >
+                {{ preset.label }}
+              </button>
+            }
+          </span>
         </label>
       }
       <label class="flex flex-col gap-1">

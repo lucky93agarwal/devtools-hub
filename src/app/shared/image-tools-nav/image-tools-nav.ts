@@ -24,6 +24,7 @@ export class ImageToolsNav {
     { path: '/image-converter', label: 'Convert' },
     { path: '/image-resizer', label: 'Resize' },
     { path: '/image-cropper', label: 'Crop' },
+    { path: '/image-compressor', label: 'Compress' },
     { path: '/background-remover', label: 'Remove background' },
   ];
 }

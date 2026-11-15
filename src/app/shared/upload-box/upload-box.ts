@@ -23,9 +23,26 @@ import { ICONS, Icon } from '../icon/icon';
         <app-icon [path]="uploadIcon" />
       </span>
       <p class="font-heading text-xl leading-7 font-semibold">{{ title() }}</p>
-      <button type="button" class="btn-primary" [disabled]="disabled()" (click)="input().nativeElement.click()">
-        {{ buttonLabel() }}
-      </button>
+      <div class="flex flex-wrap justify-center gap-2">
+        <button type="button" class="btn-primary" [disabled]="disabled()" (click)="input().nativeElement.click()">
+          {{ buttonLabel() }}
+        </button>
+        @if (folders()) {
+          <button type="button" class="btn-secondary" [disabled]="disabled()" (click)="folderInput.click()">
+            Choose folder
+          </button>
+          <input
+            #folderInput
+            type="file"
+            class="sr-only"
+            tabindex="-1"
+            aria-hidden="true"
+            webkitdirectory
+            multiple
+            (change)="onInputChange(folderInput)"
+          />
+        }
+      </div>
       @if (hint()) {
         <p class="text-sm leading-5 text-muted">{{ hint() }}</p>
       }
@@ -55,6 +72,8 @@ export class UploadBox {
    * wants every file so it can explain why some were skipped.
    */
   readonly filter = input(true);
+  /** Also take whole folders: a "Choose folder" button, and folders dropped on the box (read with subfolders). */
+  readonly folders = input(false);
 
   readonly filesSelected = output<File[]>();
 
@@ -69,10 +88,16 @@ export class UploadBox {
     }
   }
 
-  protected onDrop(event: DragEvent): void {
+  protected async onDrop(event: DragEvent): Promise<void> {
     event.preventDefault();
     this.dragging.set(false);
-    this.emit(event.dataTransfer?.files);
+    const transfer = event.dataTransfer;
+    const entries = this.folders() ? folderEntries(transfer) : [];
+    if (entries.length) {
+      this.emit(await readEntries(entries));
+      return;
+    }
+    this.emit(transfer?.files);
   }
 
   protected onInputChange(element: HTMLInputElement): void {
@@ -85,7 +110,7 @@ export class UploadBox {
     this.emit(event.clipboardData?.files);
   }
 
-  private emit(fileList: FileList | null | undefined): void {
+  private emit(fileList: FileList | File[] | null | undefined): void {
     if (this.disabled() || !fileList || fileList.length === 0) {
       return;
     }
@@ -113,4 +138,38 @@ export class UploadBox {
       return type === rule;
     });
   }
+}
+
+/** Folder and file entries of a drop, when at least one dropped item is a folder. */
+function folderEntries(transfer: DataTransfer | null | undefined): FileSystemEntry[] {
+  const items = Array.from(transfer?.items ?? []);
+  const entries = items
+    .map((item) => (typeof item.webkitGetAsEntry === 'function' ? item.webkitGetAsEntry() : null))
+    .filter((entry): entry is FileSystemEntry => !!entry);
+  return entries.some((entry) => entry.isDirectory) ? entries : [];
+}
+
+/** Most files read from dropped folders, so a huge folder cannot freeze the page. */
+const MAX_FOLDER_FILES = 500;
+
+/** Reads every file in the dropped entries, going into subfolders. */
+async function readEntries(entries: FileSystemEntry[]): Promise<File[]> {
+  const files: File[] = [];
+  const queue = [...entries];
+  while (queue.length && files.length < MAX_FOLDER_FILES) {
+    const entry = queue.shift()!;
+    if (entry.isFile) {
+      const file = await new Promise<File | null>((resolve) => (entry as FileSystemFileEntry).file(resolve, () => resolve(null)));
+      if (file) files.push(file);
+    } else if (entry.isDirectory) {
+      const reader = (entry as FileSystemDirectoryEntry).createReader();
+      // readEntries returns the folder in pieces; keep reading until it returns nothing.
+      for (;;) {
+        const batch = await new Promise<FileSystemEntry[]>((resolve) => reader.readEntries(resolve, () => resolve([])));
+        if (!batch.length) break;
+        queue.push(...batch);
+      }
+    }
+  }
+  return files.sort((a, b) => a.name.localeCompare(b.name));
 }

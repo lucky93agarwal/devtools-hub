@@ -11,7 +11,11 @@ export type IconStyle =
   /** Circle on the background colour, for launchers that ask for a round icon. */
   | 'round'
   /** Transparent, image kept inside the adaptive icon's safe zone (66 of 108 dp). */
-  | 'foreground';
+  | 'foreground'
+  /** The adaptive icon's background layer (full 108 dp, no image on it). */
+  | 'background'
+  /** Background and foreground together at full bleed, for previews of launcher shapes. */
+  | 'adaptive';
 
 export interface IconFile {
   path: string;
@@ -36,6 +40,8 @@ export interface PlanOptions {
   iosAllSizes: boolean;
   /** Background colour of the adaptive icon, as #rrggbb. */
   background: string;
+  /** A background image is used instead of the colour, so the adaptive icon gets a background PNG layer. */
+  backgroundLayer?: boolean;
 }
 
 const RES = 'android/app/src/main/res';
@@ -63,13 +69,17 @@ const IOS_LEGACY: { idiom: 'iphone' | 'ipad' | 'ios-marketing'; points: number; 
   { idiom: 'ios-marketing', points: 1024, scales: [1] },
 ];
 
-const ADAPTIVE_XML = `<?xml version="1.0" encoding="utf-8"?>
+/** The adaptive icon XML; the background is a colour or, with a background image, its own PNG layer. */
+export function adaptiveXml(backgroundLayer: boolean): string {
+  const background = backgroundLayer ? '@mipmap/ic_launcher_background' : '@color/ic_launcher_background';
+  return `<?xml version="1.0" encoding="utf-8"?>
 <adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
-    <background android:drawable="@color/ic_launcher_background"/>
+    <background android:drawable="${background}"/>
     <foreground android:drawable="@mipmap/ic_launcher_foreground"/>
     <monochrome android:drawable="@mipmap/ic_launcher_foreground"/>
 </adaptive-icon>
 `;
+}
 
 export function planIcons(options: PlanOptions): IconPlan {
   const images: IconFile[] = [];
@@ -81,9 +91,13 @@ export function planIcons(options: PlanOptions): IconPlan {
       images.push({ path: `${folder}/ic_launcher.png`, size: 48 * density.scale, style: 'square' });
       images.push({ path: `${folder}/ic_launcher_round.png`, size: 48 * density.scale, style: 'round' });
       images.push({ path: `${folder}/ic_launcher_foreground.png`, size: 108 * density.scale, style: 'foreground' });
+      if (options.backgroundLayer) {
+        images.push({ path: `${folder}/ic_launcher_background.png`, size: 108 * density.scale, style: 'background' });
+      }
     }
-    texts.push({ path: `${RES}/mipmap-anydpi-v26/ic_launcher.xml`, text: ADAPTIVE_XML });
-    texts.push({ path: `${RES}/mipmap-anydpi-v26/ic_launcher_round.xml`, text: ADAPTIVE_XML });
+    const xml = adaptiveXml(!!options.backgroundLayer);
+    texts.push({ path: `${RES}/mipmap-anydpi-v26/ic_launcher.xml`, text: xml });
+    texts.push({ path: `${RES}/mipmap-anydpi-v26/ic_launcher_round.xml`, text: xml });
     texts.push({
       path: `${RES}/values/ic_launcher_background.xml`,
       text:
@@ -123,7 +137,7 @@ export function planIcons(options: PlanOptions): IconPlan {
 /** Where the image sits in a square of `size`: centred, keeping its shape, with `padding` (0 to 0.4) around it. */
 export function placement(width: number, height: number, size: number, style: IconStyle, padding: number) {
   // The adaptive foreground is cropped by the launcher to the middle 66 of its 108 units.
-  const area = style === 'foreground' ? size * (66 / 108) : size;
+  const area = style === 'foreground' || style === 'adaptive' ? size * (66 / 108) : size;
   const box = area * (1 - 2 * padding);
   const scale = box / Math.max(width, height);
   const w = width * scale;

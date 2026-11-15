@@ -45,13 +45,81 @@
               iOS
             </li>
           </ul>
+
+          <h3 class="mt-6 font-semibold">Launcher shapes</h3>
+          <p class="mt-1 text-sm leading-5 text-muted">
+            Android cuts the adaptive icon into the phone maker's shape. Keep the important part inside the middle.
+          </p>
+          <ul class="mt-3 flex flex-wrap gap-4">
+            @for (shape of shapes; track shape.label) {
+              <li class="flex w-24 flex-col items-center gap-2 text-center text-xs leading-4">
+                <span class="size-16 overflow-hidden shadow" [style.border-radius]="shape.radius">
+                  <img [src]="p.adaptive" alt="" class="size-full scale-150" />
+                </span>
+                {{ shape.label }}
+              </li>
+            }
+          </ul>
+
+          <div class="mt-6 flex flex-wrap items-center gap-3 text-sm leading-5">
+            <h3 class="font-semibold">On a home screen</h3>
+            <label class="flex items-center gap-2">
+              App name
+              <input class="field w-32" [value]="appName()" maxlength="14" (input)="appName.set($any($event.target).value)" />
+            </label>
+            <div class="flex rounded-full border border-line p-0.5" role="radiogroup" aria-label="Wallpaper">
+              @for (w of ['light', 'dark']; track w) {
+                <button
+                  type="button"
+                  role="radio"
+                  class="rounded-full px-3 py-1 font-semibold capitalize"
+                  [class]="wallpaper() === w ? 'bg-brand text-on-brand' : 'text-muted'"
+                  [attr.aria-checked]="wallpaper() === w"
+                  (click)="wallpaper.set($any(w))"
+                >
+                  {{ w }}
+                </button>
+              }
+            </div>
+          </div>
+          <div class="mt-3 grid gap-4 sm:grid-cols-2">
+            @for (phone of ['android', 'ios']; track phone) {
+              <div
+                class="rounded-[2rem] border-4 border-ink/80 p-5"
+                [style.background]="
+                  wallpaper() === 'dark'
+                    ? 'linear-gradient(160deg,#1e1b4b,#0f172a 60%,#134e4a)'
+                    : 'linear-gradient(160deg,#e0e7ff,#fdf2f8 60%,#ecfeff)'
+                "
+              >
+                <p class="text-center text-xs" [class]="wallpaper() === 'dark' ? 'text-white/70' : 'text-black/60'">
+                  {{ phone === 'android' ? 'Android' : 'iPhone' }}
+                </p>
+                <div class="mt-3 grid grid-cols-4 gap-3">
+                  @for (slot of [0, 1, 2, 3, 4, 5, 6, 7]; track slot) {
+                    <div class="flex flex-col items-center gap-1">
+                      @if (slot === 5) {
+                        <span class="size-12 overflow-hidden shadow" [style.border-radius]="phone === 'android' ? '50%' : '22%'">
+                          <img [src]="phone === 'android' ? p.adaptive : p.ios" alt="" class="size-full" [class.scale-150]="phone === 'android'" />
+                        </span>
+                        <span class="max-w-16 truncate text-[11px]" [class]="wallpaper() === 'dark' ? 'text-white' : 'text-black'">{{ appName() }}</span>
+                      } @else {
+                        <span class="size-12 bg-white/25" [style.border-radius]="phone === 'android' ? '50%' : '22%'"></span>
+                        <span class="h-2 w-8 rounded bg-white/20"></span>
+                      }
+                    </div>
+                  }
+                </div>
+              </div>
+            }
+          </div>
         }
       </section>
 
       <fieldset class="card flex flex-col gap-4 p-4">
         <legend class="sr-only">Icon settings</legend>
         <label class="flex items-center justify-between gap-3 text-sm leading-5">
-          <span class="font-semibold">Background</span>
+          <span class="font-semibold">Background colour</span>
           <input
             type="color"
             class="h-9 w-16 cursor-pointer rounded-lg border border-line"
@@ -60,6 +128,19 @@
             (input)="background.set($any($event.target).value)"
           />
         </label>
+        <div class="flex flex-col gap-2 text-sm leading-5">
+          <span class="font-semibold">Background layer</span>
+          @if (backgroundImage()) {
+            <span class="flex items-center justify-between gap-2">
+              <span class="truncate text-muted">{{ backgroundName() }}</span>
+              <button type="button" class="btn-small" (click)="removeBackground()">Remove</button>
+            </span>
+          } @else {
+            <button type="button" class="btn-small self-start" (click)="bgFile.click()">Add background image…</button>
+            <span class="text-muted">Optional. A photo or pattern behind your logo, used as Android's background layer.</span>
+          }
+          <input #bgFile type="file" class="sr-only" tabindex="-1" aria-hidden="true" [accept]="accept" (change)="chooseBackground(bgFile)" />
+        </div>
         <label class="flex flex-col gap-2 text-sm leading-5">
           <span class="flex justify-between"><span class="font-semibold">Padding</span>{{ padding() }}%</span>
           <input

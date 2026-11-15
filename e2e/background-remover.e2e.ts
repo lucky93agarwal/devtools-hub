@@ -32,6 +32,24 @@ test('removes a background and downloads the PNG', async ({ page }) => {
   await page.keyboard.press('ArrowLeft');
   await expect(slider).toHaveAttribute('aria-valuetext', '49% before');
 
+  // Fix the cut-out by hand: erase a stroke, undo it, restore a stroke and apply.
+  await page.getByRole('button', { name: 'Fix edges by hand' }).click();
+  const canvas = page.getByRole('img', { name: 'Cut-out being edited' });
+  await expect.poll(() => canvas.evaluate((c: HTMLCanvasElement) => c.width)).toBe(400);
+  const box = (await canvas.boundingBox())!;
+  const stroke = async () => {
+    await page.mouse.move(box.x + box.width * 0.3, box.y + box.height * 0.5);
+    await page.mouse.down();
+    await page.mouse.move(box.x + box.width * 0.7, box.y + box.height * 0.5, { steps: 5 });
+    await page.mouse.up();
+  };
+  await stroke();
+  await page.getByRole('button', { name: 'Undo' }).click();
+  await page.getByRole('radio', { name: 'Restore' }).click();
+  await stroke();
+  await page.getByRole('button', { name: 'Apply changes' }).click();
+  await expect(page.getByText('Drag the divider to compare.')).toBeVisible();
+
   await page.getByRole('radio', { name: 'Colour' }).click();
   const download = page.waitForEvent('download');
   await page.getByRole('button', { name: 'Download PNG' }).click();

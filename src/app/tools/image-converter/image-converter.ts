@@ -1,3 +1,4 @@
+import { QUALITY_PRESETS } from './image-formats';
 import { Component, DestroyRef, computed, inject, signal } from '@angular/core';
 import { Analytics } from '../../core/analytics';
 import { onSharedFiles } from '../../core/shared-input';
@@ -71,6 +72,7 @@ export class ImageConverter {
 
   /** JPG, WebP and AVIF quality, 10 to 100. */
   protected readonly quality = signal(90);
+  protected readonly qualityPresets = QUALITY_PRESETS;
   protected readonly resizeChoice = signal<ResizeChoice>('original');
   protected readonly maxWidth = signal(1920);
   protected readonly addSuffix = signal(false);

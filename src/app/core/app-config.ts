@@ -68,7 +68,7 @@ export const GOOGLE_SITE_VERIFICATION = '';
 
 export const LIMITS = {
   /** Maximum images per batch in the image converter. */
-  MAX_IMAGES: 15,
+  MAX_IMAGES: 50,
   /** Maximum size of one image, in bytes (20 MB). */
   MAX_IMAGE_BYTES: 20 * 1024 * 1024,
   /** Maximum total size of one batch, in bytes (150 MB). */

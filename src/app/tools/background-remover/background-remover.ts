@@ -10,6 +10,7 @@ import { UploadBox } from '../../shared/upload-box/upload-box';
 import { IMAGE_ACCEPT, isSupportedImage } from '../image-converter/image-list';
 import { MODELS, ORT_WASM_BYTES } from './bg-removal';
 import { BeforeAfter } from './before-after';
+import { MaskEditor } from './mask-editor';
 import { BACKGROUND_COLOURS, NewBackground, composeBackground } from './compose';
 import { BACKGROUND_REMOVER_CONTENT } from './content';
 import { CANCELLED, REPLACED, RemoveProgress, RemoverClient } from './remover-client';
@@ -19,6 +20,8 @@ type State =
   | { kind: 'working'; progress: RemoveProgress | null; fileName: string }
   | {
       kind: 'done';
+      /** The photo the user chose, used by the hand-editing brush. */
+      file: File;
       /** Object URLs of the small preview images. */
       originalUrl: string;
       resultUrl: string;
@@ -35,7 +38,7 @@ type State =
 
 @Component({
   selector: 'app-background-remover',
-  imports: [Icon, UploadBox, ToolInfoSection, BeforeAfter, ImageToolsNav],
+  imports: [Icon, UploadBox, ToolInfoSection, BeforeAfter, ImageToolsNav, MaskEditor],
   templateUrl: './background-remover.html',
 })
 export class BackgroundRemover {
@@ -59,6 +62,8 @@ export class BackgroundRemover {
   protected readonly backgroundImageUrl = signal<string | null>(null);
   protected readonly backgroundNote = signal('');
   protected readonly saving = signal(false);
+  /** True while the Erase / Restore brush is open. */
+  protected readonly editing = signal(false);
 
   protected readonly previewColour = computed(() => {
     const background = this.background();
@@ -117,6 +122,7 @@ export class BackgroundRemover {
       const scaled = result.sourceWidth !== result.width;
       this.state.set({
         kind: 'done',
+        file,
         originalUrl: URL.createObjectURL(result.beforePreview),
         resultUrl: URL.createObjectURL(result.afterPreview),
         png: result.png,
@@ -132,6 +138,17 @@ export class BackgroundRemover {
       this.fail(e instanceof Error ? e.message : 'The background could not be removed.');
       this.analytics.track('background-remove', { result: 'error' });
     }
+  }
+
+  /** Keeps the hand-edited cut-out for the preview and the download. */
+  protected applyEdit(png: Blob): void {
+    this.state.update((state) => {
+      if (state.kind !== 'done') return state;
+      URL.revokeObjectURL(state.resultUrl);
+      return { ...state, png, resultUrl: URL.createObjectURL(png) };
+    });
+    this.editing.set(false);
+    this.analytics.track('background-edit', { result: 'applied' });
   }
 
   /** Stops the image in progress and goes back to the upload box. */
@@ -189,6 +206,7 @@ export class BackgroundRemover {
   }
 
   protected reset(): void {
+    this.editing.set(false);
     this.releaseUrls();
     this.releaseBackgroundImage();
     this.background.set({ kind: 'transparent' });

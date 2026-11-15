@@ -16,6 +16,7 @@
     "
     [accept]="accept"
     [multiple]="true"
+    [folders]="true"
     [filter]="false"
     [disabled]="full()"
     (filesSelected)="addFiles($event)"
@@ -88,6 +89,21 @@
             [attr.aria-valuetext]="quality() + ' percent'"
             (input)="setQuality($any($event.target).valueAsNumber)"
           />
+          @if (lossy()) {
+            <div class="flex flex-wrap gap-1" role="group" aria-label="Quality presets">
+              @for (preset of qualityPresets; track preset.value) {
+                <button
+                  type="button"
+                  class="btn-small"
+                  [class.!border-brand]="quality() === preset.value"
+                  [attr.aria-pressed]="quality() === preset.value"
+                  (click)="setQuality(preset.value)"
+                >
+                  {{ preset.label }} {{ preset.value }}%
+                </button>
+              }
+            </div>
+          }
           <p class="text-sm leading-5 text-muted">
             @if (lossy()) {
               Lower quality gives smaller files. 80 to 90% looks the same to most people.

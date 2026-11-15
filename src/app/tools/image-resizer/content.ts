@@ -4,7 +4,7 @@ import { ToolContent } from '../../shared/tool-info/tool-info';
 export const IMAGE_RESIZER_CONTENT: ToolContent = {
   aboutHeading: 'About this image resizer',
   about:
-    'Resize up to 15 images at once to an exact width and height, by percent, or to a ready-made size for Instagram, ' +
+    'Resize up to 50 images at once to an exact width and height, by percent, or to a ready-made size for Instagram, ' +
     'YouTube, Facebook, X, LinkedIn or a passport photo. Choose whether the image fits inside, fills the size and ' +
     'crops the edges, or gets coloured borders, and set a maximum file size for forms that only accept small uploads. ' +
     'Everything happens in your browser.',
