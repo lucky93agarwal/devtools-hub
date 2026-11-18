@@ -1,5 +1,6 @@
 import { Component } from '@angular/core';
 import { RouterLink, RouterLinkActive } from '@angular/router';
+import { TOOLS } from '../../core/tools';
 
 /** Links between the image tools, shown above each of them. */
 @Component({
@@ -20,11 +21,9 @@ import { RouterLink, RouterLinkActive } from '@angular/router';
   `,
 })
 export class ImageToolsNav {
-  protected readonly links = [
-    { path: '/image-converter', label: 'Convert' },
-    { path: '/image-resizer', label: 'Resize' },
-    { path: '/image-cropper', label: 'Crop' },
-    { path: '/image-compressor', label: 'Compress' },
-    { path: '/background-remover', label: 'Remove background' },
-  ];
+  /** Every live image tool, so the menu stays complete when tools are added. */
+  protected readonly links = TOOLS.filter((t) => t.live && t.category === 'images').map((t) => ({
+    path: '/' + t.path,
+    label: t.shortName ?? t.name,
+  }));
 }
