@@ -42,6 +42,26 @@
                 "glob": "jq.wasm",
                 "input": "node_modules/jq-wasm/dist/build",
                 "output": "jq"
+              },
+              {
+                "glob": "pdf.worker.min.mjs",
+                "input": "node_modules/pdfjs-dist/build",
+                "output": "pdfjs"
+              },
+              {
+                "glob": "**/*",
+                "input": "node_modules/pdfjs-dist/cmaps",
+                "output": "pdfjs/cmaps"
+              },
+              {
+                "glob": "**/*",
+                "input": "node_modules/pdfjs-dist/standard_fonts",
+                "output": "pdfjs/standard_fonts"
+              },
+              {
+                "glob": "**/*",
+                "input": "node_modules/pdfjs-dist/wasm",
+                "output": "pdfjs/wasm"
               }
             ],
             "styles": [
@@ -50,7 +70,12 @@
             "server": "src/main.server.ts",
             "serviceWorker": "ngsw-config.json",
             "outputMode": "static",
-            "allowedCommonJsDependencies": ["pako", "papaparse", "utif", "cronstrue", "js-beautify", "acorn", "nearley", "@jridgewell/resolve-uri", "source-map-js/lib/source-map-generator.js", "ajv", "ajv-formats", "semver", "bowser", "fast-deep-equal", "json-schema-traverse", "fast-uri", "source-map-js", "cytoscape-fcose", "cytoscape-cose-bilkent", "@braintree/sanitize-url", "elkjs/lib/elk.bundled.js", "dayjs", "dayjs/plugin/isoWeek.js", "dayjs/plugin/customParseFormat.js", "dayjs/plugin/advancedFormat.js", "dayjs/plugin/duration.js", "kotlin-playground"],
+            "allowedCommonJsDependencies": [
+              "smartcrop",
+              "seedrandom",
+              "node-fetch",
+              "string_decoder",
+              "long","pako", "papaparse", "utif", "cronstrue", "js-beautify", "acorn", "nearley", "@jridgewell/resolve-uri", "source-map-js/lib/source-map-generator.js", "ajv", "ajv-formats", "semver", "bowser", "fast-deep-equal", "json-schema-traverse", "fast-uri", "source-map-js", "cytoscape-fcose", "cytoscape-cose-bilkent", "@braintree/sanitize-url", "elkjs/lib/elk.bundled.js", "dayjs", "dayjs/plugin/isoWeek.js", "dayjs/plugin/customParseFormat.js", "dayjs/plugin/advancedFormat.js", "dayjs/plugin/duration.js", "kotlin-playground"],
             "security": {
               "allowedHosts": []
             },
