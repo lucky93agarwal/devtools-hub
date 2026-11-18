@@ -19,6 +19,23 @@ test('makes a 3D photo, follows the mouse, and downloads the depth map and a vid
   await (await chooser).setFiles('e2e/fixtures/photo.png');
   await expect(page.getByText(/Depth worked out in [\d.]+ s/)).toBeVisible({ timeout: 150_000 });
 
+  // 3D model: turn it to the back and download the GLB.
+  const model = page.getByRole('img', { name: '3D model' });
+  await expect.poll(() => model.evaluate((c: HTMLCanvasElement) => c.width)).toBe(1200);
+  const front = await model.evaluate((c: HTMLCanvasElement) => c.toDataURL());
+  await page.getByRole('button', { name: 'Back', exact: true }).click();
+  await expect.poll(() => model.evaluate((c: HTMLCanvasElement) => c.toDataURL())).not.toBe(front);
+  const mbox = (await model.boundingBox())!;
+  await page.mouse.move(mbox.x + mbox.width / 2, mbox.y + mbox.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(mbox.x + mbox.width * 0.8, mbox.y + mbox.height * 0.3, { steps: 8 });
+  await page.mouse.up();
+  const glb = page.waitForEvent('download');
+  await page.getByRole('button', { name: 'Download 3D model (GLB)' }).click();
+  expect((await glb).suggestedFilename()).toBe('photo-3d.glb');
+
+  // Moving 3D photo.
+  await page.getByRole('tab', { name: 'Moving 3D photo' }).click();
   const view = page.getByRole('img', { name: '3D photo' });
   await expect.poll(() => view.evaluate((c: HTMLCanvasElement) => c.width)).toBe(400);
   const box = (await view.boundingBox())!;

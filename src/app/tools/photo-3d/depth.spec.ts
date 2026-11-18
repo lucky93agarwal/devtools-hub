@@ -35,3 +35,48 @@ describe('3D photo depth', () => {
     expect(smooth[0]).toBe(0);
   });
 });
+
+import { writeGlb } from './glb';
+import { buildMesh, gridSize, orbitView, sampleDepth } from './mesh';
+
+describe('3D model', () => {
+  it('keeps the grid under 65,000 points for 16-bit indices', () => {
+    for (const aspect of [0.5, 1, 16 / 9, 3]) {
+      const { columns, rows } = gridSize(aspect);
+      expect(columns * rows).toBeLessThanOrEqual(65_000);
+      expect(columns / rows).toBeCloseTo(aspect, 0);
+    }
+  });
+
+  it('samples depth smoothly and raises near points', () => {
+    const depth = new Uint8Array([0, 255]);
+    expect(sampleDepth(depth, 2, 1, 0.5, 0)).toBeCloseTo(0.5);
+    const mesh = buildMesh(depth, 2, 1, 1);
+    const last = mesh.depths.length - 1;
+    expect(mesh.depths[0]).toBe(0);
+    expect(mesh.depths[mesh.columns - 1]).toBe(1);
+    expect(mesh.indices.reduce((a, b) => Math.max(a, b), 0)).toBe(last);
+  });
+
+  it('turns the camera all the way round', () => {
+    const back = orbitView(Math.PI, 0, 3);
+    // Seen from behind, +x on the model points to the left.
+    expect(back[0]).toBeCloseTo(-1);
+    expect(back[14]).toBeCloseTo(-3);
+  });
+
+  it('writes a valid GLB', () => {
+    const mesh = buildMesh(new Uint8Array([0, 128, 255, 64]), 2, 2, 1);
+    const glb = writeGlb(mesh, new Uint8Array([0xff, 0xd8, 0xff, 0xd9]), 0.5);
+    const view = new DataView(glb.buffer);
+    expect(view.getUint32(0, true)).toBe(0x46546c67);
+    expect(view.getUint32(8, true)).toBe(glb.length);
+    const jsonLength = view.getUint32(12, true);
+    expect(jsonLength % 4).toBe(0);
+    const json = JSON.parse(new TextDecoder().decode(glb.subarray(20, 20 + jsonLength)));
+    expect(json.accessors[0].count).toBe(mesh.depths.length);
+    expect(json.accessors[0].max[2]).toBeCloseTo(0.25);
+    expect(json.images[0].mimeType).toBe('image/jpeg');
+    expect(json.materials[0].doubleSided).toBe(true);
+  });
+});
