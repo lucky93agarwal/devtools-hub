@@ -80,6 +80,7 @@ const toolComponents: Record<string, () => Promise<Type<unknown>>> = {
   watermark: () => import('./tools/watermark/watermark').then((m) => m.Watermark),
   'color-palette': () => import('./tools/color-palette/color-palette').then((m) => m.ColorPalette),
   'image-inspector': () => import('./tools/image-inspector/image-inspector').then((m) => m.ImageInspector),
+  'photo-3d': () => import('./tools/photo-3d/photo-3d').then((m) => m.Photo3d),
   'image-upscaler': () => import('./tools/image-upscaler/image-upscaler').then((m) => m.ImageUpscaler),
   'object-remover': () => import('./tools/object-remover/object-remover').then((m) => m.ObjectRemover),
   'smart-crop': () => import('./tools/smart-crop/smart-crop').then((m) => m.SmartCrop),

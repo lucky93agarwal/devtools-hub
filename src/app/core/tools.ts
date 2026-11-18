@@ -308,6 +308,20 @@ export const TOOLS: readonly ToolInfo[] = [
     live: true,
   },
   {
+    path: 'photo-3d',
+    name: '3D Photo Maker',
+    shortName: '3D photo',
+    description: 'Turn a flat photo into a moving 3D photo with AI depth, and download it as a video.',
+    seoTitle: '3D Photo Maker: Turn a Photo into 3D',
+    metaDescription:
+      'Turn any photo into a moving 3D photo: AI works out the depth, then move the mouse or tilt your phone. Download a video or depth map. Private.',
+    icon: 'M12 3l8 4.5v9L12 21l-8-4.5v-9zM12 12l8-4.5M12 12v9M12 12L4 7.5',
+    phase: 14,
+    category: 'images',
+    onHome: true,
+    live: true,
+  },
+  {
     path: 'image-upscaler',
     name: 'AI Image Upscaler',
     shortName: 'Upscale',
