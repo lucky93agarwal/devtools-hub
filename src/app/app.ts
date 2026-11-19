@@ -34,6 +34,21 @@ export class App {
     // Starts remembering recently used tools for the home page and the search box.
     inject(UserTools);
     inject(AppUpdates);
-    afterNextRender(() => analytics.load());
+    afterNextRender(() => {
+      analytics.load();
+      // The focus ring shows only for keyboard users: a click or tap hides it, Tab brings it back.
+      const root = document.documentElement;
+      addEventListener('pointerdown', () => (root.dataset['input'] = 'pointer'), {
+        capture: true,
+        passive: true,
+      });
+      addEventListener(
+        'keydown',
+        (event: KeyboardEvent) => {
+          if (event.key === 'Tab') root.dataset['input'] = 'keyboard';
+        },
+        { capture: true },
+      );
+    });
   }
 }

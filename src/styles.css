@@ -91,6 +91,12 @@
   :focus-visible {
     @apply outline-2 outline-offset-2 outline-brand;
   }
+
+  /* After a click or tap there is no focus ring (not even on fields); Tab shows it again. */
+  html[data-input='pointer'] :focus-visible,
+  html[data-input='pointer'] :focus {
+    outline: none;
+  }
 }
 
 /* Reusable building blocks. Every screen has one .btn-primary. */
