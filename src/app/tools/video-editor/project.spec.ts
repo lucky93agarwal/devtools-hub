@@ -113,3 +113,67 @@ describe('video editor transitions and effects', () => {
     expect(ago(now - 3 * 3_600_000, now)).toBe('3 hours ago');
   });
 });
+
+import { chromaKey, sharpen } from './pixels';
+import { addMarker, moveClips, pasteClips, removeMarker, separateAudio, setKeyframe, sourceTime, transformAt, valueAt } from './project';
+
+describe('video editor advanced editing', () => {
+  const base = { id: 'c', track: 2, start: 10, in: 2, out: 8, volume: 1, mediaId: 'v' };
+
+  it('maps timeline time to source time with speed and reverse', () => {
+    expect(sourceTime(base, 12)).toBe(4);
+    expect(sourceTime({ ...base, speed: 2 }, 12)).toBe(6);
+    expect(sourceTime({ ...base, reverse: true }, 11)).toBe(7);
+  });
+
+  it('shortens a faster clip and splits a reversed one correctly', () => {
+    const fast = { ...base, speed: 2 };
+    expect(clipEnd(fast)).toBe(13);
+    const project = { ...newProject(), clips: [{ ...base, reverse: true }] };
+    const [left, right] = splitClip(project, 'c', 12).clips;
+    expect(left).toMatchObject({ start: 10, in: 6, out: 8 });
+    expect(right).toMatchObject({ start: 12, in: 2, out: 6 });
+  });
+
+  it('trims a faster clip in source seconds', () => {
+    const project = { ...newProject(), clips: [{ ...base, speed: 2 }] };
+    expect(trimClip(project, 'c', 'end', 11, 20).clips[0].out).toBe(4);
+  });
+
+  it('interpolates keyframes and applies them over the transform', () => {
+    expect(valueAt([{ t: 0, v: 1 }, { t: 2, v: 3 }], 1, 0)).toBe(2);
+    expect(valueAt([{ t: 0, v: 1 }], 5, 0)).toBe(1);
+    expect(valueAt(undefined, 5, 7)).toBe(7);
+    const clip = { ...base, keyframes: setKeyframe({ ...base, keyframes: setKeyframe(base, 'scale', 0, 1) }, 'scale', 2, 2) };
+    expect(transformAt(clip, 11).scale).toBe(1.5);
+    expect(transformAt(clip, 11).x).toBe(0.5);
+  });
+
+  it('separates audio onto its own clip and mutes the picture', () => {
+    const project = separateAudio({ ...newProject(), clips: [base] }, 'c', 1);
+    expect(project.clips).toHaveLength(2);
+    expect(project.clips[0].muted).toBe(true);
+    expect(project.clips[1]).toMatchObject({ track: 1, audioOnly: true, start: 10, in: 2, out: 8 });
+  });
+
+  it('pastes and moves clips, and keeps markers', () => {
+    const project = { ...newProject(), clips: [base, { ...base, id: 'd', track: 3, start: 12 }] };
+    const pasted = pasteClips(project, project.clips, 20);
+    expect(pasted.project.clips.slice(2).map((c) => c.start)).toEqual([20, 22]);
+    expect(moveClips(project, ['c', 'd'], -20).clips.map((c) => c.start)).toEqual([0, 2]);
+    const marked = addMarker(addMarker(project, 5), 1);
+    expect(marked.markers).toEqual([1, 5]);
+    expect(removeMarker(marked, 5).markers).toEqual([1]);
+    expect(snap(marked, 4.95, 0.1, '')).toBe(5);
+  });
+
+  it('keys out green and sharpens edges', () => {
+    const data = new Uint8ClampedArray([0, 255, 0, 255, 200, 50, 50, 255]);
+    chromaKey(data, [0, 255, 0], 40);
+    expect(data[3]).toBe(0);
+    expect(data[7]).toBe(255);
+    const flat = new Uint8ClampedArray(3 * 3 * 4).fill(100);
+    flat[(4) * 4] = 150;
+    expect(sharpen(flat, 3, 3, 100)[(4) * 4]).toBeGreaterThan(150);
+  });
+});

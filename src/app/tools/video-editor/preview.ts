@@ -2,7 +2,8 @@
  * Plays the project in the preview: one hidden <video>/<audio> element per clip,
  * kept in step with the timeline clock, and a canvas that composites the frame.
  */
-import { Clip, MediaItem, Project, clipEnd, transitionGain } from './project';
+import { connectAudioFx } from './audio-fx';
+import { Clip, MediaItem, Project, clipEnd, sourceTime, transitionGain } from './project';
 import { FrameSource, drawFrame } from './render';
 
 type Element = HTMLVideoElement | HTMLAudioElement;
@@ -10,6 +11,9 @@ type Element = HTMLVideoElement | HTMLAudioElement;
 export class Previewer {
   private readonly elements = new Map<string, Element>();
   private readonly images = new Map<string, HTMLImageElement>();
+  /** Web Audio, made on the first play (browsers need a click first), for volume above 100% and sound effects. */
+  private audio: AudioContext | null = null;
+  private readonly chains = new Map<string, { source: MediaElementAudioSourceNode; gain: GainNode; fx: string }>();
   private project: Project | null = null;
   private media = new Map<string, MediaItem>();
   private playing = false;
@@ -38,6 +42,8 @@ export class Previewer {
         element.removeAttribute('src');
         element.load();
         this.elements.delete(id);
+        this.chains.get(id)?.source.disconnect();
+        this.chains.delete(id);
       }
     }
     if (!this.playing) void this.seek(this.time);
@@ -48,7 +54,8 @@ export class Previewer {
     if (!media || media.kind === 'image') return null;
     let element = this.elements.get(clip.id);
     if (!element) {
-      element = document.createElement(media.kind === 'video' ? 'video' : 'audio');
+      // A separated sound plays from an <audio> element even when the file is a video.
+      element = document.createElement(media.kind === 'video' && !clip.audioOnly ? 'video' : 'audio');
       element.src = media.url;
       element.preload = 'auto';
       if (element instanceof HTMLVideoElement) element.playsInline = true;
@@ -95,7 +102,7 @@ export class Previewer {
       if (!element) continue;
       const inside = this.time >= clip.start && this.time < clipEnd(clip);
       if (!inside) continue;
-      const target = clip.in + (this.time - clip.start);
+      const target = sourceTime(clip, this.time);
       if (Math.abs(element.currentTime - target) > 0.01) {
         waits.push(new Promise((resolve) => element.addEventListener('seeked', () => resolve(), { once: true })));
         element.currentTime = target;
@@ -112,6 +119,12 @@ export class Previewer {
 
   play(end: number): void {
     if (!this.project || this.playing) return;
+    try {
+      this.audio ??= new AudioContext();
+      void this.audio.resume();
+    } catch {
+      this.audio = null;
+    }
     this.playing = true;
     this.clockStart = performance.now();
     this.timeAtStart = this.time >= end ? 0 : this.time;
@@ -145,16 +158,53 @@ export class Previewer {
         if (!element.paused) element.pause();
         continue;
       }
-      const target = clip.in + (this.time - clip.start);
-      element.muted = muted.has(clip.track);
-      element.volume = Math.min(1, clip.volume * transitionGain(clip, this.time));
+      const target = sourceTime(clip, this.time);
+      const silent = muted.has(clip.track) || !!clip.muted || !!clip.reverse;
+      const level = clip.volume * transitionGain(clip, this.time);
+      const chain = this.chainFor(clip, element);
+      if (chain) {
+        element.muted = false;
+        element.volume = 1;
+        chain.gain.gain.value = silent ? 0 : level;
+      } else {
+        element.muted = silent;
+        element.volume = Math.min(1, level);
+      }
+      if (clip.reverse) {
+        // Browsers cannot play backwards, so a reversed clip is shown by seeking frame by frame.
+        if (!element.paused) element.pause();
+        if (Math.abs(element.currentTime - target) > 0.04) element.currentTime = target;
+        continue;
+      }
+      element.playbackRate = clip.speed ?? 1;
       if (element.paused) {
         element.currentTime = target;
         void element.play().catch(() => undefined);
-      } else if (Math.abs(element.currentTime - target) > 0.25) {
+      } else if (Math.abs(element.currentTime - target) > 0.25 * (clip.speed ?? 1)) {
         element.currentTime = target;
       }
     }
+  }
+
+  /** Routes a clip's element through Web Audio, rebuilding the chain when its effects change. */
+  private chainFor(clip: Clip, element: Element): { gain: GainNode } | null {
+    if (!this.audio) return null;
+    const key = JSON.stringify(clip.audio ?? null);
+    let chain = this.chains.get(clip.id);
+    if (!chain) {
+      const source = this.audio.createMediaElementSource(element);
+      const gain = this.audio.createGain();
+      chain = { source, gain, fx: '' };
+      this.chains.set(clip.id, chain);
+    }
+    if (chain.fx !== key || chain.fx === '') {
+      chain.source.disconnect();
+      chain.gain.disconnect();
+      connectAudioFx(this.audio, chain.source, clip.audio).connect(chain.gain);
+      chain.gain.connect(this.audio.destination);
+      chain.fx = key;
+    }
+    return chain;
   }
 
   pause(): void {
@@ -175,5 +225,8 @@ export class Previewer {
     }
     this.elements.clear();
     this.images.clear();
+    this.chains.clear();
+    void this.audio?.close().catch(() => undefined);
+    this.audio = null;
   }
 }

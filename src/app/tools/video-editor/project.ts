@@ -18,6 +18,10 @@ export interface MediaItem {
   url: string;
   file: File;
   thumb?: string;
+  /** Small pictures through a video, for the timeline (made after import). */
+  thumbs?: { t: number; url: string }[];
+  /** Loudness per 1/20 s, for the timeline waveform (made after import). */
+  peaks?: number[];
 }
 
 export interface TitleStyle {
@@ -46,13 +50,66 @@ export interface Clip {
   transitionIn?: Transition;
   transitionOut?: Transition;
   effects?: Effects;
+  /** Size, place, rotation and crop of the picture. */
+  transform?: Transform;
+  /** Values that change over the clip's time, overriding the transform and opacity. */
+  keyframes?: Keyframes;
+  /** Playback speed: 0.25 to 4. */
+  speed?: number;
+  /** Plays the source backwards. */
+  reverse?: boolean;
+  /** Only the sound is used (made by "Separate audio"). */
+  audioOnly?: boolean;
+  /** The sound is not used (its audio was separated). */
+  muted?: boolean;
+  /** Echo, tone and clean-up for the clip's sound. */
+  audio?: AudioFx;
 }
+
+export interface Transform {
+  /** Centre of the picture, 0..1 across and down the frame. */
+  x: number;
+  y: number;
+  /** 1 fits the frame. */
+  scale: number;
+  /** Degrees, clockwise. */
+  rotation: number;
+  /** Share of the source cut off each side, 0..0.45. */
+  cropLeft: number;
+  cropRight: number;
+  cropTop: number;
+  cropBottom: number;
+}
+
+export const NO_TRANSFORM: Transform = { x: 0.5, y: 0.5, scale: 1, rotation: 0, cropLeft: 0, cropRight: 0, cropTop: 0, cropBottom: 0 };
+
+export type KeyProp = 'x' | 'y' | 'scale' | 'rotation' | 'opacity';
+export interface Keyframe {
+  /** Seconds from the start of the clip on the timeline. */
+  t: number;
+  v: number;
+}
+export type Keyframes = Partial<Record<KeyProp, Keyframe[]>>;
+
+export interface AudioFx {
+  /** 0..1 amount of echo. */
+  echo: number;
+  /** Decibels, -12..12. */
+  bass: number;
+  treble: number;
+  /** Cuts rumble and hiss to make speech clearer. */
+  clean: boolean;
+}
+
+export const NO_AUDIO_FX: AudioFx = { echo: 0, bass: 0, treble: 0, clean: false };
 
 export interface Track {
   id: number;
   name: string;
   muted: boolean;
   hidden: boolean;
+  /** Locked tracks cannot be edited. */
+  locked?: boolean;
 }
 
 export interface Project {
@@ -61,6 +118,8 @@ export interface Project {
   fps: number;
   tracks: Track[];
   clips: Clip[];
+  /** Times (seconds) marked on the timeline. */
+  markers?: number[];
 }
 
 export const DEFAULT_STILL = 5;
@@ -76,7 +135,8 @@ export function newProject(): Project {
   };
 }
 
-export const clipLength = (clip: Clip) => clip.out - clip.in;
+/** Length of the clip on the timeline (a faster clip is shorter). */
+export const clipLength = (clip: Clip) => (clip.out - clip.in) / (clip.speed ?? 1);
 export const clipEnd = (clip: Clip) => clip.start + clipLength(clip);
 
 export function projectDuration(project: Project): number {
@@ -126,14 +186,30 @@ export function removeClip(project: Project, id: string): Project {
   return { ...project, clips: project.clips.filter((c) => c.id !== id) };
 }
 
+/** The source time a clip shows at timeline `time`, taking speed and reverse into account. */
+export function sourceTime(clip: Clip, time: number): number {
+  const into = (time - clip.start) * (clip.speed ?? 1);
+  return clip.reverse ? clip.out - into : clip.in + into;
+}
+
 /** Cuts a clip in two at a timeline time. Returns the project unchanged when the time is not inside the clip. */
 export function splitClip(project: Project, id: string, time: number): Project {
   const clip = project.clips.find((c) => c.id === id);
   if (!clip || time <= clip.start + MIN_CLIP || time >= clipEnd(clip) - MIN_CLIP) return project;
-  const cut = clip.in + (time - clip.start);
+  const cut = sourceTime(clip, time);
   // The opening transition stays on the first part and the closing one on the second.
-  const left: Clip = { ...clip, out: cut, transitionOut: undefined };
-  const right: Clip = { ...clip, id: makeId('clip'), start: time, in: cut, transitionIn: undefined };
+  // Keyframes are kept on the part they fall in, shifted to its own start.
+  const local = time - clip.start;
+  const keys = (from: number, to: number, shift: number): Keyframes | undefined =>
+    clip.keyframes
+      ? Object.fromEntries(
+          Object.entries(clip.keyframes).map(([k, list]) => [k, (list ?? []).filter((f) => f.t >= from && f.t <= to).map((f) => ({ t: f.t - shift, v: f.v }))]),
+        )
+      : undefined;
+  const leftSource = clip.reverse ? { in: cut, out: clip.out } : { in: clip.in, out: cut };
+  const rightSource = clip.reverse ? { in: clip.in, out: cut } : { in: cut, out: clip.out };
+  const left: Clip = { ...clip, ...leftSource, transitionOut: undefined, keyframes: keys(0, local, 0) };
+  const right: Clip = { ...clip, ...rightSource, id: makeId('clip'), start: time, transitionIn: undefined, keyframes: keys(local, Infinity, local) };
   return { ...project, clips: project.clips.flatMap((c) => (c.id === id ? [left, right] : [c])) };
 }
 
@@ -144,27 +220,36 @@ export function splitAll(project: Project, time: number): Project {
 
 /**
  * Moves the left or right edge of a clip. Videos and sounds cannot be stretched past
- * their source; images and titles can be any length.
+ * their source; images and titles can be any length. Speed and reverse are honoured.
  */
 export function trimClip(project: Project, id: string, edge: 'start' | 'end', time: number, sourceLength: number | null): Project {
   const clip = project.clips.find((c) => c.id === id);
   if (!clip) return project;
+  const speed = clip.speed ?? 1;
+  const end = clipEnd(clip);
+  if (sourceLength === null) {
+    // Stills and titles: just change the length.
+    if (edge === 'end') return updateClip(project, id, { in: 0, out: Math.max(MIN_CLIP, time - clip.start) * speed });
+    const start = Math.max(0, Math.min(time, end - MIN_CLIP));
+    return updateClip(project, id, { start, in: 0, out: (end - start) * speed });
+  }
   if (edge === 'end') {
-    const max = sourceLength === null ? Infinity : sourceLength;
-    const out = Math.min(max, Math.max(clip.in + MIN_CLIP, clip.in + (time - clip.start)));
-    return updateClip(project, id, { out });
+    const span = Math.max(MIN_CLIP, time - clip.start) * speed;
+    return clip.reverse
+      ? updateClip(project, id, { in: Math.max(0, clip.out - span) })
+      : updateClip(project, id, { out: Math.min(sourceLength, clip.in + span) });
   }
   // Moving the start edge keeps the end where it is.
-  const end = clipEnd(clip);
-  const minIn = sourceLength === null ? -Infinity : 0;
-  let start = Math.min(time, end - MIN_CLIP);
-  let inPoint = clip.in + (start - clip.start);
-  if (inPoint < minIn) {
-    inPoint = minIn;
-    start = clip.start + (minIn - clip.in);
+  let start = Math.max(0, Math.min(time, end - MIN_CLIP));
+  let span = (end - start) * speed;
+  if (clip.reverse) {
+    const out = Math.min(sourceLength, clip.in + span);
+    span = out - clip.in;
+    start = end - span / speed;
+    return updateClip(project, id, { start, out });
   }
-  start = Math.max(0, start);
-  if (sourceLength === null) return updateClip(project, id, { start, in: 0, out: end - start });
+  const inPoint = Math.max(0, clip.out - span);
+  start = end - (clip.out - inPoint) / speed;
   return updateClip(project, id, { start, in: inPoint });
 }
 
@@ -172,7 +257,7 @@ export function trimClip(project: Project, id: string, edge: 'start' | 'end', ti
 export function snap(project: Project, time: number, tolerance: number, ignore: string, extra: number[] = []): number {
   let best = time;
   let bestDistance = tolerance;
-  const points = [0, ...extra];
+  const points = [0, ...extra, ...(project.markers ?? [])];
   for (const clip of project.clips) if (clip.id !== ignore) points.push(clip.start, clipEnd(clip));
   for (const point of points) {
     const distance = Math.abs(point - time);
@@ -265,6 +350,13 @@ export interface Effects {
   /** Blur in pixels at 720p, scaled with the frame. */
   blur: number;
   opacity: number;
+  /** Pixel block size at 720p; 0 is off. */
+  pixelate?: number;
+  /** 0..100. */
+  sharpen?: number;
+  /** Green screen: how close to `chromaColour` a pixel must be to become see-through, 0 (off)..100. */
+  chroma?: number;
+  chromaColour?: string;
 }
 
 export const NO_EFFECTS: Effects = { brightness: 100, contrast: 100, saturation: 100, grayscale: 0, sepia: 0, invert: 0, hue: 0, blur: 0, opacity: 100 };
@@ -280,6 +372,9 @@ export const EFFECT_PRESETS: readonly { name: string; icon: string; effects: Par
   { name: 'Invert', icon: '🔄', effects: { invert: 100 } },
   { name: 'Cool', icon: '❄', effects: { hue: 200, saturation: 90 } },
   { name: 'Warm', icon: '🔥', effects: { sepia: 25, saturation: 120 } },
+  { name: 'Green screen', icon: '🟩', effects: { chroma: 40, chromaColour: '#00ff00' } },
+  { name: 'Pixelate', icon: '🔲', effects: { pixelate: 12 } },
+  { name: 'Sharpen', icon: '🔪', effects: { sharpen: 60 } },
 ];
 
 /** CSS / canvas filter string for the effects; '' when nothing changes. */
@@ -295,4 +390,99 @@ export function effectsFilter(effects: Effects | undefined, frameHeight: number)
   if (effects.hue) parts.push(`hue-rotate(${effects.hue}deg)`);
   if (effects.blur) parts.push(`blur(${Math.round(((effects.blur * frameHeight) / 720) * 10) / 10}px)`);
   return parts.join(' ');
+}
+
+
+// ---------- keyframes, transform ----------
+
+/** A keyframed value at clip-local time `t`, straight lines between keyframes; `base` when there are none. */
+export function valueAt(list: readonly Keyframe[] | undefined, t: number, base: number): number {
+  if (!list?.length) return base;
+  const sorted = [...list].sort((a, b) => a.t - b.t);
+  if (t <= sorted[0].t) return sorted[0].v;
+  const last = sorted[sorted.length - 1];
+  if (t >= last.t) return last.v;
+  for (let i = 1; i < sorted.length; i++) {
+    const b = sorted[i];
+    if (t <= b.t) {
+      const a = sorted[i - 1];
+      return a.v + ((b.v - a.v) * (t - a.t)) / (b.t - a.t || 1);
+    }
+  }
+  return last.v;
+}
+
+/** The clip's transform and opacity at timeline `time`, with keyframes applied. */
+export function transformAt(clip: Clip, time: number): Transform & { opacity: number } {
+  const base = clip.transform ?? NO_TRANSFORM;
+  const t = time - clip.start;
+  const k = clip.keyframes ?? {};
+  return {
+    ...base,
+    x: valueAt(k.x, t, base.x),
+    y: valueAt(k.y, t, base.y),
+    scale: valueAt(k.scale, t, base.scale),
+    rotation: valueAt(k.rotation, t, base.rotation),
+    opacity: valueAt(k.opacity, t, (clip.effects?.opacity ?? 100) / 100),
+  };
+}
+
+/** Adds or replaces a keyframe at clip-local time `t` (frames closer than 1/60 s are the same keyframe). */
+export function setKeyframe(clip: Clip, prop: KeyProp, t: number, v: number): Keyframes {
+  const list = (clip.keyframes?.[prop] ?? []).filter((f) => Math.abs(f.t - t) > 1 / 60);
+  return { ...clip.keyframes, [prop]: [...list, { t, v }].sort((a, b) => a.t - b.t) };
+}
+
+export function removeKeyframe(clip: Clip, prop: KeyProp, t: number): Keyframes {
+  return { ...clip.keyframes, [prop]: (clip.keyframes?.[prop] ?? []).filter((f) => Math.abs(f.t - t) > 1 / 60) };
+}
+
+// ---------- audio, markers, copy and paste ----------
+
+/** Puts a video clip's sound on its own clip on another track and mutes the original. */
+export function separateAudio(project: Project, id: string, track: number): Project {
+  const clip = project.clips.find((c) => c.id === id);
+  if (!clip || clip.audioOnly || clip.muted) return project;
+  const audio: Clip = {
+    ...clip,
+    id: makeId('clip'),
+    track,
+    audioOnly: true,
+    muted: false,
+    transform: undefined,
+    keyframes: undefined,
+    effects: undefined,
+  };
+  return { ...project, clips: [...project.clips.map((c) => (c.id === id ? { ...c, muted: true } : c)), audio] };
+}
+
+export function addMarker(project: Project, time: number): Project {
+  const markers = (project.markers ?? []).filter((m) => Math.abs(m - time) > 0.05);
+  return { ...project, markers: [...markers, time].sort((a, b) => a - b) };
+}
+
+export function removeMarker(project: Project, time: number): Project {
+  return { ...project, markers: (project.markers ?? []).filter((m) => Math.abs(m - time) > 0.05) };
+}
+
+/** Pastes copies of clips at `time`, keeping their spacing and tracks, never covering other clips. */
+export function pasteClips(project: Project, clips: readonly Clip[], time: number): { project: Project; ids: string[] } {
+  if (!clips.length) return { project, ids: [] };
+  const first = Math.min(...clips.map((c) => c.start));
+  let next = project;
+  const ids: string[] = [];
+  for (const clip of clips) {
+    const start = freeStart(next, clip.track, time + (clip.start - first), clipLength(clip));
+    const copy: Clip = { ...structuredClone(clip), id: makeId('clip'), start };
+    next = { ...next, clips: [...next.clips, copy] };
+    ids.push(copy.id);
+  }
+  return { project: next, ids };
+}
+
+/** Moves several clips by the same amount, keeping them at or after 0. */
+export function moveClips(project: Project, ids: readonly string[], by: number): Project {
+  const chosen = project.clips.filter((c) => ids.includes(c.id));
+  const shift = Math.max(by, -Math.min(...chosen.map((c) => c.start)));
+  return { ...project, clips: project.clips.map((c) => (ids.includes(c.id) ? { ...c, start: c.start + shift } : c)) };
 }

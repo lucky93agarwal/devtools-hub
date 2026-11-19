@@ -260,3 +260,50 @@ export async function replaceAudio(
     input.dispose();
   }
 }
+
+/** Small pictures of a video every `every` seconds, for the timeline. */
+export async function thumbnails(file: Blob, duration: number, height = 54): Promise<{ t: number; url: string }[]> {
+  const mb = await import('mediabunny');
+  const input = await openMedia(file);
+  try {
+    const track = await input.getPrimaryVideoTrack();
+    if (!track) return [];
+    const every = Math.max(1, duration / 30);
+    const times = Array.from({ length: Math.max(1, Math.floor(duration / every)) }, (_, i) => i * every);
+    const width = Math.max(1, Math.round((height * track.displayWidth) / Math.max(1, track.displayHeight)));
+    const canvas = document.createElement('canvas');
+    canvas.width = width;
+    canvas.height = height;
+    const context = canvas.getContext('2d')!;
+    const out: { t: number; url: string }[] = [];
+    let i = 0;
+    for await (const sample of new mb.VideoSampleSink(track).samplesAtTimestamps(times)) {
+      if (sample) {
+        sample.draw(context, 0, 0, width, height);
+        sample.close();
+        out.push({ t: times[i], url: canvas.toDataURL('image/jpeg', 0.6) });
+      }
+      i++;
+    }
+    return out;
+  } finally {
+    input.dispose();
+  }
+}
+
+/** Loudness peaks of a file's sound, one value (0..1) per 1/20 s, for drawing a waveform. */
+export async function peaks(file: Blob): Promise<number[]> {
+  const context = new OfflineAudioContext(1, 1, 48_000);
+  const buffer = await decodeAudio(file, context);
+  if (!buffer) return [];
+  const step = Math.max(1, Math.round(buffer.sampleRate / 20));
+  const data = buffer.getChannelData(0);
+  const out: number[] = [];
+  for (let i = 0; i < data.length; i += step) {
+    let max = 0;
+    const end = Math.min(data.length, i + step);
+    for (let j = i; j < end; j += 4) max = Math.max(max, Math.abs(data[j]));
+    out.push(Math.min(1, max));
+  }
+  return out;
+}

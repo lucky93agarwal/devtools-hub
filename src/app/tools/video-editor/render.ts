@@ -1,5 +1,6 @@
 /** Drawing one frame of the project, shared by the preview and the export. */
-import { Clip, Project, TitleStyle, Transition, clipsAt, effectsFilter, fitRect, transitionProgress } from './project';
+import { Clip, Project, TitleStyle, Transition, clipsAt, effectsFilter, fitRect, transformAt, transitionProgress } from './project';
+import { chromaKey, hexToRgb, sharpen } from './pixels';
 
 /** What a clip shows at the current time: a video frame, an image, or nothing yet. */
 export type FrameSource = { image: CanvasImageSource; width: number; height: number } | null;
@@ -87,20 +88,89 @@ export function applyTransition(
   }
 }
 
-/** Draws one clip with its effects and the transitions active at `time`. */
-function drawClip(context: CanvasRenderingContext2D, project: Project, clip: Clip, time: number, draw: () => void): void {
+/** Reused scratch canvas for effects that work on pixels. */
+let scratch: HTMLCanvasElement | null = null;
+function scratchCanvas(width: number, height: number): CanvasRenderingContext2D {
+  scratch ??= document.createElement('canvas');
+  if (scratch.width !== width || scratch.height !== height) {
+    scratch.width = width;
+    scratch.height = height;
+  }
+  const context = scratch.getContext('2d', { willReadFrequently: true })!;
+  context.clearRect(0, 0, width, height);
+  return context;
+}
+
+/**
+ * Draws one clip with its transform (size, place, rotation, crop, keyframes),
+ * effects and the transitions active at `time`.
+ */
+function drawClip(context: CanvasRenderingContext2D, project: Project, clip: Clip, time: number, source: FrameSource | 'title'): void {
   const { width, height } = project;
   const progress = transitionProgress(clip, time);
+  const t = transformAt(clip, time);
   context.save();
   if (clip.transitionIn && progress.in !== null) applyTransition(context, clip.transitionIn, progress.in, width, height, true);
   if (clip.transitionOut && progress.out !== null) applyTransition(context, clip.transitionOut, progress.out, width, height, false);
-  if (clip.effects) {
-    context.globalAlpha *= clip.effects.opacity / 100;
-    const filter = effectsFilter(clip.effects, height);
-    if (filter) context.filter = filter;
+  context.globalAlpha *= Math.max(0, Math.min(1, t.opacity));
+  const filter = effectsFilter(clip.effects, height);
+  if (filter) context.filter = filter;
+  // Move to the clip's centre, rotate and scale around it.
+  context.translate(t.x * width, t.y * height);
+  context.rotate((t.rotation * Math.PI) / 180);
+  context.scale(t.scale, t.scale);
+  if (source === 'title') {
+    context.translate(-width / 2, -height / 2);
+    drawTitle(context, clip.title!, width, height);
+    context.restore();
+    return;
   }
-  draw();
+  if (!source) {
+    context.restore();
+    return;
+  }
+  const sx = source.width * t.cropLeft;
+  const sy = source.height * t.cropTop;
+  const sw = Math.max(1, source.width * (1 - t.cropLeft - t.cropRight));
+  const sh = Math.max(1, source.height * (1 - t.cropTop - t.cropBottom));
+  const box = fitRect(sw, sh, width, height);
+  const effects = clip.effects;
+  const pixelWork = !!(effects?.chroma || effects?.sharpen || effects?.pixelate);
+  if (!pixelWork) {
+    context.drawImage(source.image, sx, sy, sw, sh, -box.width / 2, -box.height / 2, box.width, box.height);
+    context.restore();
+    return;
+  }
+  // Effects on pixels: draw the cropped picture at its final size, change it, then place it.
+  const w = Math.max(1, Math.round(box.width));
+  const h = Math.max(1, Math.round(box.height));
+  const work = scratchCanvas(w, h);
+  if (effects!.pixelate) {
+    const block = Math.max(2, (effects!.pixelate * height) / 720);
+    const small = scratchSmall(Math.max(1, Math.round(w / block)), Math.max(1, Math.round(h / block)));
+    small.drawImage(source.image, sx, sy, sw, sh, 0, 0, small.canvas.width, small.canvas.height);
+    work.imageSmoothingEnabled = false;
+    work.drawImage(small.canvas, 0, 0, w, h);
+    work.imageSmoothingEnabled = true;
+  } else {
+    work.drawImage(source.image, sx, sy, sw, sh, 0, 0, w, h);
+  }
+  if (effects!.chroma || effects!.sharpen) {
+    const pixels = work.getImageData(0, 0, w, h);
+    if (effects!.chroma) chromaKey(pixels.data, hexToRgb(effects!.chromaColour ?? '#00ff00'), effects!.chroma);
+    const data = effects!.sharpen ? sharpen(pixels.data, w, h, effects!.sharpen) : pixels.data;
+    work.putImageData(new ImageData(new Uint8ClampedArray(data), w, h), 0, 0);
+  }
+  context.drawImage(work.canvas, -box.width / 2, -box.height / 2, box.width, box.height);
   context.restore();
+}
+
+let smallCanvas: HTMLCanvasElement | null = null;
+function scratchSmall(width: number, height: number): CanvasRenderingContext2D {
+  smallCanvas ??= document.createElement('canvas');
+  smallCanvas.width = width;
+  smallCanvas.height = height;
+  return smallCanvas.getContext('2d')!;
 }
 
 /**
@@ -118,15 +188,13 @@ export function drawFrame(
   context.fillRect(0, 0, width, height);
   const hidden = new Set(project.tracks.filter((t) => t.hidden).map((t) => t.id));
   for (const clip of clipsAt(project, time)) {
-    if (hidden.has(clip.track)) continue;
+    if (hidden.has(clip.track) || clip.audioOnly) continue;
     if (clip.title) {
-      const title = clip.title;
-      drawClip(context, project, clip, time, () => drawTitle(context, title, width, height));
+      drawClip(context, project, clip, time, 'title');
       continue;
     }
     const source = sourceFor(clip);
     if (!source || !source.width || !source.height) continue;
-    const box = fitRect(source.width, source.height, width, height);
-    drawClip(context, project, clip, time, () => context.drawImage(source.image, box.x, box.y, box.width, box.height));
+    drawClip(context, project, clip, time, source);
   }
 }

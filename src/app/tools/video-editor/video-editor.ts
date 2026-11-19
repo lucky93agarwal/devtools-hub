@@ -2,10 +2,25 @@ import { Component, DestroyRef, ElementRef, afterNextRender, computed, effect, i
 import { baseName, downloadBlob, formatBytes } from '../../shared/file-utils';
 import { ToolPage } from '../../shared/tool-page/tool-page';
 import { ToolContent } from '../../shared/tool-info/tool-info';
-import { MAX_VIDEO_BYTES, describe } from '../video/media';
+import { MAX_VIDEO_BYTES, describe, openMedia, peaks, thumbnails } from '../video/media';
 import { ago, clearProject, loadProject, saveProject } from './autosave';
-import { exportProject } from './export';
+import { EXPORT_FORMATS, ExportFormat, ExportQuality, exportProject } from './export';
+import { openProjectFile, saveProjectFile } from './project-file';
 import {
+  AudioFx,
+  KeyProp,
+  NO_AUDIO_FX,
+  NO_TRANSFORM,
+  Transform,
+  addMarker,
+  moveClips,
+  pasteClips,
+  removeKeyframe,
+  removeMarker,
+  separateAudio,
+  setKeyframe,
+  sourceTime,
+  transformAt,
   EFFECT_PRESETS,
   Effects,
   NO_EFFECTS,
@@ -113,6 +128,9 @@ type Drag =
         <div class="flex flex-wrap items-center gap-1 border-b border-[#343842] px-2 py-1.5" role="toolbar" aria-label="Editor">
           <button type="button" class="tool" (click)="newProjectClick()">＋ New project</button>
           <button type="button" class="tool" (click)="fileInput.click()">📂 Import files</button>
+          <button type="button" class="tool" (click)="saveProjectZip()">💾 Save project</button>
+          <button type="button" class="tool" (click)="projectInput.click()">📁 Open project</button>
+          <input #projectInput type="file" class="sr-only" tabindex="-1" aria-hidden="true" accept=".zip,application/zip" (change)="openProjectZip(projectInput)" />
           <input #fileInput type="file" class="sr-only" tabindex="-1" aria-hidden="true" multiple accept="video/*,audio/*,image/*,.mkv,.mov" (change)="importFiles(fileInput)" />
           <span class="mx-1 h-5 w-px bg-[#343842]"></span>
           <button type="button" class="tool" [disabled]="!history().length" aria-label="Undo" (click)="undo()">↶ Undo</button>
@@ -131,6 +149,15 @@ type Drag =
               @case ('failed') { <span class="text-red-400">Not saved: browser storage is full</span> }
             }
           </span>
+          <select class="input" aria-label="Export format" [disabled]="exporting()" (change)="exportFormat.set($any($event.target).value)">
+            @for (f of exportFormats; track f.id) { <option [value]="f.id" [selected]="f.id === exportFormat()">{{ f.label }}</option> }
+          </select>
+          <select class="input" aria-label="Export quality" [disabled]="exporting()" (change)="exportQuality.set($any($event.target).value)">
+            <option value="low">Low</option>
+            <option value="medium">Medium</option>
+            <option value="high" selected>High</option>
+            <option value="very-high">Very high</option>
+          </select>
           <button type="button" class="tool !bg-[#6d83f2] !text-white" [disabled]="exporting() || !project().clips.length" (click)="exportVideo()">⬇ Export video</button>
         </div>
         @if (restoreOffer(); as offer) {
@@ -143,13 +170,14 @@ type Drag =
 
         <div class="grid gap-1 p-1 lg:grid-cols-[minmax(0,2fr)_minmax(0,3fr)]">
           <!-- Left: project files / titles / properties -->
-          <div class="panel flex min-h-72 flex-col rounded">
+          <div class="panel flex min-h-72 flex-col rounded lg:max-h-[34rem]">
             <div class="flex border-b border-[#343842]" role="tablist" aria-label="Panels">
               <button type="button" role="tab" class="tab" [attr.aria-selected]="tab() === 'files'" (click)="tab.set('files')">Project Files</button>
               <button type="button" role="tab" class="tab" [attr.aria-selected]="tab() === 'transitions'" (click)="tab.set('transitions')">Transitions</button>
               <button type="button" role="tab" class="tab" [attr.aria-selected]="tab() === 'effects'" (click)="tab.set('effects')">Effects</button>
               <button type="button" role="tab" class="tab" [attr.aria-selected]="tab() === 'titles'" (click)="tab.set('titles')">Titles</button>
               <button type="button" role="tab" class="tab" [attr.aria-selected]="tab() === 'properties'" (click)="tab.set('properties')">Properties</button>
+              <button type="button" role="tab" class="tab" [attr.aria-selected]="tab() === 'history'" (click)="tab.set('history')">History</button>
             </div>
             <div class="flex-1 overflow-auto p-2" (drop)="dropFiles($event)">
               @switch (tab()) {
@@ -222,6 +250,18 @@ type Drag =
                   </ul>
                   <p class="mt-2 text-xs text-[#9aa0ab]">Click a template to add it at the playhead, then edit it in Properties.</p>
                 }
+                @case ('history') {
+                  <ol class="flex flex-col gap-0.5 text-xs" aria-label="History">
+                    <li><button type="button" class="w-full rounded px-2 py-1 text-left hover:bg-[#343842]" [class.text-[#9aa0ab]]="history().length > 0" (click)="goToHistory(0)">Start</button></li>
+                    @for (h of history(); track $index; let i = $index) {
+                      <li><button type="button" class="w-full rounded px-2 py-1 text-left hover:bg-[#343842]" (click)="goToHistory(i + 1)">{{ i + 1 }}. {{ h.label }}</button></li>
+                    }
+                    @for (f of future(); track $index; let i = $index) {
+                      <li><button type="button" class="w-full rounded px-2 py-1 text-left text-[#6b7280] line-through hover:bg-[#343842]" (click)="redoTo(i)">{{ f.label }}</button></li>
+                    }
+                  </ol>
+                  <p class="mt-2 text-xs text-[#9aa0ab]">Click a step to go back to it. Crossed-out steps can be redone.</p>
+                }
                 @case ('properties') {
                   @if (selected(); as clip) {
                     <div class="flex flex-col gap-2 text-xs">
@@ -232,7 +272,15 @@ type Drag =
                       <label class="flex items-center justify-between gap-2">Length (s)
                         <input type="number" min="0.1" step="0.1" class="input w-24" aria-label="Clip length" [value]="round(length(clip))" (change)="setLength(clip, $any($event.target).valueAsNumber)" />
                       </label>
-                      @if (hasSound(clip)) {
+                      @if (isTimed(clip)) {
+                        <label class="flex items-center justify-between gap-2">Speed
+                          <select class="input" aria-label="Clip speed" (change)="setSpeed(clip, +$any($event.target).value)">
+                            @for (sp of speeds; track sp) { <option [value]="sp" [selected]="(clip.speed ?? 1) === sp">{{ sp }}×</option> }
+                          </select>
+                        </label>
+                        <label class="flex items-center gap-2"><input type="checkbox" aria-label="Play backwards" [checked]="!!clip.reverse" (change)="change(clip.id, { reverse: $any($event.target).checked }, 'Reverse')" /> Play backwards (reverse)</label>
+                      }
+                      @if (hasSound(clip) && !clip.muted) {
                         <label class="flex items-center justify-between gap-2">Volume {{ Math.round(clip.volume * 100) }}%
                           <input type="range" min="0" max="2" step="0.05" class="w-32" aria-label="Clip volume" [value]="clip.volume" (change)="change(clip.id, { volume: $any($event.target).valueAsNumber })" />
                         </label>
@@ -255,6 +303,42 @@ type Drag =
                         </label>
                         <label class="flex items-center gap-2"><input type="checkbox" [checked]="t.background" (change)="setTitle(clip, { background: $any($event.target).checked }, true)" /> Dark box behind text</label>
                       }
+                      @if (hasSound(clip) && !clip.muted) {
+                        <p class="mt-2 font-semibold text-white">Sound effects</p>
+                        <label class="flex items-center justify-between gap-2">Echo {{ Math.round(audioFx(clip).echo * 100) }}%
+                          <input type="range" min="0" max="1" step="0.05" class="w-32" aria-label="Echo" [value]="audioFx(clip).echo" (change)="setAudioFx(clip, { echo: $any($event.target).valueAsNumber })" />
+                        </label>
+                        <label class="flex items-center justify-between gap-2">Bass {{ audioFx(clip).bass }} dB
+                          <input type="range" min="-12" max="12" step="1" class="w-32" aria-label="Bass" [value]="audioFx(clip).bass" (change)="setAudioFx(clip, { bass: $any($event.target).valueAsNumber })" />
+                        </label>
+                        <label class="flex items-center justify-between gap-2">Treble {{ audioFx(clip).treble }} dB
+                          <input type="range" min="-12" max="12" step="1" class="w-32" aria-label="Treble" [value]="audioFx(clip).treble" (change)="setAudioFx(clip, { treble: $any($event.target).valueAsNumber })" />
+                        </label>
+                        <label class="flex items-center gap-2"><input type="checkbox" aria-label="Clean up voice" [checked]="audioFx(clip).clean" (change)="setAudioFx(clip, { clean: $any($event.target).checked })" /> Clean up voice (cut rumble and hiss)</label>
+                      }
+                      @if (!clip.audioOnly && !isAudioMedia(clip)) {
+                        <p class="mt-2 flex items-center justify-between font-semibold text-white">Transform
+                          <button type="button" class="tool !px-1.5 !py-0.5" [disabled]="!clip.transform && !clip.keyframes" (click)="resetTransform(clip)">Reset</button>
+                        </p>
+                        <p class="text-[#9aa0ab]">◆ adds a keyframe at the playhead, so the value can change over time.</p>
+                        @for (f of transformFields; track f.key) {
+                          <div class="flex items-center justify-between gap-2">
+                            <span>{{ f.label }} {{ round(transformValue(clip, f.key)) }}</span>
+                            <span class="flex items-center gap-1">
+                              <input type="range" class="w-28" [min]="f.min" [max]="f.max" [step]="f.step" [attr.aria-label]="'Transform ' + f.label" [value]="transformValue(clip, f.key)" (input)="setTransformValue(clip, f.key, $any($event.target).valueAsNumber, false)" (change)="setTransformValue(clip, f.key, $any($event.target).valueAsNumber, true)" />
+                              <button type="button" class="rounded px-1" [class.text-amber-300]="hasKeyframeHere(clip, f.key)" [attr.aria-label]="'Keyframe ' + f.label" (click)="toggleKeyframe(clip, f.key)">◆</button>
+                              <span class="w-4 text-[10px] text-[#9aa0ab]">{{ clip.keyframes?.[f.key]?.length || '' }}</span>
+                            </span>
+                          </div>
+                        }
+                        @if (!clip.title) {
+                          @for (c of cropFields; track c.key) {
+                            <label class="flex items-center justify-between gap-2">{{ c.label }} {{ Math.round((clip.transform ?? noTransform)[c.key] * 100) }}%
+                              <input type="range" min="0" max="0.45" step="0.01" class="w-32" [attr.aria-label]="c.label" [value]="(clip.transform ?? noTransform)[c.key]" (change)="setCrop(clip, c.key, $any($event.target).valueAsNumber)" />
+                            </label>
+                          }
+                        }
+                      }
                       <p class="mt-2 font-semibold text-white">Transitions</p>
                       @for (side of sides; track side.key) {
                         <div class="flex items-center justify-between gap-2">
@@ -273,12 +357,21 @@ type Drag =
                       <p class="mt-2 flex items-center justify-between font-semibold text-white">Effects
                         <button type="button" class="tool !px-1.5 !py-0.5" [disabled]="!clip.effects" (click)="resetEffects()">Reset</button>
                       </p>
+                      @if (effectValue(clip, 'chroma')) {
+                        <label class="flex items-center justify-between gap-2">Green screen colour
+                          <input type="color" class="h-6 w-10" aria-label="Green screen colour" [value]="clip.effects?.chromaColour ?? '#00ff00'" (change)="setChromaColour(clip, $any($event.target).value)" />
+                        </label>
+                      }
                       @for (f of effectFields; track f.key) {
                         <label class="flex items-center justify-between gap-2">{{ f.label }} {{ effectValue(clip, f.key) }}{{ f.unit }}
                           <input type="range" class="w-32" [min]="f.min" [max]="f.max" [step]="f.step" [attr.aria-label]="'Effect ' + f.label" [value]="effectValue(clip, f.key)" (input)="setEffect(f.key, $any($event.target).valueAsNumber, false)" (change)="setEffect(f.key, $any($event.target).valueAsNumber, true)" />
                         </label>
                       }
-                      <button type="button" class="tool mt-2 self-start !bg-[#4a2a2a]" (click)="deleteSelected()">🗑 Remove clip</button>
+                      <span class="mt-2 flex flex-wrap gap-1">
+                        @if (canSeparate(clip)) { <button type="button" class="tool !bg-[#2c3a4a]" (click)="separate(clip)">🔈 Separate audio</button> }
+                        @if (isVideo(clip)) { <button type="button" class="tool !bg-[#2c3a4a]" (click)="freezeFrame(clip)">❄ Freeze frame</button> }
+                        <button type="button" class="tool !bg-[#4a2a2a]" (click)="deleteSelected()">🗑 Remove clip</button>
+                      </span>
                     </div>
                   } @else {
                     <p class="text-xs text-[#9aa0ab]">Select a clip on the timeline to see its properties.</p>
@@ -290,8 +383,8 @@ type Drag =
 
           <!-- Right: preview -->
           <div class="panel flex flex-col rounded">
-            <div class="grid flex-1 place-items-center bg-black p-1">
-              <canvas #preview class="max-h-[46vh] max-w-full" role="img" aria-label="Video preview"></canvas>
+            <div #previewBox class="grid flex-1 place-items-center bg-black p-1">
+              <canvas #preview class="max-h-[46vh] max-w-full [:fullscreen_&]:max-h-screen" role="img" aria-label="Video preview" (dblclick)="fullscreen()"></canvas>
             </div>
             <div class="flex flex-wrap items-center justify-center gap-1 border-t border-[#343842] px-2 py-1.5">
               <button type="button" class="tool" aria-label="Jump to start" (click)="seek(0)">⏮</button>
@@ -301,6 +394,7 @@ type Drag =
               <button type="button" class="tool" aria-label="Jump to end" (click)="seek(duration())">⏭</button>
               <span class="ml-2 font-mono text-xs" aria-label="Current time">{{ timecode(time(), project().fps) }}</span>
               <span class="font-mono text-xs text-[#9aa0ab]">/ {{ timecode(duration(), project().fps) }}</span>
+              <button type="button" class="tool ml-2" aria-label="Full screen preview" (click)="fullscreen()">⛶</button>
             </div>
           </div>
         </div>
@@ -313,7 +407,7 @@ type Drag =
                 <div class="h-full bg-[#6d83f2]" [style.width.%]="exportPercent()"></div>
               </div>
             } @else if (exported(); as e) {
-              <span>Video ready: {{ e.name }} ({{ formatBytes(e.blob.size) }})</span>
+              <span>Ready: {{ e.name }} ({{ formatBytes(e.blob.size) }})</span>
               <button type="button" class="tool !bg-[#6d83f2] !text-white" (click)="downloadExport()">Download {{ e.name }}</button>
               <button type="button" class="tool" (click)="exported.set(null)">Close</button>
             }
@@ -328,6 +422,10 @@ type Drag =
             <button type="button" class="tool" [class.!bg-[#343842]]="snapping()" [attr.aria-pressed]="snapping()" aria-label="Snapping" (click)="snapping.set(!snapping())">🧲 Snap</button>
             <button type="button" class="tool" aria-label="Split at playhead" (click)="splitAtPlayhead()">✂ Split</button>
             <button type="button" class="tool" [disabled]="!selectedId()" aria-label="Delete clip" (click)="deleteSelected()">🗑 Delete</button>
+            <button type="button" class="tool" [disabled]="!selectedIds().length" aria-label="Copy clips" (click)="copy()">⧉ Copy</button>
+            <button type="button" class="tool" [disabled]="!clipboard().length" aria-label="Paste clips" (click)="paste()">📋 Paste</button>
+            <button type="button" class="tool" aria-label="Add marker" (click)="toggleMarker()">⚑ Marker</button>
+            @if (selectedIds().length > 1) { <span class="text-xs text-[#9aa0ab]">{{ selectedIds().length }} clips selected</span> }
             <span class="flex-1"></span>
             <label class="tool">Zoom
               <input type="range" min="10" max="300" class="w-28" aria-label="Timeline zoom" [value]="pps()" (input)="pps.set($any($event.target).valueAsNumber)" />
@@ -342,6 +440,9 @@ type Drag =
                   @for (tick of ticks(); track tick) {
                     <span class="absolute top-0 h-full border-l border-[#4a4f5a] pl-1 font-mono text-[10px] text-[#9aa0ab]" [style.left.px]="tick * pps()">{{ timecodeShort(tick) }}</span>
                   }
+                  @for (m of project().markers ?? []; track m) {
+                    <button type="button" class="absolute top-0 z-10 -ml-1.5 text-xs leading-none text-amber-300" [style.left.px]="m * pps()" [attr.aria-label]="'Marker at ' + timecodeShort(m)" title="Click to jump, double-click to remove" (pointerdown)="$event.stopPropagation()" (click)="seek(m)" (dblclick)="removeMarkerAt(m)">⚑</button>
+                  }
                 </div>
               </div>
               <!-- Tracks, highest on top as in desktop editors -->
@@ -352,22 +453,29 @@ type Drag =
                     <span class="flex gap-1">
                       <button type="button" class="rounded px-1" [class.opacity-40]="track.hidden" [attr.aria-label]="(track.hidden ? 'Show ' : 'Hide ') + track.name" (click)="toggleTrack(track.id, 'hidden')">👁</button>
                       <button type="button" class="rounded px-1" [class.opacity-40]="track.muted" [attr.aria-label]="(track.muted ? 'Unmute ' : 'Mute ') + track.name" (click)="toggleTrack(track.id, 'muted')">🔊</button>
+                      <button type="button" class="rounded px-1" [class.opacity-40]="!track.locked" [attr.aria-label]="(track.locked ? 'Unlock ' : 'Lock ') + track.name" (click)="toggleTrack(track.id, 'locked')">🔒</button>
                     </span>
                   </div>
-                  <div class="relative flex-1 bg-[#1f2228]" [attr.data-track]="track.id" (pointerdown)="emptyDown($event)" (drop)="dropOnTrack($event, track.id)" (dragover)="$event.preventDefault()">
+                  <div class="relative flex-1" [class]="track.locked ? 'bg-[repeating-linear-gradient(45deg,#1f2228_0_8px,#262a31_8px_16px)]' : 'bg-[#1f2228]'" [attr.data-track]="track.id" (pointerdown)="emptyDown($event)" (drop)="dropOnTrack($event, track.id)" (dragover)="$event.preventDefault()">
                     @for (clip of clipsOn(track.id); track clip.id) {
                       <div
                         class="absolute top-1 bottom-1 overflow-hidden rounded border text-[11px] leading-tight"
                         [class]="clipClass(clip)"
-                        [class.ring-2]="clip.id === selectedId()"
+                        [class.ring-2]="selectedIds().includes(clip.id)"
                         [style.left.px]="clip.start * pps()"
                         [style.width.px]="Math.max(4, length(clip) * pps())"
                         role="button"
                         [attr.aria-label]="'Clip ' + clipName(clip)"
                         (pointerdown)="clipDown($event, clip)"
                       >
-                        <span class="pointer-events-none block truncate px-2 pt-1 font-semibold">{{ clipName(clip) }}</span>
-                        <span class="pointer-events-none block truncate px-2 opacity-70">{{ timecodeShort(length(clip)) }}@if (clip.effects) { · fx }</span>
+                        @for (th of clipThumbs(clip); track th.left) {
+                          <img [src]="th.url" alt="" class="pointer-events-none absolute top-0 h-full opacity-50" [style.left.px]="th.left" />
+                        }
+                        @if (waveform(clip); as wave) {
+                          <svg class="pointer-events-none absolute inset-0 h-full w-full opacity-60" [attr.viewBox]="'0 0 ' + wave.width + ' 100'" preserveAspectRatio="none" aria-hidden="true"><path [attr.d]="wave.path" fill="currentColor" /></svg>
+                        }
+                        <span class="pointer-events-none relative block truncate px-2 pt-1 font-semibold">{{ clipName(clip) }}</span>
+                        <span class="pointer-events-none relative block truncate px-2 opacity-80">{{ timecodeShort(length(clip)) }}@if ((clip.speed ?? 1) !== 1) { · {{ clip.speed }}× }@if (clip.reverse) { · ⟲ }@if (clip.effects) { · fx }@if (clip.keyframes) { · ◆ }@if (clip.muted) { · 🔇 }</span>
                         @if (clip.transitionIn) {
                           <span class="pointer-events-none absolute top-0 bottom-0 left-0 bg-gradient-to-r from-black/60 to-transparent" [style.width.px]="Math.min(length(clip), clip.transitionIn.duration) * pps()"></span>
                         }
@@ -405,10 +513,31 @@ export class VideoEditor {
 
   protected readonly project = signal<Project>(newProject());
   protected readonly media = signal<MediaItem[]>([]);
-  protected readonly history = signal<Project[]>([]);
-  protected readonly future = signal<Project[]>([]);
-  protected readonly selectedId = signal<string | null>(null);
-  protected readonly tab = signal<'files' | 'transitions' | 'effects' | 'titles' | 'properties'>('files');
+  protected readonly history = signal<{ project: Project; label: string }[]>([]);
+  protected readonly future = signal<{ project: Project; label: string }[]>([]);
+  protected readonly selectedIds = signal<string[]>([]);
+  /** The clip shown in Properties: the last one selected. */
+  protected readonly selectedId = computed(() => this.selectedIds().at(-1) ?? null);
+  protected readonly clipboard = signal<Clip[]>([]);
+  protected readonly tab = signal<'files' | 'transitions' | 'effects' | 'titles' | 'properties' | 'history'>('files');
+  protected readonly exportFormats = EXPORT_FORMATS;
+  protected readonly exportFormat = signal<ExportFormat>('mp4');
+  protected readonly exportQuality = signal<ExportQuality>('high');
+  protected readonly speeds = [0.25, 0.5, 0.75, 1, 1.25, 1.5, 2, 3, 4];
+  protected readonly noTransform = NO_TRANSFORM;
+  protected readonly transformFields: { key: KeyProp; label: string; min: number; max: number; step: number }[] = [
+    { key: 'x', label: 'Across', min: -0.5, max: 1.5, step: 0.01 },
+    { key: 'y', label: 'Down', min: -0.5, max: 1.5, step: 0.01 },
+    { key: 'scale', label: 'Size', min: 0.05, max: 4, step: 0.05 },
+    { key: 'rotation', label: 'Rotate', min: -180, max: 180, step: 1 },
+    { key: 'opacity', label: 'Opacity', min: 0, max: 1, step: 0.05 },
+  ];
+  protected readonly cropFields: { key: 'cropLeft' | 'cropRight' | 'cropTop' | 'cropBottom'; label: string }[] = [
+    { key: 'cropLeft', label: 'Crop left' },
+    { key: 'cropRight', label: 'Crop right' },
+    { key: 'cropTop', label: 'Crop top' },
+    { key: 'cropBottom', label: 'Crop bottom' },
+  ];
   protected readonly transitions = TRANSITIONS;
   protected readonly effectPresets = EFFECT_PRESETS;
   protected readonly sides: { key: 'in' | 'out'; label: string }[] = [
@@ -425,6 +554,9 @@ export class VideoEditor {
     { key: 'hue', label: 'Hue', min: 0, max: 360, step: 5, unit: '°' },
     { key: 'blur', label: 'Blur', min: 0, max: 20, step: 0.5, unit: 'px' },
     { key: 'opacity', label: 'Opacity', min: 0, max: 100, step: 5, unit: '%' },
+    { key: 'pixelate', label: 'Pixelate', min: 0, max: 40, step: 1, unit: 'px' },
+    { key: 'sharpen', label: 'Sharpen', min: 0, max: 100, step: 5, unit: '%' },
+    { key: 'chroma', label: 'Green screen', min: 0, max: 100, step: 5, unit: '%' },
   ];
   protected readonly time = signal(0);
   protected readonly playing = signal(false);
@@ -455,6 +587,7 @@ export class VideoEditor {
   });
 
   private readonly previewCanvas = viewChild.required<ElementRef<HTMLCanvasElement>>('preview');
+  private readonly previewBox = viewChild.required<ElementRef<HTMLElement>>('previewBox');
   private readonly scroller = viewChild.required<ElementRef<HTMLElement>>('scroller');
   private previewer: Previewer | null = null;
   private drag: Drag | null = null;
@@ -555,6 +688,7 @@ export class VideoEditor {
     this.project.set(offer.saved.project);
     this.history.set([]);
     this.future.set([]);
+    for (const m of offer.media) void this.enrich(m);
     this.restoreOffer.set(null);
     this.canSave = true;
     this.saveState.set('saved');
@@ -596,9 +730,13 @@ export class VideoEditor {
   }
 
   // ---------- history ----------
-  private commit(next: Project, before = this.project()): void {
+  /**
+   * Each history entry holds the project as it was before a step, and the step's name.
+   * `future` holds undone steps: the project after each, and its name.
+   */
+  private commit(next: Project, before = this.project(), label = 'Edit'): void {
     if (next === before) return;
-    this.history.update((h) => [...h.slice(-99), before]);
+    this.history.update((h) => [...h.slice(-99), { project: before, label }]);
     this.future.set([]);
     this.project.set(next);
   }
@@ -606,21 +744,30 @@ export class VideoEditor {
   protected undo(): void {
     const previous = this.history().at(-1);
     if (!previous) return;
-    this.future.update((f) => [this.project(), ...f]);
+    this.future.update((f) => [{ project: this.project(), label: previous.label }, ...f]);
     this.history.update((h) => h.slice(0, -1));
-    this.project.set(previous);
+    this.project.set(previous.project);
   }
 
   protected redo(): void {
     const next = this.future()[0];
     if (!next) return;
-    this.history.update((h) => [...h, this.project()]);
+    this.history.update((h) => [...h, { project: this.project(), label: next.label }]);
     this.future.update((f) => f.slice(1));
-    this.project.set(next);
+    this.project.set(next.project);
   }
 
-  protected change(id: string, change: Partial<Clip>): void {
-    this.commit(updateClip(this.project(), id, change));
+  /** Goes back so that `steps` history steps remain. */
+  protected goToHistory(steps: number): void {
+    while (this.history().length > steps) this.undo();
+  }
+
+  protected redoTo(index: number): void {
+    for (let i = 0; i <= index; i++) this.redo();
+  }
+
+  protected change(id: string, change: Partial<Clip>, label = 'Change clip'): void {
+    this.commit(updateClip(this.project(), id, change), this.project(), label);
   }
 
   // ---------- files ----------
@@ -666,6 +813,7 @@ export class VideoEditor {
       }
     }
     this.media.update((list) => [...list, ...added]);
+    for (const m of added) void this.enrich(m);
     // The first video sets the project's shape, as desktop editors suggest.
     const firstVideo = added.find((m) => m.kind === 'video');
     if (firstVideo && !this.project().clips.length && firstVideo.height > firstVideo.width) this.setProfile(2);
@@ -680,7 +828,7 @@ export class VideoEditor {
 
   protected dropOnTrack(event: DragEvent, track: number): void {
     const id = event.dataTransfer?.getData('application/x-media-id');
-    if (!id) return;
+    if (!id || this.isLocked(track)) return;
     event.preventDefault();
     const media = this.mediaById().get(id);
     if (!media) return;
@@ -706,15 +854,15 @@ export class VideoEditor {
 
   private place(media: MediaItem, track: number, time: number): void {
     const { project, clip } = addMediaClip(this.project(), media, track, time);
-    this.commit(project);
-    this.selectedId.set(clip.id);
+    this.commit(project, this.project(), `Add ${media.name}`);
+    this.selectedIds.set([clip.id]);
   }
 
   protected addTitle(style: TitleStyle): void {
     const top = Math.max(...this.project().tracks.map((t) => t.id));
     const { project, clip } = addTitleClip(this.project(), { ...style }, top, this.time());
-    this.commit(project);
-    this.selectedId.set(clip.id);
+    this.commit(project, this.project(), 'Add title');
+    this.selectedIds.set([clip.id]);
     this.tab.set('properties');
   }
 
@@ -723,7 +871,7 @@ export class VideoEditor {
     if (!current?.title) return;
     const next = updateClip(this.project(), clip.id, { title: { ...current.title, ...change } });
     // Typing updates the preview straight away; the undo step is saved when the field is left.
-    if (save) this.commit(next, this.titleEditStart ?? this.project());
+    if (save) this.commit(next, this.titleEditStart ?? this.project(), 'Edit title');
     else {
       this.titleEditStart ??= this.project();
       this.project.set(next);
@@ -742,7 +890,7 @@ export class VideoEditor {
     if (!clip) return;
     const key = side === 'in' ? 'transitionIn' : 'transitionOut';
     const duration = Math.min(1, clipLength(clip) / 2);
-    this.change(clip.id, { [key]: type ? { type, duration: clip[key]?.duration ?? duration } : undefined });
+    this.change(clip.id, { [key]: type ? { type, duration: clip[key]?.duration ?? duration } : undefined }, type ? 'Add transition' : 'Remove transition');
   }
 
   protected setTransitionDuration(side: 'in' | 'out', value: number): void {
@@ -754,12 +902,16 @@ export class VideoEditor {
   }
 
   protected effectValue(clip: Clip, key: keyof Effects): number {
-    return (clip.effects ?? NO_EFFECTS)[key];
+    return Number((clip.effects ?? NO_EFFECTS)[key] ?? 0);
+  }
+
+  protected setChromaColour(clip: Clip, colour: string): void {
+    this.change(clip.id, { effects: { ...(clip.effects ?? NO_EFFECTS), chromaColour: colour } }, 'Green screen colour');
   }
 
   protected applyEffect(effects: Partial<Effects>): void {
     const clip = this.selected();
-    if (clip) this.change(clip.id, { effects: { ...NO_EFFECTS, ...effects } });
+    if (clip) this.change(clip.id, { effects: { ...NO_EFFECTS, ...effects } }, 'Add effect');
   }
 
   private effectEditStart: Project | null = null;
@@ -770,7 +922,7 @@ export class VideoEditor {
     if (!clip || !Number.isFinite(value)) return;
     const next = updateClip(this.project(), clip.id, { effects: { ...(clip.effects ?? NO_EFFECTS), [key]: value } });
     if (save) {
-      this.commit(next, this.effectEditStart ?? this.project());
+      this.commit(next, this.effectEditStart ?? this.project(), 'Change effect');
       this.effectEditStart = null;
     } else {
       this.effectEditStart ??= this.project();
@@ -789,14 +941,14 @@ export class VideoEditor {
 
   protected setLength(clip: Clip, value: number): void {
     if (!Number.isFinite(value) || value <= 0) return;
-    this.commit(trimClip(this.project(), clip.id, 'end', clip.start + value, this.sourceLength(clip)));
+    this.commit(trimClip(this.project(), clip.id, 'end', clip.start + value, this.sourceLength(clip)), this.project(), 'Change length');
   }
 
   // ---------- project ----------
   protected newProjectClick(): void {
     if (this.project().clips.length && !confirm('Start a new project? The timeline will be cleared.')) return;
     this.commit({ ...newProject(), width: this.project().width, height: this.project().height });
-    this.selectedId.set(null);
+    this.selectedIds.set([]);
     void this.seek(0);
   }
 
@@ -810,8 +962,12 @@ export class VideoEditor {
     this.commit({ ...this.project(), tracks: [...this.project().tracks, { id, name: `Track ${id}`, muted: false, hidden: false }] });
   }
 
-  protected toggleTrack(id: number, field: 'muted' | 'hidden'): void {
-    this.commit({ ...this.project(), tracks: this.project().tracks.map((t) => (t.id === id ? { ...t, [field]: !t[field] } : t)) });
+  protected toggleTrack(id: number, field: 'muted' | 'hidden' | 'locked'): void {
+    this.commit({ ...this.project(), tracks: this.project().tracks.map((t) => (t.id === id ? { ...t, [field]: !t[field] } : t)) }, this.project(), `Track ${field === 'locked' ? 'lock' : field === 'muted' ? 'mute' : 'hide'}`);
+  }
+
+  private isLocked(track: number): boolean {
+    return !!this.project().tracks.find((t) => t.id === track)?.locked;
   }
 
   // ---------- playback ----------
@@ -839,14 +995,40 @@ export class VideoEditor {
   protected splitAtPlayhead(): void {
     const id = this.selectedId();
     const next = id ? splitClip(this.project(), id, this.time()) : splitAll(this.project(), this.time());
-    this.commit(next === this.project() && id ? splitAll(this.project(), this.time()) : next);
+    this.commit(next === this.project() && id ? splitAll(this.project(), this.time()) : next, this.project(), 'Split');
   }
 
   protected deleteSelected(): void {
-    const id = this.selectedId();
-    if (!id) return;
-    this.commit(removeClip(this.project(), id));
-    this.selectedId.set(null);
+    const ids = this.selectedIds().filter((id) => !this.isLocked(this.project().clips.find((c) => c.id === id)?.track ?? -1));
+    if (!ids.length) return;
+    this.commit(ids.reduce((p, id) => removeClip(p, id), this.project()), this.project(), ids.length > 1 ? `Delete ${ids.length} clips` : 'Delete clip');
+    this.selectedIds.set([]);
+  }
+
+  protected copy(): void {
+    this.clipboard.set(this.project().clips.filter((c) => this.selectedIds().includes(c.id)));
+  }
+
+  protected paste(at = this.time()): void {
+    const { project, ids } = pasteClips(this.project(), this.clipboard(), at);
+    this.commit(project, this.project(), ids.length > 1 ? `Paste ${ids.length} clips` : 'Paste clip');
+    this.selectedIds.set(ids);
+  }
+
+  protected toggleMarker(): void {
+    const t = this.time();
+    const exists = (this.project().markers ?? []).some((m) => Math.abs(m - t) <= 0.05);
+    this.commit(exists ? removeMarker(this.project(), t) : addMarker(this.project(), t), this.project(), exists ? 'Remove marker' : 'Add marker');
+  }
+
+  protected removeMarkerAt(time: number): void {
+    this.commit(removeMarker(this.project(), time), this.project(), 'Remove marker');
+  }
+
+  protected fullscreen(): void {
+    const box = this.previewBox().nativeElement;
+    if (document.fullscreenElement) void document.exitFullscreen();
+    else void box.requestFullscreen?.().catch(() => undefined);
   }
 
   protected key(event: KeyboardEvent): void {
@@ -863,6 +1045,25 @@ export class VideoEditor {
     } else if (mod && event.key.toLowerCase() === 'y') {
       event.preventDefault();
       this.redo();
+    } else if (mod && event.key.toLowerCase() === 'c') {
+      if (this.selectedIds().length) {
+        event.preventDefault();
+        this.copy();
+      }
+    } else if (mod && event.key.toLowerCase() === 'v') {
+      if (this.clipboard().length) {
+        event.preventDefault();
+        this.paste();
+      }
+    } else if (mod && event.key.toLowerCase() === 'd') {
+      event.preventDefault();
+      const chosen = this.project().clips.filter((c) => this.selectedIds().includes(c.id));
+      if (chosen.length) {
+        this.clipboard.set(chosen);
+        this.paste(Math.max(...chosen.map((c) => clipEnd(c))));
+      }
+    } else if (!mod && event.key.toLowerCase() === 'm') {
+      this.toggleMarker();
     } else if (!mod && event.key.toLowerCase() === 's') {
       this.splitAtPlayhead();
     } else if (event.key === 'Delete' || event.key === 'Backspace') {
@@ -899,14 +1100,21 @@ export class VideoEditor {
 
   protected emptyDown(event: PointerEvent): void {
     if (event.target !== event.currentTarget) return;
-    this.selectedId.set(null);
+    this.selectedIds.set([]);
     this.scrubStart(event);
   }
 
   protected clipDown(event: PointerEvent, clip: Clip): void {
     event.stopPropagation();
     event.preventDefault();
-    this.selectedId.set(clip.id);
+    if (event.shiftKey || event.ctrlKey || event.metaKey) {
+      // Add to or remove from the selection; no drag.
+      this.selectedIds.update((ids) => (ids.includes(clip.id) ? ids.filter((i) => i !== clip.id) : [...ids, clip.id]));
+      return;
+    }
+    if (!this.selectedIds().includes(clip.id)) this.selectedIds.set([clip.id]);
+    else this.selectedIds.update((ids) => [...ids.filter((i) => i !== clip.id), clip.id]);
+    if (this.isLocked(clip.track)) return;
     this.dragStartProject = this.project();
     this.drag = { kind: 'move', id: clip.id, grabOffset: this.timeAt(event.clientX) - clip.start, pointer: event.pointerId };
   }
@@ -914,7 +1122,8 @@ export class VideoEditor {
   protected trimDown(event: PointerEvent, clip: Clip, edge: 'start' | 'end'): void {
     event.stopPropagation();
     event.preventDefault();
-    this.selectedId.set(clip.id);
+    this.selectedIds.set([clip.id]);
+    if (this.isLocked(clip.track)) return;
     this.dragStartProject = this.project();
     this.drag = { kind: 'trim', id: clip.id, edge, pointer: event.pointerId };
   }
@@ -938,7 +1147,14 @@ export class VideoEditor {
         const snappedEnd = snap(base, start + clipLength(clip), tolerance, clip.id, [this.time()]) - clipLength(clip);
         start = snappedStart !== start ? snappedStart : snappedEnd !== start ? snappedEnd : start;
       }
-      const track = this.trackAt(event.clientY) ?? clip.track;
+      const others = this.selectedIds().filter((id) => id !== clip.id);
+      if (others.length) {
+        // Several clips move together, keeping their tracks.
+        this.project.set(moveClips(base, [clip.id, ...others], start - clip.start));
+        return;
+      }
+      const target = this.trackAt(event.clientY) ?? clip.track;
+      const track = this.isLocked(target) ? clip.track : target;
       this.project.set(updateClip(base, clip.id, { start: Math.max(0, start), track }));
     } else {
       const edgeTime = this.snapping() ? snap(base, time, tolerance, clip.id, [this.time()]) : time;
@@ -952,7 +1168,7 @@ export class VideoEditor {
     this.drag = null;
     if (drag.kind !== 'scrub' && this.dragStartProject) {
       const after = this.project();
-      if (after !== this.dragStartProject) this.commit(after, this.dragStartProject);
+      if (after !== this.dragStartProject) this.commit(after, this.dragStartProject, drag.kind === 'move' ? 'Move' : 'Trim');
       this.dragStartProject = null;
       void this.previewer?.seek(this.time());
     }
@@ -967,10 +1183,15 @@ export class VideoEditor {
     this.exported.set(null);
     this.error.set('');
     try {
-      const { blob, extension } = await exportProject(this.project(), this.media(), (fraction, stage) => {
-        this.exportPercent.set(Math.round(fraction * 100));
-        this.exportStage.set(stage);
-      });
+      const { blob, extension } = await exportProject(
+        this.project(),
+        this.media(),
+        (fraction, stage) => {
+          this.exportPercent.set(Math.round(fraction * 100));
+          this.exportStage.set(stage);
+        },
+        { format: this.exportFormat(), quality: this.exportQuality() },
+      );
       const first = this.media()[0];
       this.exported.set({ blob, name: `${first ? baseName(first.name) : 'video'}-edit.${extension}` });
     } catch (e) {
@@ -984,5 +1205,211 @@ export class VideoEditor {
   protected downloadExport(): void {
     const e = this.exported();
     if (e) downloadBlob(e.blob, e.name);
+  }
+
+  // ---------- thumbnails and waveforms ----------
+  /** Makes the timeline pictures and waveform for a file in the background. */
+  private async enrich(item: MediaItem): Promise<void> {
+    try {
+      const extra: Partial<MediaItem> = {};
+      if (item.kind === 'video') extra.thumbs = await thumbnails(item.file, item.duration);
+      if (item.hasAudio) extra.peaks = await peaks(item.file);
+      this.media.update((list) => list.map((m) => (m.id === item.id ? { ...m, ...extra } : m)));
+    } catch {
+      // Pictures and waveforms are a nice extra; editing works without them.
+    }
+  }
+
+  protected clipThumbs(clip: Clip): { left: number; url: string }[] {
+    const item = clip.mediaId ? this.mediaById().get(clip.mediaId) : undefined;
+    if (!item?.thumbs?.length || clip.audioOnly) return [];
+    const speed = clip.speed ?? 1;
+    const out: { left: number; url: string }[] = [];
+    let last = -Infinity;
+    for (const th of item.thumbs) {
+      if (th.t < clip.in - 0.01 || th.t > clip.out) continue;
+      const left = ((clip.reverse ? clip.out - th.t : th.t - clip.in) / speed) * this.pps();
+      // Keep pictures at least a thumbnail apart.
+      if (Math.abs(left - last) < 90) continue;
+      last = left;
+      out.push({ left, url: th.url });
+    }
+    return out;
+  }
+
+  /** An SVG path of the clip's loudness, mirrored around the middle, or null for clips without sound shown. */
+  protected waveform(clip: Clip): { width: number; path: string } | null {
+    const item = clip.mediaId ? this.mediaById().get(clip.mediaId) : undefined;
+    if (!item?.peaks?.length || clip.muted || (item.kind === 'video' && !clip.audioOnly)) return null;
+    const width = Math.max(1, Math.round(clipLength(clip) * this.pps()));
+    const points = Math.min(width, 400);
+    const top: string[] = [];
+    const bottom: string[] = [];
+    for (let i = 0; i <= points; i++) {
+      const x = (i / points) * width;
+      const t = sourceTime(clip, clip.start + (i / points) * clipLength(clip));
+      const peak = item.peaks[Math.min(item.peaks.length - 1, Math.max(0, Math.floor(t * 20)))] ?? 0;
+      const h = Math.max(1, peak * 45);
+      top.push(`${x.toFixed(1)},${(50 - h).toFixed(1)}`);
+      bottom.push(`${x.toFixed(1)},${(50 + h).toFixed(1)}`);
+    }
+    return { width, path: `M${top.join('L')}L${bottom.reverse().join('L')}Z` };
+  }
+
+  // ---------- clip kinds ----------
+  protected isVideo(clip: Clip): boolean {
+    return !clip.audioOnly && this.mediaById().get(clip.mediaId ?? '')?.kind === 'video';
+  }
+
+  protected isAudioMedia(clip: Clip): boolean {
+    return this.mediaById().get(clip.mediaId ?? '')?.kind === 'audio';
+  }
+
+  /** Clips whose length comes from a source and so can change speed. */
+  protected isTimed(clip: Clip): boolean {
+    const kind = this.mediaById().get(clip.mediaId ?? '')?.kind;
+    return kind === 'video' || kind === 'audio';
+  }
+
+  protected canSeparate(clip: Clip): boolean {
+    return this.isVideo(clip) && this.hasSound(clip) && !clip.muted;
+  }
+
+  // ---------- speed, sound, transform ----------
+  protected setSpeed(clip: Clip, speed: number): void {
+    this.change(clip.id, { speed: speed === 1 ? undefined : speed }, `Speed ${speed}×`);
+  }
+
+  protected audioFx(clip: Clip): AudioFx {
+    return clip.audio ?? NO_AUDIO_FX;
+  }
+
+  protected setAudioFx(clip: Clip, change: Partial<AudioFx>): void {
+    this.change(clip.id, { audio: { ...this.audioFx(clip), ...change } }, 'Sound effect');
+  }
+
+  protected transformValue(clip: Clip, key: KeyProp): number {
+    const now = this.time();
+    const inside = now >= clip.start && now <= clipEnd(clip);
+    return transformAt(clip, inside ? now : clip.start)[key];
+  }
+
+  protected hasKeyframeHere(clip: Clip, key: KeyProp): boolean {
+    const t = this.time() - clip.start;
+    return !!clip.keyframes?.[key]?.some((f) => Math.abs(f.t - t) <= 1 / 60);
+  }
+
+  private transformEditStart: Project | null = null;
+
+  /** With keyframes, a slider sets the keyframe at the playhead; without, it sets the clip's value. */
+  protected setTransformValue(clip: Clip, key: KeyProp, value: number, save: boolean): void {
+    if (!Number.isFinite(value)) return;
+    const current = this.project().clips.find((c) => c.id === clip.id);
+    if (!current) return;
+    let change: Partial<Clip>;
+    if (current.keyframes?.[key]?.length) {
+      const t = Math.min(Math.max(0, this.time() - current.start), clipLength(current));
+      change = { keyframes: setKeyframe(current, key, t, value) };
+    } else if (key === 'opacity') {
+      change = { effects: { ...(current.effects ?? NO_EFFECTS), opacity: Math.round(value * 100) } };
+    } else {
+      change = { transform: { ...(current.transform ?? NO_TRANSFORM), [key]: value } };
+    }
+    const next = updateClip(this.project(), clip.id, change);
+    if (save) {
+      this.commit(next, this.transformEditStart ?? this.project(), 'Transform');
+      this.transformEditStart = null;
+    } else {
+      this.transformEditStart ??= this.project();
+      this.project.set(next);
+    }
+  }
+
+  protected toggleKeyframe(clip: Clip, key: KeyProp): void {
+    const t = Math.min(Math.max(0, this.time() - clip.start), clipLength(clip));
+    const keyframes = this.hasKeyframeHere(clip, key) ? removeKeyframe(clip, key, t) : setKeyframe(clip, key, t, this.transformValue(clip, key));
+    const empty = Object.values(keyframes).every((list) => !list?.length);
+    this.change(clip.id, { keyframes: empty ? undefined : keyframes }, 'Keyframe');
+  }
+
+  protected setCrop(clip: Clip, key: keyof Transform, value: number): void {
+    this.change(clip.id, { transform: { ...(clip.transform ?? NO_TRANSFORM), [key]: value } }, 'Crop');
+  }
+
+  protected resetTransform(clip: Clip): void {
+    this.change(clip.id, { transform: undefined, keyframes: undefined }, 'Reset transform');
+  }
+
+  // ---------- separate audio, freeze frame ----------
+  protected separate(clip: Clip): void {
+    const track = this.freeTrackAt(clip.start, clipLength(clip));
+    const target = track === clip.track ? Math.min(...this.project().tracks.map((t) => t.id)) : track;
+    this.commit(separateAudio(this.project(), clip.id, target), this.project(), 'Separate audio');
+  }
+
+  /** Takes the picture at the playhead and adds it as a 3-second still above the clip. */
+  protected async freezeFrame(clip: Clip): Promise<void> {
+    const item = this.mediaById().get(clip.mediaId ?? '');
+    if (!item) return;
+    const at = Math.min(Math.max(this.time(), clip.start), clipEnd(clip) - 0.01);
+    try {
+      const mb = await import('mediabunny');
+      const input = await openMedia(item.file);
+      try {
+        const track = await input.getPrimaryVideoTrack();
+        const sample = track ? await new mb.VideoSampleSink(track).getSample(sourceTime(clip, at)) : null;
+        if (!sample) throw new Error('no frame');
+        const canvas = document.createElement('canvas');
+        canvas.width = sample.displayWidth;
+        canvas.height = sample.displayHeight;
+        sample.draw(canvas.getContext('2d')!, 0, 0);
+        sample.close();
+        const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, 'image/png'));
+        if (!blob) throw new Error('no frame');
+        const file = new File([blob], `${baseName(item.name)}-frame-${at.toFixed(1)}s.png`, { type: 'image/png' });
+        const still: MediaItem = { id: makeId('media'), name: file.name, kind: 'image', duration: 0, width: canvas.width, height: canvas.height, hasAudio: false, url: URL.createObjectURL(file), file };
+        this.media.update((list) => [...list, still]);
+        const above = this.project().tracks.map((t) => t.id).filter((id) => id > clip.track).sort((a, b) => a - b);
+        const stillTrack = above.find((id) => !this.project().clips.some((c) => c.track === id && at < clipEnd(c) && at + 3 > c.start)) ?? above[0] ?? clip.track;
+        const placed = addMediaClip(this.project(), still, stillTrack, at);
+        const added = placed.clip;
+        this.commit(updateClip(placed.project, added.id, { out: 3 }), this.project(), 'Freeze frame');
+        this.selectedIds.set([added.id]);
+      } finally {
+        input.dispose();
+      }
+    } catch {
+      this.error.set('The frame could not be captured.');
+      this.tab.set('files');
+    }
+  }
+
+  // ---------- project files ----------
+  protected async saveProjectZip(): Promise<void> {
+    try {
+      downloadBlob(await saveProjectFile(this.project(), this.media()), 'video-project.zip');
+    } catch {
+      this.error.set('The project could not be saved.');
+      this.tab.set('files');
+    }
+  }
+
+  protected async openProjectZip(element: HTMLInputElement): Promise<void> {
+    const file = element.files?.[0];
+    element.value = '';
+    if (!file) return;
+    if (this.project().clips.length && !confirm('Open this project? The current timeline will be replaced.')) return;
+    try {
+      const { project, media } = await openProjectFile(file);
+      for (const m of this.media()) URL.revokeObjectURL(m.url);
+      this.media.set(media);
+      this.commit(project, this.project(), 'Open project');
+      this.selectedIds.set([]);
+      for (const m of media) void this.enrich(m);
+      void this.seek(0);
+    } catch (e) {
+      this.error.set(e instanceof Error ? e.message : 'The project could not be opened.');
+      this.tab.set('files');
+    }
   }
 }
