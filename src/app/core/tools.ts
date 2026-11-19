@@ -1163,6 +1163,20 @@ export const TOOLS: readonly ToolInfo[] = [
     live: true,
   },
   {
+    path: 'video-editor',
+    name: 'Online Video Editor',
+    shortName: 'Video editor',
+    description: 'Edit videos in your browser: multi-track timeline, trim, split, layers, titles and MP4 export.',
+    seoTitle: 'Free Online Video Editor: Timeline, Titles, MP4',
+    metaDescription:
+      'Edit videos in your browser with a multi-track timeline: import video, music and images, trim, split, layer, add titles and export MP4. Nothing uploaded.',
+    icon: 'M3 5h18v10H3zM3 19h18M7 15v4M12 15v4M17 15v4M10 8l4 2-4 2z',
+    phase: 16,
+    category: 'video',
+    onHome: true,
+    live: true,
+  },
+  {
     path: 'video-to-audio',
     name: 'Extract Audio from Video',
     shortName: 'Video to audio',
