@@ -7,6 +7,9 @@ import { ago, clearProject, loadProject, saveProject } from './autosave';
 import { EXPORT_FORMATS, ExportFormat, ExportQuality, exportProject } from './export';
 import { openProjectFile, saveProjectFile } from './project-file';
 import {
+  TITLE_ANIMATIONS,
+  TITLE_FONTS,
+  TitleFont,
   AudioFx,
   KeyProp,
   NO_AUDIO_FX,
@@ -86,10 +89,15 @@ const CONTENT: ToolContent = {
 };
 
 const TITLE_PRESETS: { name: string; style: TitleStyle }[] = [
-  { name: 'Centre title', style: { text: 'Your title', size: 10, colour: '#ffffff', x: 0.5, y: 0.5, background: false } },
-  { name: 'Lower third', style: { text: 'Name Surname\nRole or place', size: 5, colour: '#ffffff', x: 0.3, y: 0.82, background: true } },
+  { name: 'Centre title', style: { text: 'Your title', size: 10, colour: '#ffffff', x: 0.5, y: 0.5, background: false, animation: 'fade-up' } },
+  { name: 'Lower third', style: { text: 'Name Surname\nRole or place', size: 5, colour: '#ffffff', x: 0.3, y: 0.82, background: true, animation: 'slide' } },
   { name: 'Subtitle', style: { text: 'Subtitle text', size: 5, colour: '#ffffff', x: 0.5, y: 0.9, background: true } },
-  { name: 'Big yellow', style: { text: 'WOW!', size: 18, colour: '#facc15', x: 0.5, y: 0.45, background: false } },
+  { name: 'Big yellow', style: { text: 'WOW!', size: 18, colour: '#facc15', x: 0.5, y: 0.45, background: false, animation: 'pop', font: 'impact', outline: true } },
+  { name: '3D extruded', style: { text: '3D TITLE', size: 16, colour: '#38bdf8', x: 0.5, y: 0.5, background: false, animation: 'extrude-3d', font: 'impact' } },
+  { name: '3D flip', style: { text: 'Chapter One', size: 12, colour: '#ffffff', x: 0.5, y: 0.5, background: false, animation: 'flip-3d', font: 'serif' } },
+  { name: 'Typewriter', style: { text: 'Once upon a time…', size: 7, colour: '#e5e7eb', x: 0.5, y: 0.5, background: false, animation: 'typewriter', font: 'mono' } },
+  { name: 'Wave', style: { text: 'Have fun!', size: 12, colour: '#f472b6', x: 0.5, y: 0.5, background: false, animation: 'wave', font: 'hand', outline: true } },
+  { name: 'Zoom out', style: { text: 'BIG NEWS', size: 14, colour: '#ffffff', x: 0.5, y: 0.5, background: false, animation: 'zoom', font: 'impact', outline: true } },
 ];
 
 const PROFILES = [
@@ -242,7 +250,7 @@ type Drag =
                     @for (t of titles; track t.name) {
                       <li>
                         <button type="button" class="w-full rounded border border-[#343842] bg-[#1b1d23] p-2 text-left text-xs hover:border-[#6d83f2]" (click)="addTitle(t.style)">
-                          <div class="grid aspect-video place-items-center rounded bg-black font-bold" [style.color]="t.style.colour">{{ t.style.text.split('\\n')[0] }}</div>
+                          <div class="grid aspect-video place-items-center rounded bg-black font-bold" [style.color]="t.style.colour" [style.font-family]="fontCss(t.style.font)" [style.text-shadow]="t.style.animation === 'extrude-3d' ? '2px 2px 0 #0369a1, 4px 4px 0 #075985' : null">{{ t.style.text.split('\\n')[0] }}</div>
                           <p class="mt-1">{{ t.name }}</p>
                         </button>
                       </li>
@@ -302,6 +310,17 @@ type Drag =
                           <input type="range" min="0" max="1" step="0.01" class="w-32" aria-label="Title position down" [value]="t.y" (change)="setTitle(clip, { y: $any($event.target).valueAsNumber }, true)" />
                         </label>
                         <label class="flex items-center gap-2"><input type="checkbox" [checked]="t.background" (change)="setTitle(clip, { background: $any($event.target).checked }, true)" /> Dark box behind text</label>
+                        <label class="flex items-center gap-2"><input type="checkbox" [checked]="!!t.outline" aria-label="Title outline" (change)="setTitle(clip, { outline: $any($event.target).checked }, true)" /> Outline</label>
+                        <label class="flex items-center justify-between gap-2">Font
+                          <select class="input" aria-label="Title font" (change)="setTitle(clip, { font: $any($event.target).value }, true)">
+                            @for (f of titleFonts; track f.id) { <option [value]="f.id" [selected]="(t.font ?? 'sans') === f.id">{{ f.label }}</option> }
+                          </select>
+                        </label>
+                        <label class="flex items-center justify-between gap-2">Animation
+                          <select class="input" aria-label="Title animation" (change)="setTitle(clip, { animation: $any($event.target).value }, true)">
+                            @for (a of titleAnimations; track a.id) { <option [value]="a.id" [selected]="(t.animation ?? 'none') === a.id">{{ a.label }}</option> }
+                          </select>
+                        </label>
                       }
                       @if (hasSound(clip) && !clip.muted) {
                         <p class="mt-2 font-semibold text-white">Sound effects</p>
@@ -523,6 +542,11 @@ export class VideoEditor {
   protected readonly exportFormats = EXPORT_FORMATS;
   protected readonly exportFormat = signal<ExportFormat>('mp4');
   protected readonly exportQuality = signal<ExportQuality>('high');
+  protected readonly titleFonts = TITLE_FONTS;
+  protected readonly titleAnimations = TITLE_ANIMATIONS;
+  protected fontCss(font: TitleFont | undefined): string {
+    return (TITLE_FONTS.find((f) => f.id === font) ?? TITLE_FONTS[0]).css;
+  }
   protected readonly speeds = [0.25, 0.5, 0.75, 1, 1.25, 1.5, 2, 3, 4];
   protected readonly noTransform = NO_TRANSFORM;
   protected readonly transformFields: { key: KeyProp; label: string; min: number; max: number; step: number }[] = [

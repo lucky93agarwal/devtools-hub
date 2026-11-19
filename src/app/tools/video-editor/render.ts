@@ -1,35 +1,184 @@
 /** Drawing one frame of the project, shared by the preview and the export. */
-import { Clip, Project, TitleStyle, Transition, clipsAt, effectsFilter, fitRect, transformAt, transitionProgress } from './project';
-import { chromaKey, hexToRgb, sharpen } from './pixels';
+import {
+  Clip,
+  Project,
+  TITLE_FONTS,
+  TitleStyle,
+  Transition,
+  clipLength,
+  clipsAt,
+  easeOut,
+  easeOutBack,
+  effectsFilter,
+  fitRect,
+  titleEntrance,
+  transformAt,
+  transitionProgress,
+} from './project';
+import { chromaKey, colourEffects, hexToRgb, sharpen } from './pixels';
+
+/** Safari (before 18) and some others ignore canvas filters; their effects are then done on pixels. */
+let filtersWork: boolean | null = null;
+export function canvasFiltersWork(): boolean {
+  if (filtersWork === null) {
+    const context = typeof document !== 'undefined' ? document.createElement('canvas').getContext('2d') : null;
+    if (context) context.filter = 'blur(1px)';
+    filtersWork = !!context && context.filter === 'blur(1px)';
+  }
+  return filtersWork;
+}
 
 /** What a clip shows at the current time: a video frame, an image, or nothing yet. */
 export type FrameSource = { image: CanvasImageSource; width: number; height: number } | null;
 
-const TITLE_FONT = "'Poppins', system-ui, -apple-system, 'Segoe UI', sans-serif";
 
-export function drawTitle(context: CanvasRenderingContext2D, title: TitleStyle, width: number, height: number): void {
-  const lines = title.text.split('\n');
+/** A darker shade of a #rrggbb colour, for the sides of 3D letters. */
+export function shade(colour: string, amount: number): string {
+  const value = parseInt(colour.replace('#', ''), 16) || 0;
+  const c = (shift: number) => Math.round(((value >> shift) & 255) * (1 - amount));
+  return `rgb(${c(16)}, ${c(8)}, ${c(0)})`;
+}
+
+/**
+ * Draws a title at clip-local time `local` (seconds) of a clip `length` seconds long,
+ * with its entrance animation. Without a time, the settled title is drawn.
+ */
+export function drawTitle(context: CanvasRenderingContext2D, title: TitleStyle, width: number, height: number, local = Infinity, length = Infinity): void {
+  const animation = title.animation ?? 'none';
+  const p = titleEntrance(local, length, animation);
+  const e = easeOut(p);
   const size = (title.size / 100) * height;
+  const fontCss = (TITLE_FONTS.find((f) => f.id === title.font) ?? TITLE_FONTS[0]).css;
+  let text = title.text;
+  if (animation === 'typewriter' && p < 1) text = text.slice(0, Math.floor(text.length * p));
+  const lines = text.split('\n');
+  const allLines = title.text.split('\n');
   context.save();
-  context.font = `700 ${size}px ${TITLE_FONT}`;
+  context.font = `700 ${size}px ${fontCss}`;
   context.textAlign = 'center';
   context.textBaseline = 'middle';
   const lineHeight = size * 1.2;
-  const x = title.x * width;
-  const top = title.y * height - ((lines.length - 1) * lineHeight) / 2;
-  if (title.background) {
+  const cx = title.x * width;
+  const cy = title.y * height;
+  const top = cy - ((allLines.length - 1) * lineHeight) / 2;
+
+  // Entrance movement around the title's centre.
+  switch (animation) {
+    case 'fade-up':
+      context.globalAlpha *= e;
+      context.translate(0, (1 - e) * size);
+      break;
+    case 'pop': {
+      const k = Math.max(0.01, easeOutBack(p));
+      context.translate(cx, cy);
+      context.scale(k, k);
+      context.translate(-cx, -cy);
+      context.globalAlpha *= Math.min(1, p * 3);
+      break;
+    }
+    case 'slide':
+      context.translate(-(1 - e) * width * 0.6, 0);
+      context.globalAlpha *= e;
+      break;
+    case 'zoom': {
+      const k = 1 + (1 - e) * 2;
+      context.translate(cx, cy);
+      context.scale(k, k);
+      context.translate(-cx, -cy);
+      context.globalAlpha *= e;
+      break;
+    }
+    case 'flip-3d': {
+      // A card turning towards you around its horizontal axis.
+      const angle = (1 - e) * (Math.PI / 2);
+      context.translate(cx, cy);
+      context.transform(1, 0, -Math.sin(angle) * 0.3, Math.max(0.02, Math.cos(angle)), 0, 0);
+      context.translate(-cx, -cy);
+      context.globalAlpha *= Math.min(1, p * 2);
+      break;
+    }
+    case 'extrude-3d': {
+      const k = Math.max(0.01, easeOutBack(p));
+      context.translate(cx, cy);
+      context.scale(k, k);
+      context.translate(-cx, -cy);
+      break;
+    }
+  }
+
+  if (title.background && lines.some((l) => l)) {
     const textWidth = Math.max(...lines.map((l) => context.measureText(l).width));
     const pad = size * 0.4;
+    context.save();
     context.fillStyle = 'rgba(0,0,0,0.55)';
     context.beginPath();
-    context.roundRect(x - textWidth / 2 - pad, top - lineHeight / 2 - pad / 2, textWidth + pad * 2, lines.length * lineHeight + pad, size * 0.25);
+    context.roundRect(cx - textWidth / 2 - pad, top - lineHeight / 2 - pad / 2, textWidth + pad * 2, allLines.length * lineHeight + pad, size * 0.25);
     context.fill();
-  } else {
+    context.restore();
+  }
+
+  const drawText = (line: string, x: number, y: number, fill: string) => {
+    if (title.outline) {
+      context.lineWidth = Math.max(2, size / 10);
+      context.strokeStyle = 'rgba(0,0,0,0.85)';
+      context.lineJoin = 'round';
+      context.strokeText(line, x, y);
+    }
+    context.fillStyle = fill;
+    context.fillText(line, x, y);
+  };
+
+  if (animation === 'extrude-3d') {
+    // Stacked copies, darker towards the back, give the letters depth; the depth
+    // direction sways slowly so the title looks like it turns in 3D.
+    const depth = Math.max(4, Math.round(size / 7));
+    const angle = Math.PI / 4 + Math.sin((Number.isFinite(local) ? local : 0) * 1.2) * 0.7;
+    const step = Math.max(1, size / 40);
+    for (let k = depth; k >= 1; k--) {
+      const dx = Math.cos(angle) * k * step;
+      const dy = Math.sin(angle) * k * step;
+      const tone = shade(title.colour, 0.35 + (0.4 * k) / depth);
+      lines.forEach((line, i) => {
+        context.fillStyle = tone;
+        context.fillText(line, cx + dx, top + i * lineHeight + dy);
+      });
+    }
+    lines.forEach((line, i) => drawText(line, cx, top + i * lineHeight, title.colour));
+    context.restore();
+    return;
+  }
+
+  if (!title.background && !title.outline) {
     context.shadowColor = 'rgba(0,0,0,0.6)';
     context.shadowBlur = size * 0.15;
   }
-  context.fillStyle = title.colour;
-  lines.forEach((line, i) => context.fillText(line, x, top + i * lineHeight));
+
+  if (animation === 'wave') {
+    // Each letter bobs up and down, one after another.
+    const t = Number.isFinite(local) ? local : 0;
+    lines.forEach((line, i) => {
+      const lineWidth = context.measureText(line).width;
+      let x = cx - lineWidth / 2;
+      context.textAlign = 'left';
+      [...line].forEach((ch, n) => {
+        const y = top + i * lineHeight + Math.sin(t * 5 - n * 0.55) * size * 0.12;
+        drawText(ch, x, y, title.colour);
+        x += context.measureText(ch).width;
+      });
+    });
+    context.restore();
+    return;
+  }
+
+  lines.forEach((line, i) => drawText(line, cx, top + i * lineHeight, title.colour));
+  if (animation === 'typewriter' && p < 1) {
+    // A blinking cursor after the last letter typed.
+    const last = lines.length - 1;
+    const w = context.measureText(lines[last]).width;
+    if (Math.floor((Number.isFinite(local) ? local : 0) * 3) % 2 === 0) {
+      context.fillRect(cx + w / 2 + size * 0.08, top + last * lineHeight - size * 0.45, size * 0.08, size * 0.9);
+    }
+  }
   context.restore();
 }
 
@@ -114,14 +263,15 @@ function drawClip(context: CanvasRenderingContext2D, project: Project, clip: Cli
   if (clip.transitionOut && progress.out !== null) applyTransition(context, clip.transitionOut, progress.out, width, height, false);
   context.globalAlpha *= Math.max(0, Math.min(1, t.opacity));
   const filter = effectsFilter(clip.effects, height);
-  if (filter) context.filter = filter;
+  const nativeFilters = canvasFiltersWork();
+  if (filter && nativeFilters) context.filter = filter;
   // Move to the clip's centre, rotate and scale around it.
   context.translate(t.x * width, t.y * height);
   context.rotate((t.rotation * Math.PI) / 180);
   context.scale(t.scale, t.scale);
   if (source === 'title') {
     context.translate(-width / 2, -height / 2);
-    drawTitle(context, clip.title!, width, height);
+    drawTitle(context, clip.title!, width, height, time - clip.start, clipLength(clip));
     context.restore();
     return;
   }
@@ -135,7 +285,7 @@ function drawClip(context: CanvasRenderingContext2D, project: Project, clip: Cli
   const sh = Math.max(1, source.height * (1 - t.cropTop - t.cropBottom));
   const box = fitRect(sw, sh, width, height);
   const effects = clip.effects;
-  const pixelWork = !!(effects?.chroma || effects?.sharpen || effects?.pixelate);
+  const pixelWork = !!(effects?.chroma || effects?.sharpen || effects?.pixelate || (filter && !nativeFilters));
   if (!pixelWork) {
     context.drawImage(source.image, sx, sy, sw, sh, -box.width / 2, -box.height / 2, box.width, box.height);
     context.restore();
@@ -145,18 +295,21 @@ function drawClip(context: CanvasRenderingContext2D, project: Project, clip: Cli
   const w = Math.max(1, Math.round(box.width));
   const h = Math.max(1, Math.round(box.height));
   const work = scratchCanvas(w, h);
-  if (effects!.pixelate) {
-    const block = Math.max(2, (effects!.pixelate * height) / 720);
+  const softBlur = !nativeFilters && (effects!.blur ?? 0) > 0;
+  if (effects!.pixelate || softBlur) {
+    // Pixelate draws blocks; without canvas filters, blur is faked by shrinking and smoothing back up.
+    const block = Math.max(2, ((effects!.pixelate || effects!.blur) * height) / 720);
     const small = scratchSmall(Math.max(1, Math.round(w / block)), Math.max(1, Math.round(h / block)));
     small.drawImage(source.image, sx, sy, sw, sh, 0, 0, small.canvas.width, small.canvas.height);
-    work.imageSmoothingEnabled = false;
+    work.imageSmoothingEnabled = !effects!.pixelate;
     work.drawImage(small.canvas, 0, 0, w, h);
     work.imageSmoothingEnabled = true;
   } else {
     work.drawImage(source.image, sx, sy, sw, sh, 0, 0, w, h);
   }
-  if (effects!.chroma || effects!.sharpen) {
+  if (effects!.chroma || effects!.sharpen || (filter && !nativeFilters)) {
     const pixels = work.getImageData(0, 0, w, h);
+    if (filter && !nativeFilters) colourEffects(pixels.data, effects!);
     if (effects!.chroma) chromaKey(pixels.data, hexToRgb(effects!.chromaColour ?? '#00ff00'), effects!.chroma);
     const data = effects!.sharpen ? sharpen(pixels.data, w, h, effects!.sharpen) : pixels.data;
     work.putImageData(new ImageData(new Uint8ClampedArray(data), w, h), 0, 0);

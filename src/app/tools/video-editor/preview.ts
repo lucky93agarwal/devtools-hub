@@ -2,6 +2,7 @@
  * Plays the project in the preview: one hidden <video>/<audio> element per clip,
  * kept in step with the timeline clock, and a canvas that composites the frame.
  */
+import { openMedia } from '../video/media';
 import { connectAudioFx } from './audio-fx';
 import { Clip, MediaItem, Project, clipEnd, sourceTime, transitionGain } from './project';
 import { FrameSource, drawFrame } from './render';
@@ -14,6 +15,8 @@ export class Previewer {
   /** Web Audio, made on the first play (browsers need a click first), for volume above 100% and sound effects. */
   private audio: AudioContext | null = null;
   private readonly chains = new Map<string, { source: MediaElementAudioSourceNode; gain: GainNode; fx: string }>();
+  /** Decoded frames of reversed clips, so they play smoothly backwards in the preview. */
+  private readonly reverseFrames = new Map<string, { key: string; frames: { t: number; bitmap: ImageBitmap }[]; ready: boolean }>();
   private project: Project | null = null;
   private media = new Map<string, MediaItem>();
   private playing = false;
@@ -46,7 +49,68 @@ export class Previewer {
         this.chains.delete(id);
       }
     }
+    for (const clip of project.clips) if (clip.reverse) this.prepareReverse(clip);
+    for (const [id, cache] of this.reverseFrames) {
+      const clip = project.clips.find((c) => c.id === id);
+      if (!clip?.reverse || cache.key !== this.reverseKey(clip)) this.dropReverse(id);
+    }
     if (!this.playing) void this.seek(this.time);
+  }
+
+  private reverseKey(clip: Clip): string {
+    return `${clip.mediaId}:${clip.in}:${clip.out}`;
+  }
+
+  /** Reads the frames of a reversed clip (up to 20 s at 15 per second, 640 px wide) in the background. */
+  private prepareReverse(clip: Clip): void {
+    const media = clip.mediaId ? this.media.get(clip.mediaId) : undefined;
+    const key = this.reverseKey(clip);
+    if (!media || media.kind !== 'video' || this.reverseFrames.get(clip.id)?.key === key) return;
+    this.dropReverse(clip.id);
+    const cache = { key, frames: [] as { t: number; bitmap: ImageBitmap }[], ready: false };
+    this.reverseFrames.set(clip.id, cache);
+    const span = clip.out - clip.in;
+    if (span > 20) return;
+    void (async () => {
+      try {
+        const mb = await import('mediabunny');
+        const input = await openMedia(media.file);
+        try {
+          const track = await input.getPrimaryVideoTrack();
+          if (!track) return;
+          const times = Array.from({ length: Math.max(1, Math.ceil(span * 15)) }, (_, i) => clip.in + i / 15);
+          const scale = Math.min(1, 640 / track.displayWidth);
+          const canvas = new OffscreenCanvas(Math.round(track.displayWidth * scale), Math.round(track.displayHeight * scale));
+          const context = canvas.getContext('2d')!;
+          let i = 0;
+          for await (const sample of new mb.VideoSampleSink(track).samplesAtTimestamps(times)) {
+            if (this.reverseFrames.get(clip.id) !== cache) {
+              sample?.close();
+              break;
+            }
+            if (sample) {
+              sample.draw(context, 0, 0, canvas.width, canvas.height);
+              sample.close();
+              cache.frames.push({ t: times[i], bitmap: canvas.transferToImageBitmap() });
+            }
+            i++;
+          }
+          cache.ready = this.reverseFrames.get(clip.id) === cache;
+          if (cache.ready && !this.playing) this.draw();
+        } finally {
+          input.dispose();
+        }
+      } catch {
+        // Falls back to seeking the video element.
+      }
+    })();
+  }
+
+  private dropReverse(id: string): void {
+    const cache = this.reverseFrames.get(id);
+    if (!cache) return;
+    for (const f of cache.frames) f.bitmap.close();
+    this.reverseFrames.delete(id);
   }
 
   private elementFor(clip: Clip): Element | null {
@@ -81,6 +145,14 @@ export class Previewer {
     if (media.kind === 'image') {
       const image = this.imageFor(media);
       return image.complete ? { image, width: image.naturalWidth, height: image.naturalHeight } : null;
+    }
+    const cache = clip.reverse ? this.reverseFrames.get(clip.id) : undefined;
+    if (cache?.ready && cache.frames.length) {
+      // The nearest decoded frame to the source time.
+      const t = sourceTime(clip, this.time);
+      const index = Math.min(cache.frames.length - 1, Math.max(0, Math.round((t - clip.in) * 15)));
+      const frame = cache.frames[index].bitmap;
+      return { image: frame, width: frame.width, height: frame.height };
     }
     const element = this.elements.get(clip.id);
     if (!(element instanceof HTMLVideoElement) || element.readyState < 2) return null;
@@ -171,9 +243,9 @@ export class Previewer {
         element.volume = Math.min(1, level);
       }
       if (clip.reverse) {
-        // Browsers cannot play backwards, so a reversed clip is shown by seeking frame by frame.
+        // Browsers cannot play backwards: use the decoded frames, or seek frame by frame until they are ready.
         if (!element.paused) element.pause();
-        if (Math.abs(element.currentTime - target) > 0.04) element.currentTime = target;
+        if (!this.reverseFrames.get(clip.id)?.ready && Math.abs(element.currentTime - target) > 0.04) element.currentTime = target;
         continue;
       }
       element.playbackRate = clip.speed ?? 1;
@@ -226,6 +298,7 @@ export class Previewer {
     this.elements.clear();
     this.images.clear();
     this.chains.clear();
+    for (const id of [...this.reverseFrames.keys()]) this.dropReverse(id);
     void this.audio?.close().catch(() => undefined);
     this.audio = null;
   }

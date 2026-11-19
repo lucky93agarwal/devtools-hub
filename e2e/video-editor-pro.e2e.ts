@@ -58,6 +58,14 @@ test('speed, reverse, transform keyframes, separate audio and freeze frame', asy
   await page.getByRole('button', { name: /Freeze frame/ }).click();
   await expect(page.getByRole('button', { name: /Clip clip-frame-/ })).toBeVisible();
 
+  // An animated 3D title.
+  await page.getByRole('tab', { name: 'Titles' }).click();
+  await page.getByRole('button', { name: /3D extruded/ }).click();
+  await expect(page.getByRole('button', { name: 'Clip Title: 3D TITLE' })).toBeVisible();
+  await expect(page.getByLabel('Title animation')).toHaveValue('extrude-3d');
+  await page.getByLabel('Title animation').selectOption('wave');
+  await page.getByLabel('Title font').selectOption('serif');
+
   await page.getByRole('tab', { name: 'History' }).click();
   const history = page.getByRole('list', { name: 'History' });
   await expect(history).toContainText('Speed 2×');

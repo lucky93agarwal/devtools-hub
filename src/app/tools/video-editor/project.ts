@@ -32,6 +32,46 @@ export interface TitleStyle {
   x: number;
   y: number;
   background: boolean;
+  /** How the title comes in (and, for some, keeps moving). */
+  animation?: TitleAnimation;
+  font?: TitleFont;
+  /** A dark outline around the letters. */
+  outline?: boolean;
+}
+
+export type TitleAnimation = 'none' | 'fade-up' | 'typewriter' | 'pop' | 'slide' | 'zoom' | 'wave' | 'flip-3d' | 'extrude-3d';
+export type TitleFont = 'sans' | 'serif' | 'mono' | 'impact' | 'hand';
+
+export const TITLE_ANIMATIONS: readonly { id: TitleAnimation; label: string }[] = [
+  { id: 'none', label: 'None' },
+  { id: 'fade-up', label: 'Fade up' },
+  { id: 'typewriter', label: 'Typewriter' },
+  { id: 'pop', label: 'Pop' },
+  { id: 'slide', label: 'Slide in' },
+  { id: 'zoom', label: 'Zoom out' },
+  { id: 'wave', label: 'Wave' },
+  { id: 'flip-3d', label: '3D flip' },
+  { id: 'extrude-3d', label: '3D extruded' },
+];
+
+export const TITLE_FONTS: readonly { id: TitleFont; label: string; css: string }[] = [
+  { id: 'sans', label: 'Modern', css: "'Poppins', system-ui, -apple-system, 'Segoe UI', sans-serif" },
+  { id: 'serif', label: 'Classic', css: "Georgia, 'Times New Roman', serif" },
+  { id: 'mono', label: 'Code', css: "'JetBrains Mono Variable', ui-monospace, Menlo, monospace" },
+  { id: 'impact', label: 'Bold', css: "Impact, 'Anton', 'Arial Black', sans-serif" },
+  { id: 'hand', label: 'Handwritten', css: "'Segoe Print', 'Comic Sans MS', 'Chalkboard SE', cursive" },
+];
+
+/** Smooth easing from 0 to 1. */
+export const easeOut = (p: number) => 1 - (1 - p) ** 3;
+/** Overshoots a little before settling, for a bouncy pop. */
+export const easeOutBack = (p: number) => 1 + 2.7 * (p - 1) ** 3 + 1.7 * (p - 1) ** 2;
+
+/** How far into its entrance animation a title is: 0 at the start, 1 when settled (within a second, or a third of the clip). */
+export function titleEntrance(local: number, length: number, animation: TitleAnimation | undefined): number {
+  if (!animation || animation === 'none') return 1;
+  const duration = animation === 'typewriter' ? Math.min(2.5, length * 0.6) : Math.min(1, length / 3);
+  return duration > 0 ? Math.min(1, Math.max(0, local / duration)) : 1;
 }
 
 export interface Clip {

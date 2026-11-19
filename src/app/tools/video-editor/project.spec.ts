@@ -177,3 +177,32 @@ describe('video editor advanced editing', () => {
     expect(sharpen(flat, 3, 3, 100)[(4) * 4]).toBeGreaterThan(150);
   });
 });
+
+import { colourEffects } from './pixels';
+import { easeOutBack, titleEntrance } from './project';
+import { shade } from './render';
+
+describe('video editor titles and fallbacks', () => {
+  it('times title entrances', () => {
+    expect(titleEntrance(0.5, 6, 'pop')).toBe(0.5);
+    expect(titleEntrance(5, 6, 'pop')).toBe(1);
+    expect(titleEntrance(0, 6, 'none')).toBe(1);
+    expect(titleEntrance(1.25, 10, 'typewriter')).toBe(0.5);
+    expect(easeOutBack(1)).toBeCloseTo(1);
+    expect(easeOutBack(0.7)).toBeGreaterThan(1);
+  });
+
+  it('darkens colours for 3D letter sides', () => {
+    expect(shade('#ffffff', 0.5)).toBe('rgb(128, 128, 128)');
+  });
+
+  it('does colour effects on pixels when canvas filters are missing', () => {
+    const data = new Uint8ClampedArray([200, 100, 50, 255]);
+    colourEffects(data, { brightness: 100, contrast: 100, saturation: 100, grayscale: 100, sepia: 0, invert: 0, hue: 0 });
+    expect(data[0]).toBe(data[1]);
+    expect(data[1]).toBe(data[2]);
+    const dark = new Uint8ClampedArray([10, 20, 30, 255]);
+    colourEffects(dark, { brightness: 100, contrast: 100, saturation: 100, grayscale: 0, sepia: 0, invert: 100, hue: 0 });
+    expect([...dark.slice(0, 3)]).toEqual([245, 235, 225]);
+  });
+});
