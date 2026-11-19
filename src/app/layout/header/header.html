@@ -22,7 +22,7 @@
       </a>
     </div>
 
-    <nav class="hidden md:block" aria-label="Main">
+    <nav class="hidden lg:block" aria-label="Main">
       <ul class="flex items-center gap-1">
         @for (link of links; track link.path) {
           <li>
@@ -30,7 +30,7 @@
               [routerLink]="'/' + link.path"
               routerLinkActive="bg-surface !text-ink"
               ariaCurrentWhenActive="page"
-              class="rounded-full px-3 py-2 text-sm font-semibold text-muted hover:text-ink"
+              class="rounded-full px-2 py-2 text-sm font-semibold whitespace-nowrap text-muted hover:text-ink xl:px-3"
               >{{ link.label }}</a
             >
           </li>
