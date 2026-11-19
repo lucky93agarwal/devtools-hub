@@ -81,6 +81,8 @@ const toolComponents: Record<string, () => Promise<Type<unknown>>> = {
   'color-palette': () => import('./tools/color-palette/color-palette').then((m) => m.ColorPalette),
   'image-inspector': () => import('./tools/image-inspector/image-inspector').then((m) => m.ImageInspector),
   'photo-3d': () => import('./tools/photo-3d/photo-3d').then((m) => m.Photo3d),
+  'video-to-audio': () => import('./tools/video/video-to-audio').then((m) => m.VideoToAudio),
+  'add-audio-to-video': () => import('./tools/video/add-audio-to-video').then((m) => m.AddAudioToVideo),
   'image-upscaler': () => import('./tools/image-upscaler/image-upscaler').then((m) => m.ImageUpscaler),
   'object-remover': () => import('./tools/object-remover/object-remover').then((m) => m.ObjectRemover),
   'smart-crop': () => import('./tools/smart-crop/smart-crop').then((m) => m.SmartCrop),

@@ -27,7 +27,7 @@ export interface ToolInfo {
   live: boolean;
 }
 
-export type ToolCategory = 'json' | 'images' | 'api' | 'encode' | 'generate' | 'convert' | 'text';
+export type ToolCategory = 'json' | 'images' | 'video' | 'api' | 'encode' | 'generate' | 'convert' | 'text';
 
 /** Home page groups, in display order. */
 export const TOOL_CATEGORIES: readonly { id: ToolCategory; label: string }[] = [
@@ -38,6 +38,7 @@ export const TOOL_CATEGORIES: readonly { id: ToolCategory; label: string }[] = [
   { id: 'convert', label: 'Converters and calculators' },
   { id: 'generate', label: 'Generators' },
   { id: 'images', label: 'Images' },
+  { id: 'video', label: 'Video and audio' },
 ];
 
 export const TOOLS: readonly ToolInfo[] = [
@@ -1161,6 +1162,34 @@ export const TOOLS: readonly ToolInfo[] = [
     onHome: true,
     live: true,
   },
+  {
+    path: 'video-to-audio',
+    name: 'Extract Audio from Video',
+    shortName: 'Video to audio',
+    description: 'Take the sound out of a video and save it as MP3, WAV, M4A or in its original format.',
+    seoTitle: 'Extract Audio from Video: MP4 to MP3',
+    metaDescription:
+      'Extract the audio from MP4, MOV, WebM and MKV videos as MP3, WAV or M4A, or copy it without quality loss. Trim it too. Your video is never uploaded.',
+    icon: 'M3 6h11v12H3zM14 10l4-2v8l-4-2M19 9a4 4 0 0 1 0 6',
+    phase: 15,
+    category: 'video',
+    onHome: true,
+    live: true,
+  },
+  {
+    path: 'add-audio-to-video',
+    name: 'Add Audio to Video',
+    shortName: 'Add audio',
+    description: 'Add music, voice-overs and sound effects to a video, mute or keep its own sound, and save it.',
+    seoTitle: 'Add Music and Audio to a Video Online',
+    metaDescription:
+      'Add one or more audio tracks to a video: music, voice-over or effects, each with start time, volume, loop and fade. Replace or keep the original sound. Private.',
+    icon: 'M3 6h11v12H3zM14 10l4-2v8l-4-2M20 7v7a2 2 0 1 1-2-2h2',
+    phase: 15,
+    category: 'video',
+    onHome: true,
+    live: true,
+  },
 ];
 
 /** Links in the top bar, in display order. */
@@ -1168,6 +1197,7 @@ export const NAV_LINKS: readonly { label: string; path: string }[] = [
   { label: 'JSON', path: 'json-formatter' },
   { label: 'Compare', path: 'json-compare' },
   { label: 'Images', path: 'image-converter' },
+  { label: 'Video', path: 'video-to-audio' },
   { label: 'JWT', path: 'jwt' },
   { label: 'JSON to Code', path: 'json-to-code' },
   { label: 'Data', path: 'data-converter' },
