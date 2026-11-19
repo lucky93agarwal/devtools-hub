@@ -3,8 +3,15 @@ import { baseName, downloadBlob, formatBytes } from '../../shared/file-utils';
 import { ToolPage } from '../../shared/tool-page/tool-page';
 import { ToolContent } from '../../shared/tool-info/tool-info';
 import { MAX_VIDEO_BYTES, describe } from '../video/media';
+import { ago, clearProject, loadProject, saveProject } from './autosave';
 import { exportProject } from './export';
 import {
+  EFFECT_PRESETS,
+  Effects,
+  NO_EFFECTS,
+  TRANSITIONS,
+  Transition,
+  TransitionType,
   Clip,
   MediaItem,
   Project,
@@ -117,14 +124,30 @@ type Drag =
             </select>
           </label>
           <span class="flex-1"></span>
+          <span class="mr-2 text-xs text-[#9aa0ab]" role="status" aria-label="Save status">
+            @switch (saveState()) {
+              @case ('saving') { Saving… }
+              @case ('saved') { ✓ Saved in this browser }
+              @case ('failed') { <span class="text-red-400">Not saved: browser storage is full</span> }
+            }
+          </span>
           <button type="button" class="tool !bg-[#6d83f2] !text-white" [disabled]="exporting() || !project().clips.length" (click)="exportVideo()">⬇ Export video</button>
         </div>
+        @if (restoreOffer(); as offer) {
+          <div class="flex flex-wrap items-center gap-2 border-b border-[#343842] bg-[#2a2f3c] px-3 py-2 text-sm" role="alert">
+            <span>You have a project saved {{ ago(offer.saved.savedAt) }} ({{ offer.saved.project.clips.length }} clips, {{ offer.media.length }} files).</span>
+            <button type="button" class="tool !bg-[#6d83f2] !text-white" (click)="restore()">Restore it</button>
+            <button type="button" class="tool" (click)="discardSaved()">Start fresh</button>
+          </div>
+        }
 
         <div class="grid gap-1 p-1 lg:grid-cols-[minmax(0,2fr)_minmax(0,3fr)]">
           <!-- Left: project files / titles / properties -->
           <div class="panel flex min-h-72 flex-col rounded">
             <div class="flex border-b border-[#343842]" role="tablist" aria-label="Panels">
               <button type="button" role="tab" class="tab" [attr.aria-selected]="tab() === 'files'" (click)="tab.set('files')">Project Files</button>
+              <button type="button" role="tab" class="tab" [attr.aria-selected]="tab() === 'transitions'" (click)="tab.set('transitions')">Transitions</button>
+              <button type="button" role="tab" class="tab" [attr.aria-selected]="tab() === 'effects'" (click)="tab.set('effects')">Effects</button>
               <button type="button" role="tab" class="tab" [attr.aria-selected]="tab() === 'titles'" (click)="tab.set('titles')">Titles</button>
               <button type="button" role="tab" class="tab" [attr.aria-selected]="tab() === 'properties'" (click)="tab.set('properties')">Properties</button>
             </div>
@@ -145,7 +168,9 @@ type Drag =
                             @else if (m.kind === 'image') { <img [src]="m.url" alt="" class="h-full w-full object-contain" /> }
                             @else { <span class="text-2xl">🎵</span> }
                           </div>
-                          <p class="mt-1 truncate">{{ m.name }}</p>
+                          <p class="mt-1 flex items-center justify-between gap-1"><span class="truncate">{{ m.name }}</span>
+                            <button type="button" class="rounded px-1 text-[#9aa0ab] hover:bg-[#343842] hover:text-white" [attr.aria-label]="'Remove ' + m.name + ' from the project'" (click)="removeMedia(m.id)">✕</button>
+                          </p>
                           <p class="text-[#9aa0ab]">{{ m.kind === 'image' ? 'Image' : timecodeShort(m.duration) }}</p>
                         </li>
                       }
@@ -153,6 +178,36 @@ type Drag =
                   }
                   @if (importing()) { <p class="mt-2 text-xs text-[#9aa0ab]" role="status">Importing…</p> }
                   @if (error()) { <p class="mt-2 text-xs text-red-400" role="alert">{{ error() }}</p> }
+                }
+                @case ('transitions') {
+                  <p class="mb-2 text-xs text-[#9aa0ab]">{{ selected() ? 'Add to the selected clip: ' + clipName(selected()!) : 'Select a clip on the timeline first.' }}</p>
+                  <ul class="grid grid-cols-2 gap-2 sm:grid-cols-4" aria-label="Transitions">
+                    @for (t of transitions; track t.type) {
+                      <li class="rounded border border-[#343842] bg-[#1b1d23] p-2 text-center text-xs">
+                        <div class="grid aspect-video place-items-center rounded bg-gradient-to-r from-[#111] to-[#6d83f2] text-2xl">{{ t.icon }}</div>
+                        <p class="mt-1 font-semibold">{{ t.label }}</p>
+                        <span class="mt-1 flex justify-center gap-1">
+                          <button type="button" class="tool !px-1.5 !py-0.5" [disabled]="!selected()" [attr.aria-label]="t.label + ' at start'" (click)="setTransition('in', t.type)">Start</button>
+                          <button type="button" class="tool !px-1.5 !py-0.5" [disabled]="!selected()" [attr.aria-label]="t.label + ' at end'" (click)="setTransition('out', t.type)">End</button>
+                        </span>
+                      </li>
+                    }
+                  </ul>
+                  <p class="mt-2 text-xs text-[#9aa0ab]">Tip: overlap two clips on different tracks and fade the upper one in for a cross-fade.</p>
+                }
+                @case ('effects') {
+                  <p class="mb-2 text-xs text-[#9aa0ab]">{{ selected() ? 'Apply to the selected clip: ' + clipName(selected()!) : 'Select a clip on the timeline first.' }}</p>
+                  <ul class="grid grid-cols-2 gap-2 sm:grid-cols-5" aria-label="Effects">
+                    @for (e of effectPresets; track e.name) {
+                      <li>
+                        <button type="button" class="w-full rounded border border-[#343842] bg-[#1b1d23] p-2 text-center text-xs hover:border-[#6d83f2] disabled:opacity-40" [disabled]="!selected()" (click)="applyEffect(e.effects)">
+                          <div class="text-2xl">{{ e.icon }}</div>
+                          {{ e.name }}
+                        </button>
+                      </li>
+                    }
+                  </ul>
+                  <p class="mt-2 text-xs text-[#9aa0ab]">Fine-tune every effect in Properties.</p>
                 }
                 @case ('titles') {
                   <ul class="grid grid-cols-2 gap-2" aria-label="Title templates">
@@ -200,7 +255,30 @@ type Drag =
                         </label>
                         <label class="flex items-center gap-2"><input type="checkbox" [checked]="t.background" (change)="setTitle(clip, { background: $any($event.target).checked }, true)" /> Dark box behind text</label>
                       }
-                      <button type="button" class="tool self-start !bg-[#4a2a2a]" (click)="deleteSelected()">🗑 Remove clip</button>
+                      <p class="mt-2 font-semibold text-white">Transitions</p>
+                      @for (side of sides; track side.key) {
+                        <div class="flex items-center justify-between gap-2">
+                          <span>{{ side.label }}</span>
+                          <span class="flex gap-1">
+                            <select class="input" [attr.aria-label]="side.label + ' transition'" (change)="setTransition(side.key, $any($event.target).value)">
+                              <option value="" [selected]="!transitionOf(clip, side.key)">None</option>
+                              @for (t of transitions; track t.type) { <option [value]="t.type" [selected]="transitionOf(clip, side.key)?.type === t.type">{{ t.label }}</option> }
+                            </select>
+                            @if (transitionOf(clip, side.key); as tr) {
+                              <input type="number" min="0.1" max="10" step="0.1" class="input w-16" [attr.aria-label]="side.label + ' duration'" [value]="tr.duration" (change)="setTransitionDuration(side.key, $any($event.target).valueAsNumber)" />
+                            }
+                          </span>
+                        </div>
+                      }
+                      <p class="mt-2 flex items-center justify-between font-semibold text-white">Effects
+                        <button type="button" class="tool !px-1.5 !py-0.5" [disabled]="!clip.effects" (click)="resetEffects()">Reset</button>
+                      </p>
+                      @for (f of effectFields; track f.key) {
+                        <label class="flex items-center justify-between gap-2">{{ f.label }} {{ effectValue(clip, f.key) }}{{ f.unit }}
+                          <input type="range" class="w-32" [min]="f.min" [max]="f.max" [step]="f.step" [attr.aria-label]="'Effect ' + f.label" [value]="effectValue(clip, f.key)" (input)="setEffect(f.key, $any($event.target).valueAsNumber, false)" (change)="setEffect(f.key, $any($event.target).valueAsNumber, true)" />
+                        </label>
+                      }
+                      <button type="button" class="tool mt-2 self-start !bg-[#4a2a2a]" (click)="deleteSelected()">🗑 Remove clip</button>
                     </div>
                   } @else {
                     <p class="text-xs text-[#9aa0ab]">Select a clip on the timeline to see its properties.</p>
@@ -289,7 +367,13 @@ type Drag =
                         (pointerdown)="clipDown($event, clip)"
                       >
                         <span class="pointer-events-none block truncate px-2 pt-1 font-semibold">{{ clipName(clip) }}</span>
-                        <span class="pointer-events-none block truncate px-2 opacity-70">{{ timecodeShort(length(clip)) }}</span>
+                        <span class="pointer-events-none block truncate px-2 opacity-70">{{ timecodeShort(length(clip)) }}@if (clip.effects) { · fx }</span>
+                        @if (clip.transitionIn) {
+                          <span class="pointer-events-none absolute top-0 bottom-0 left-0 bg-gradient-to-r from-black/60 to-transparent" [style.width.px]="Math.min(length(clip), clip.transitionIn.duration) * pps()"></span>
+                        }
+                        @if (clip.transitionOut) {
+                          <span class="pointer-events-none absolute top-0 right-0 bottom-0 bg-gradient-to-l from-black/60 to-transparent" [style.width.px]="Math.min(length(clip), clip.transitionOut.duration) * pps()"></span>
+                        }
                         <span class="absolute inset-y-0 left-0 w-2 cursor-ew-resize bg-white/20" [attr.aria-label]="'Trim start of ' + clipName(clip)" (pointerdown)="trimDown($event, clip, 'start')"></span>
                         <span class="absolute inset-y-0 right-0 w-2 cursor-ew-resize bg-white/20" [attr.aria-label]="'Trim end of ' + clipName(clip)" (pointerdown)="trimDown($event, clip, 'end')"></span>
                       </div>
@@ -324,7 +408,24 @@ export class VideoEditor {
   protected readonly history = signal<Project[]>([]);
   protected readonly future = signal<Project[]>([]);
   protected readonly selectedId = signal<string | null>(null);
-  protected readonly tab = signal<'files' | 'titles' | 'properties'>('files');
+  protected readonly tab = signal<'files' | 'transitions' | 'effects' | 'titles' | 'properties'>('files');
+  protected readonly transitions = TRANSITIONS;
+  protected readonly effectPresets = EFFECT_PRESETS;
+  protected readonly sides: { key: 'in' | 'out'; label: string }[] = [
+    { key: 'in', label: 'Start' },
+    { key: 'out', label: 'End' },
+  ];
+  protected readonly effectFields: { key: keyof Effects; label: string; min: number; max: number; step: number; unit: string }[] = [
+    { key: 'brightness', label: 'Brightness', min: 0, max: 200, step: 5, unit: '%' },
+    { key: 'contrast', label: 'Contrast', min: 0, max: 200, step: 5, unit: '%' },
+    { key: 'saturation', label: 'Saturation', min: 0, max: 300, step: 5, unit: '%' },
+    { key: 'grayscale', label: 'Black & white', min: 0, max: 100, step: 5, unit: '%' },
+    { key: 'sepia', label: 'Sepia', min: 0, max: 100, step: 5, unit: '%' },
+    { key: 'invert', label: 'Invert', min: 0, max: 100, step: 5, unit: '%' },
+    { key: 'hue', label: 'Hue', min: 0, max: 360, step: 5, unit: '°' },
+    { key: 'blur', label: 'Blur', min: 0, max: 20, step: 0.5, unit: 'px' },
+    { key: 'opacity', label: 'Opacity', min: 0, max: 100, step: 5, unit: '%' },
+  ];
   protected readonly time = signal(0);
   protected readonly playing = signal(false);
   protected readonly pps = signal(60);
@@ -335,6 +436,13 @@ export class VideoEditor {
   protected readonly exportStage = signal('');
   protected readonly exportPercent = signal(0);
   protected readonly exported = signal<{ blob: Blob; name: string } | null>(null);
+  protected readonly saveState = signal<'idle' | 'saving' | 'saved' | 'failed'>('idle');
+  protected readonly restoreOffer = signal<{ saved: { project: Project; savedAt: number }; media: MediaItem[] } | null>(null);
+  protected readonly ago = ago;
+  /** Auto-save waits until any saved project has been restored or discarded. */
+  private canSave = false;
+  private saveTimer?: ReturnType<typeof setTimeout>;
+  private readonly savedMedia = new Set<string>();
 
   protected readonly duration = computed(() => projectDuration(this.project()));
   protected readonly selected = computed(() => this.project().clips.find((c) => c.id === this.selectedId()) ?? null);
@@ -363,6 +471,12 @@ export class VideoEditor {
       this.previewer.setProject(this.project(), this.media());
       addEventListener('pointermove', this.onMove);
       addEventListener('pointerup', this.onUp);
+      void this.checkSaved();
+    });
+    effect(() => {
+      const project = this.project();
+      const media = this.media();
+      untracked(() => this.scheduleSave(project, media));
     });
     effect(() => {
       const project = this.project();
@@ -373,6 +487,7 @@ export class VideoEditor {
       if (typeof window === 'undefined') return;
       removeEventListener('pointermove', this.onMove);
       removeEventListener('pointerup', this.onUp);
+      clearTimeout(this.saveTimer);
       this.previewer?.dispose();
       for (const m of this.media()) URL.revokeObjectURL(m.url);
     });
@@ -414,6 +529,70 @@ export class VideoEditor {
   private sourceLength(clip: Clip): number | null {
     const media = clip.mediaId ? this.mediaById().get(clip.mediaId) : undefined;
     return media && media.kind !== 'image' ? media.duration : null;
+  }
+
+  // ---------- auto-save ----------
+  private async checkSaved(): Promise<void> {
+    try {
+      const found = await loadProject();
+      if (found && !this.media().length && !this.project().clips.length) {
+        this.restoreOffer.set(found);
+        return;
+      }
+      if (found) for (const m of found.media) URL.revokeObjectURL(m.url);
+    } catch {
+      // No storage (private window): the editor still works, it just does not save.
+    }
+    this.canSave = true;
+  }
+
+  protected restore(): void {
+    const offer = this.restoreOffer();
+    if (!offer) return;
+    for (const m of this.media()) URL.revokeObjectURL(m.url);
+    this.media.set(offer.media);
+    for (const m of offer.media) this.savedMedia.add(m.id);
+    this.project.set(offer.saved.project);
+    this.history.set([]);
+    this.future.set([]);
+    this.restoreOffer.set(null);
+    this.canSave = true;
+    this.saveState.set('saved');
+    void this.seek(0);
+  }
+
+  protected async discardSaved(): Promise<void> {
+    const offer = this.restoreOffer();
+    if (offer) for (const m of offer.media) URL.revokeObjectURL(m.url);
+    this.restoreOffer.set(null);
+    this.savedMedia.clear();
+    await clearProject().catch(() => undefined);
+    this.canSave = true;
+    this.scheduleSave(this.project(), this.media());
+  }
+
+  /** Saves a second after the last change, so typing and dragging do not write constantly. */
+  private scheduleSave(project: Project, media: readonly MediaItem[]): void {
+    if (!this.canSave) return;
+    clearTimeout(this.saveTimer);
+    this.saveTimer = setTimeout(async () => {
+      this.saveState.set('saving');
+      try {
+        await saveProject(project, media, this.savedMedia);
+        this.saveState.set('saved');
+      } catch {
+        this.saveState.set('failed');
+      }
+    }, 1000);
+  }
+
+  protected removeMedia(id: string): void {
+    const used = this.project().clips.some((c) => c.mediaId === id);
+    if (used && !confirm('This file is used on the timeline. Remove it and its clips?')) return;
+    if (used) this.commit({ ...this.project(), clips: this.project().clips.filter((c) => c.mediaId !== id) });
+    const item = this.media().find((m) => m.id === id);
+    if (item) URL.revokeObjectURL(item.url);
+    this.media.update((list) => list.filter((m) => m.id !== id));
   }
 
   // ---------- history ----------
@@ -552,6 +731,57 @@ export class VideoEditor {
     if (save) this.titleEditStart = null;
   }
   private titleEditStart: Project | null = null;
+
+  // ---------- transitions and effects ----------
+  protected transitionOf(clip: Clip, side: 'in' | 'out'): Transition | undefined {
+    return side === 'in' ? clip.transitionIn : clip.transitionOut;
+  }
+
+  protected setTransition(side: 'in' | 'out', type: TransitionType | ''): void {
+    const clip = this.selected();
+    if (!clip) return;
+    const key = side === 'in' ? 'transitionIn' : 'transitionOut';
+    const duration = Math.min(1, clipLength(clip) / 2);
+    this.change(clip.id, { [key]: type ? { type, duration: clip[key]?.duration ?? duration } : undefined });
+  }
+
+  protected setTransitionDuration(side: 'in' | 'out', value: number): void {
+    const clip = this.selected();
+    const key = side === 'in' ? 'transitionIn' : 'transitionOut';
+    const current = clip?.[key];
+    if (!clip || !current || !Number.isFinite(value) || value <= 0) return;
+    this.change(clip.id, { [key]: { ...current, duration: Math.min(value, clipLength(clip)) } });
+  }
+
+  protected effectValue(clip: Clip, key: keyof Effects): number {
+    return (clip.effects ?? NO_EFFECTS)[key];
+  }
+
+  protected applyEffect(effects: Partial<Effects>): void {
+    const clip = this.selected();
+    if (clip) this.change(clip.id, { effects: { ...NO_EFFECTS, ...effects } });
+  }
+
+  private effectEditStart: Project | null = null;
+
+  /** Sliders preview while dragging; the undo step is saved when the slider is released. */
+  protected setEffect(key: keyof Effects, value: number, save: boolean): void {
+    const clip = this.selected();
+    if (!clip || !Number.isFinite(value)) return;
+    const next = updateClip(this.project(), clip.id, { effects: { ...(clip.effects ?? NO_EFFECTS), [key]: value } });
+    if (save) {
+      this.commit(next, this.effectEditStart ?? this.project());
+      this.effectEditStart = null;
+    } else {
+      this.effectEditStart ??= this.project();
+      this.project.set(next);
+    }
+  }
+
+  protected resetEffects(): void {
+    const clip = this.selected();
+    if (clip) this.change(clip.id, { effects: undefined });
+  }
 
   protected setStart(clip: Clip, value: number): void {
     if (Number.isFinite(value)) this.change(clip.id, { start: Math.max(0, value) });

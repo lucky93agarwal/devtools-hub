@@ -50,7 +50,16 @@ export async function exportProject(
       const source = context.createBufferSource();
       source.buffer = buffer;
       const gain = context.createGain();
-      gain.gain.value = clip.volume;
+      // Transitions fade the sound together with the picture.
+      const end = clipEnd(clip);
+      const fadeIn = clip.transitionIn ? Math.min(clip.transitionIn.duration, clipLength(clip)) : 0;
+      const fadeOut = clip.transitionOut ? Math.min(clip.transitionOut.duration, clipLength(clip)) : 0;
+      gain.gain.setValueAtTime(fadeIn ? 0 : clip.volume, clip.start);
+      if (fadeIn) gain.gain.linearRampToValueAtTime(clip.volume, clip.start + fadeIn);
+      if (fadeOut) {
+        gain.gain.setValueAtTime(clip.volume, Math.max(clip.start + fadeIn, end - fadeOut));
+        gain.gain.linearRampToValueAtTime(0, end);
+      }
       source.connect(gain).connect(context.destination);
       source.start(clip.start, clip.in, clipLength(clip));
     }

@@ -2,7 +2,7 @@
  * Plays the project in the preview: one hidden <video>/<audio> element per clip,
  * kept in step with the timeline clock, and a canvas that composites the frame.
  */
-import { Clip, MediaItem, Project, clipEnd } from './project';
+import { Clip, MediaItem, Project, clipEnd, transitionGain } from './project';
 import { FrameSource, drawFrame } from './render';
 
 type Element = HTMLVideoElement | HTMLAudioElement;
@@ -147,7 +147,7 @@ export class Previewer {
       }
       const target = clip.in + (this.time - clip.start);
       element.muted = muted.has(clip.track);
-      element.volume = Math.min(1, clip.volume);
+      element.volume = Math.min(1, clip.volume * transitionGain(clip, this.time));
       if (element.paused) {
         element.currentTime = target;
         void element.play().catch(() => undefined);

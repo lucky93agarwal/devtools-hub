@@ -43,6 +43,9 @@ export interface Clip {
   title?: TitleStyle;
   /** 0..2 for clips with sound. */
   volume: number;
+  transitionIn?: Transition;
+  transitionOut?: Transition;
+  effects?: Effects;
 }
 
 export interface Track {
@@ -128,8 +131,9 @@ export function splitClip(project: Project, id: string, time: number): Project {
   const clip = project.clips.find((c) => c.id === id);
   if (!clip || time <= clip.start + MIN_CLIP || time >= clipEnd(clip) - MIN_CLIP) return project;
   const cut = clip.in + (time - clip.start);
-  const left: Clip = { ...clip, out: cut };
-  const right: Clip = { ...clip, id: makeId('clip'), start: time, in: cut };
+  // The opening transition stays on the first part and the closing one on the second.
+  const left: Clip = { ...clip, out: cut, transitionOut: undefined };
+  const right: Clip = { ...clip, id: makeId('clip'), start: time, in: cut, transitionIn: undefined };
   return { ...project, clips: project.clips.flatMap((c) => (c.id === id ? [left, right] : [c])) };
 }
 
@@ -201,4 +205,94 @@ export function fitRect(sourceWidth: number, sourceHeight: number, frameWidth: n
   const width = sourceWidth * scale;
   const height = sourceHeight * scale;
   return { x: (frameWidth - width) / 2, y: (frameHeight - height) / 2, width, height };
+}
+
+// ---------- transitions ----------
+
+export type TransitionType = 'fade' | 'wipe-left' | 'wipe-right' | 'wipe-up' | 'slide-left' | 'slide-right' | 'circle' | 'zoom';
+
+export interface Transition {
+  type: TransitionType;
+  /** Seconds. */
+  duration: number;
+}
+
+export const TRANSITIONS: readonly { type: TransitionType; label: string; icon: string }[] = [
+  { type: 'fade', label: 'Fade', icon: '◐' },
+  { type: 'wipe-left', label: 'Wipe right', icon: '▶' },
+  { type: 'wipe-right', label: 'Wipe left', icon: '◀' },
+  { type: 'wipe-up', label: 'Wipe up', icon: '▲' },
+  { type: 'slide-left', label: 'Slide in', icon: '⇠' },
+  { type: 'slide-right', label: 'Slide right', icon: '⇢' },
+  { type: 'circle', label: 'Circle', icon: '◯' },
+  { type: 'zoom', label: 'Zoom', icon: '⤢' },
+];
+
+/**
+ * How far into its opening and closing transitions a clip is at `time`: 1 means the
+ * transition is over (fully shown), 0 means it has just begun. Null when there is none.
+ */
+export function transitionProgress(clip: Clip, time: number): { in: number | null; out: number | null } {
+  const local = time - clip.start;
+  const length = clipLength(clip);
+  const inDuration = clip.transitionIn ? Math.min(clip.transitionIn.duration, length) : 0;
+  const outDuration = clip.transitionOut ? Math.min(clip.transitionOut.duration, length) : 0;
+  return {
+    in: inDuration > 0 && local < inDuration ? Math.max(0, local / inDuration) : null,
+    out: outDuration > 0 && length - local < outDuration ? Math.max(0, (length - local) / outDuration) : null,
+  };
+}
+
+/** Sound level (0..1) at `time` from the clip's transitions, so sound fades with the picture. */
+export function transitionGain(clip: Clip, time: number): number {
+  const { in: start, out: end } = transitionProgress(clip, time);
+  return Math.min(start ?? 1, end ?? 1);
+}
+
+// ---------- effects ----------
+
+export interface Effects {
+  /** Percent, 100 is unchanged. */
+  brightness: number;
+  contrast: number;
+  saturation: number;
+  /** 0..100 percent of the effect. */
+  grayscale: number;
+  sepia: number;
+  invert: number;
+  /** Degrees. */
+  hue: number;
+  /** Blur in pixels at 720p, scaled with the frame. */
+  blur: number;
+  opacity: number;
+}
+
+export const NO_EFFECTS: Effects = { brightness: 100, contrast: 100, saturation: 100, grayscale: 0, sepia: 0, invert: 0, hue: 0, blur: 0, opacity: 100 };
+
+export const EFFECT_PRESETS: readonly { name: string; icon: string; effects: Partial<Effects> }[] = [
+  { name: 'Black & white', icon: '⬛', effects: { grayscale: 100 } },
+  { name: 'Sepia', icon: '🟫', effects: { sepia: 85 } },
+  { name: 'Vintage', icon: '📼', effects: { sepia: 40, contrast: 110, saturation: 80, brightness: 95 } },
+  { name: 'Vivid', icon: '🌈', effects: { saturation: 160, contrast: 115 } },
+  { name: 'Brighten', icon: '☀', effects: { brightness: 130 } },
+  { name: 'Darken', icon: '🌙', effects: { brightness: 70 } },
+  { name: 'Blur', icon: '💧', effects: { blur: 6 } },
+  { name: 'Invert', icon: '🔄', effects: { invert: 100 } },
+  { name: 'Cool', icon: '❄', effects: { hue: 200, saturation: 90 } },
+  { name: 'Warm', icon: '🔥', effects: { sepia: 25, saturation: 120 } },
+];
+
+/** CSS / canvas filter string for the effects; '' when nothing changes. */
+export function effectsFilter(effects: Effects | undefined, frameHeight: number): string {
+  if (!effects) return '';
+  const parts: string[] = [];
+  if (effects.brightness !== 100) parts.push(`brightness(${effects.brightness}%)`);
+  if (effects.contrast !== 100) parts.push(`contrast(${effects.contrast}%)`);
+  if (effects.saturation !== 100) parts.push(`saturate(${effects.saturation}%)`);
+  if (effects.grayscale) parts.push(`grayscale(${effects.grayscale}%)`);
+  if (effects.sepia) parts.push(`sepia(${effects.sepia}%)`);
+  if (effects.invert) parts.push(`invert(${effects.invert}%)`);
+  if (effects.hue) parts.push(`hue-rotate(${effects.hue}deg)`);
+  if (effects.blur) parts.push(`blur(${Math.round(((effects.blur * frameHeight) / 720) * 10) / 10}px)`);
+  return parts.join(' ');
 }

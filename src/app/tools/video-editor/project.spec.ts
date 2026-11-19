@@ -76,3 +76,40 @@ describe('video editor project', () => {
     expect(frameTimes(trimmed, 4)).toEqual([2, 2.25]);
   });
 });
+
+import { ago } from './autosave';
+import { NO_EFFECTS, effectsFilter, transitionGain, transitionProgress } from './project';
+
+describe('video editor transitions and effects', () => {
+  const clip = { id: 'c', track: 1, start: 10, in: 0, out: 4, volume: 1, transitionIn: { type: 'fade' as const, duration: 1 }, transitionOut: { type: 'wipe-left' as const, duration: 2 } };
+
+  it('tracks how far into each transition a clip is', () => {
+    expect(transitionProgress(clip, 10.5)).toEqual({ in: 0.5, out: null });
+    expect(transitionProgress(clip, 12)).toEqual({ in: null, out: null });
+    expect(transitionProgress(clip, 13)).toEqual({ in: null, out: 0.5 });
+    expect(transitionGain(clip, 10.25)).toBe(0.25);
+    expect(transitionGain(clip, 11.5)).toBe(1);
+  });
+
+  it('keeps the opening transition on the first part when split', () => {
+    const project = { ...newProject(), clips: [clip] };
+    const [left, right] = splitClip(project, 'c', 12).clips;
+    expect(left.transitionIn).toBeDefined();
+    expect(left.transitionOut).toBeUndefined();
+    expect(right.transitionIn).toBeUndefined();
+    expect(right.transitionOut).toBeDefined();
+  });
+
+  it('turns effects into a canvas filter', () => {
+    expect(effectsFilter(undefined, 720)).toBe('');
+    expect(effectsFilter(NO_EFFECTS, 720)).toBe('');
+    expect(effectsFilter({ ...NO_EFFECTS, grayscale: 100, brightness: 120, blur: 4 }, 1440)).toBe('brightness(120%) grayscale(100%) blur(8px)');
+  });
+
+  it('says how long ago a project was saved', () => {
+    const now = 1_000_000_000;
+    expect(ago(now - 20_000, now)).toBe('just now');
+    expect(ago(now - 5 * 60_000, now)).toBe('5 minutes ago');
+    expect(ago(now - 3 * 3_600_000, now)).toBe('3 hours ago');
+  });
+});

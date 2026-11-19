@@ -59,6 +59,26 @@ test('edits a video on the timeline and exports an MP4', async ({ page }) => {
   await page.getByLabel('Title text').blur();
   await expect(page.getByRole('button', { name: 'Clip Title: Hello DevTools24' })).toBeVisible();
 
+  // A fade at the start of the first video clip and a black & white effect on it.
+  await page.getByRole('button', { name: 'Clip clip.mp4' }).first().click();
+  await page.getByRole('tab', { name: 'Transitions' }).click();
+  await page.getByRole('button', { name: 'Fade at start' }).click();
+  await page.getByRole('tab', { name: 'Effects' }).click();
+  await page.getByRole('button', { name: /Black & white/ }).click();
+  await expect(page.getByRole('button', { name: 'Clip clip.mp4' }).first()).toContainText('fx');
+  await page.getByRole('tab', { name: 'Properties' }).click();
+  await expect(page.getByLabel('Start transition')).toHaveValue('fade');
+  await expect(page.getByLabel('Effect Black & white')).toHaveValue('100');
+
+  // Auto-save: reload and restore the project.
+  await expect(page.getByRole('status', { name: 'Save status' })).toHaveText(/Saved in this browser/, { timeout: 10_000 });
+  await page.reload();
+  await expect(page.getByText(/You have a project saved/)).toBeVisible();
+  await page.getByRole('button', { name: 'Restore it' }).click();
+  await expect(page.getByRole('button', { name: 'Clip clip.mp4' })).toHaveCount(2);
+  await expect(page.getByRole('button', { name: 'Clip Title: Hello DevTools24' })).toBeVisible();
+  await expect(page.getByRole('list', { name: 'Project files' }).getByRole('listitem')).toHaveCount(3);
+
   // Play for a moment.
   await page.getByRole('button', { name: 'Jump to start' }).click();
   await page.getByRole('button', { name: 'Play', exact: true }).click();
