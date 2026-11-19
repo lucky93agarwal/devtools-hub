@@ -11,6 +11,7 @@ import {
   ExportFormat,
   ExportQuality,
   ExportResolution,
+  CANCELLED,
   estimateSize,
   exportFrame,
   exportProject,
@@ -31,6 +32,7 @@ import {
   easeKeyframes,
   keyframeEase,
   renameTrack,
+  timelineTime,
   slideshow,
   TITLE_ANIMATIONS,
   TITLE_FONTS,
@@ -147,6 +149,8 @@ const PROFILES = [
   { label: 'Portrait 4:5 1080×1350 (Instagram)', width: 1080, height: 1350 },
 ];
 
+const TITLE_EFFECTS = new Set<keyof Effects>(['brightness', 'contrast', 'saturation', 'grayscale', 'sepia', 'invert', 'hue', 'blur', 'opacity']);
+
 const SHORTCUTS: [string, string][] = [
   ['Space', 'Play / pause'],
   ['S or C', 'Split at the playhead'],
@@ -186,7 +190,7 @@ type Drag =
   `,
   template: `
     <app-tool-page path="video-editor" [content]="content" [wide]="true" privacy="Your videos are edited on your device and never uploaded.">
-      <div class="editor overflow-hidden rounded-xl select-none" (dragover)="$event.preventDefault()">
+      <div class="editor overflow-hidden rounded-xl select-none" (dragover)="$event.preventDefault()" (change)="releaseFocus($event)">
         <!-- Toolbar -->
         <div class="flex flex-wrap items-center gap-1 border-b border-[#343842] px-2 py-1.5" role="toolbar" aria-label="Editor">
           <button type="button" class="tool" (click)="newProjectClick()">＋ New project</button>
@@ -250,7 +254,7 @@ type Drag =
                 @for (f of exportFpsList; track f) { <option [value]="f" [selected]="f === exportFps()">{{ f }} fps</option> }
               </select>
             </label>
-            <label class="flex items-center gap-1"><input type="checkbox" aria-label="Export only a part" [checked]="useRange()" (change)="useRange.set($any($event.target).checked)" /> Only a part</label>
+            <label class="flex items-center gap-1"><input type="checkbox" aria-label="Export only a part" [checked]="useRange()" (change)="setUseRange($any($event.target).checked)" /> Only a part</label>
             @if (useRange()) {
               <label class="flex items-center gap-1">From (s)
                 <input type="number" min="0" step="0.1" class="input w-20" aria-label="Export from" [value]="round(rangeStart())" (change)="rangeStart.set(Math.max(0, $any($event.target).valueAsNumber || 0))" />
@@ -267,6 +271,7 @@ type Drag =
             <button type="button" class="tool !py-0.5" [disabled]="!hasCaptions()" (click)="saveSrt()">💬 Subtitles .srt</button>
             <button type="button" class="tool !py-0.5" [disabled]="!project().clips.length" (click)="saveEdl()">🎞 EDL</button>
             <button type="button" class="tool !py-0.5" [disabled]="!project().clips.length" (click)="saveXml()">🎞 Final Cut XML</button>
+            <span class="text-[#9aa0ab]">EDL and XML carry the cuts only, not titles, captions or effects.</span>
           </div>
         }
         @if (showShortcuts()) {
@@ -430,6 +435,7 @@ type Drag =
                           <label class="flex items-center justify-between gap-2">Ramp strength {{ Math.round(clip.ramp.amount * 100) }}%
                             <input type="range" min="0.1" max="0.9" step="0.05" class="w-32" aria-label="Ramp strength" [value]="clip.ramp.amount" (change)="setRamp(clip, clip.ramp.shape, $any($event.target).valueAsNumber)" />
                           </label>
+                          <p class="text-[#9aa0ab]">Splitting this clip removes the ramp: both parts then play at a steady speed.</p>
                         }
                       }
                       @if (hasSound(clip) && !clip.muted) {
@@ -542,19 +548,24 @@ type Drag =
                           </span>
                         </div>
                       }
+                      @if (!clip.audioOnly && !isAudioMedia(clip)) {
                       <p class="mt-2 flex items-center justify-between font-semibold text-white">Effects
                         <button type="button" class="tool !px-1.5 !py-0.5" [disabled]="!clip.effects" (click)="resetEffects()">Reset</button>
                       </p>
-                      @if (effectValue(clip, 'chroma')) {
+                      @if (clip.title) { <p class="text-[#9aa0ab]">Titles take the colour, blur and opacity effects.</p> }
+                      @if (!clip.title && effectValue(clip, 'chroma')) {
                         <label class="flex items-center justify-between gap-2">Green screen colour
                           <input type="color" class="h-6 w-10" aria-label="Green screen colour" [value]="clip.effects?.chromaColour ?? '#00ff00'" (change)="setChromaColour(clip, $any($event.target).value)" />
                         </label>
                       }
-                      <label class="flex items-center gap-2"><input type="checkbox" aria-label="Mirror" [checked]="!!clip.effects?.mirror" (change)="setMirror(clip, $any($event.target).checked)" /> 🪞 Mirror (flip left to right)</label>
-                      @for (f of effectFields; track f.key) {
+                      @if (!clip.title) {
+                        <label class="flex items-center gap-2"><input type="checkbox" aria-label="Mirror" [checked]="!!clip.effects?.mirror" (change)="setMirror(clip, $any($event.target).checked)" /> 🪞 Mirror (flip left to right)</label>
+                      }
+                      @for (f of effectFieldsFor(clip); track f.key) {
                         <label class="flex items-center justify-between gap-2">{{ f.label }} {{ effectValue(clip, f.key) }}{{ f.unit }}
                           <input type="range" class="w-32" [min]="f.min" [max]="f.max" [step]="f.step" [attr.aria-label]="'Effect ' + f.label" [value]="effectValue(clip, f.key)" (input)="setEffect(f.key, $any($event.target).valueAsNumber, false)" (change)="setEffect(f.key, $any($event.target).valueAsNumber, true)" />
                         </label>
+                      }
                       }
                       <span class="mt-2 flex flex-wrap gap-1">
                         @if (canSeparate(clip)) { <button type="button" class="tool !bg-[#2c3a4a]" (click)="separate(clip)">🔈 Separate audio</button> }
@@ -577,7 +588,7 @@ type Drag =
                 <canvas #preview class="block max-h-[46vh] max-w-full [:fullscreen_&]:max-h-screen" role="img" aria-label="Video preview" (dblclick)="fullscreen()"></canvas>
                 @if (safeZones()) {
                   <svg class="pointer-events-none absolute inset-0 h-full w-full" viewBox="0 0 100 100" preserveAspectRatio="none" aria-label="Safe zones">
-                    @if (project().height > project().width) {
+                    @if (project().height / project().width >= 1.6) {
                       <!-- Reels / Shorts / TikTok: the app's buttons and captions cover these parts. -->
                       <rect x="0" y="0" width="100" height="13" fill="rgba(239,68,68,0.28)" />
                       <rect x="0" y="72" width="100" height="28" fill="rgba(239,68,68,0.28)" />
@@ -621,6 +632,7 @@ type Drag =
               <div class="h-2 w-48 overflow-hidden rounded bg-[#15171c]" role="progressbar" aria-label="Export progress" [attr.aria-valuenow]="exportPercent()" aria-valuemin="0" aria-valuemax="100">
                 <div class="h-full bg-[#6d83f2]" [style.width.%]="exportPercent()"></div>
               </div>
+              <button type="button" class="tool" (click)="cancelExport()">Cancel</button>
             } @else if (exported(); as e) {
               <span>Ready: {{ e.name }} ({{ formatBytes(e.blob.size) }})</span>
               <button type="button" class="tool !bg-[#6d83f2] !text-white" (click)="downloadExport()">Download {{ e.name }}</button>
@@ -807,7 +819,13 @@ export class VideoEditor {
   protected readonly imageCount = computed(() => this.media().filter((m) => m.kind === 'image').length);
   protected readonly hasCaptions = computed(() => this.project().clips.some((c) => c.caption && c.title));
   protected readonly exportSize = computed(() => outputSize(this.project(), this.exportResolution()));
-  protected readonly estimate = computed(() => (this.project().clips.length ? sizeText(estimateSize(this.project(), this.exportOptions())) : '0 MB'));
+  protected readonly estimate = computed(() => {
+    const project = this.project();
+    if (!project.clips.length) return '0 MB';
+    const muted = new Set(project.tracks.filter((t) => t.muted).map((t) => t.id));
+    const sound = project.clips.some((c) => !c.muted && !muted.has(c.track) && c.volume > 0 && this.mediaById().get(c.mediaId ?? '')?.hasAudio);
+    return sizeText(estimateSize(project, this.exportOptions(), sound));
+  });
   protected readonly time = signal(0);
   protected readonly playing = signal(false);
   protected readonly pps = signal(60);
@@ -1436,11 +1454,17 @@ export class VideoEditor {
   // ---------- export ----------
   protected async exportVideo(): Promise<void> {
     if (this.exporting()) return;
+    if (this.useRange() && this.rangeEnd() <= this.rangeStart()) {
+      this.error.set('In "Only a part", To must be after From.');
+      this.tab.set('files');
+      return;
+    }
     this.previewer?.pause();
     this.playing.set(false);
     this.exporting.set(true);
     this.exported.set(null);
     this.error.set('');
+    this.exportAbort = new AbortController();
     try {
       const { blob, extension } = await exportProject(
         this.project(),
@@ -1449,20 +1473,38 @@ export class VideoEditor {
           this.exportPercent.set(Math.round(fraction * 100));
           this.exportStage.set(stage);
         },
-        this.exportOptions(),
+        { ...this.exportOptions(), signal: this.exportAbort.signal },
       );
-      const first = this.media()[0];
-      this.exported.set({ blob, name: `${first ? baseName(first.name) : 'video'}-edit.${extension}` });
+      this.exported.set({ blob, name: this.exportName(extension) });
     } catch (e) {
-      this.error.set(e instanceof Error && e.message ? e.message : 'The video could not be exported.');
-      this.tab.set('files');
+      const message = e instanceof Error && e.message ? e.message : 'The video could not be exported.';
+      if (message !== CANCELLED) {
+        this.error.set(message);
+        this.tab.set('files');
+      }
     } finally {
       this.exporting.set(false);
+      this.exportAbort = null;
     }
   }
 
+  private exportAbort: AbortController | null = null;
+
+  protected cancelExport(): void {
+    this.exportAbort?.abort();
+  }
+
+  /** "Only a part" starts as the whole timeline, so the boxes never show a meaningless 0 to 0. */
+  protected setUseRange(on: boolean): void {
+    if (on && this.rangeEnd() <= this.rangeStart()) {
+      this.rangeStart.set(0);
+      this.rangeEnd.set(Math.round(this.duration() * 100) / 100);
+    }
+    this.useRange.set(on);
+  }
+
   protected exportOptions() {
-    const range = this.useRange() ? { start: this.rangeStart(), end: this.rangeEnd() > this.rangeStart() ? this.rangeEnd() : this.duration() } : undefined;
+    const range = this.useRange() ? { start: this.rangeStart(), end: Math.max(this.rangeStart(), this.rangeEnd()) } : undefined;
     return { format: this.exportFormat(), quality: this.exportQuality(), resolution: this.exportResolution(), fps: this.exportFps() || undefined, range };
   }
 
@@ -1475,8 +1517,10 @@ export class VideoEditor {
     else this.rangeEnd.set(this.time());
   }
 
+  /** Files are named after the first file on the timeline (not just the first one imported). */
   private exportName(extension: string, suffix = 'edit'): string {
-    const first = this.media()[0];
+    const used = [...this.project().clips].sort((a, b) => a.start - b.start || a.track - b.track).find((c) => c.mediaId && this.mediaById().has(c.mediaId));
+    const first = used ? this.mediaById().get(used.mediaId!) : undefined;
     return `${first ? baseName(first.name) : 'video'}-${suffix}.${extension}`;
   }
 
@@ -1505,7 +1549,7 @@ export class VideoEditor {
 
   // ---------- captions ----------
   protected addCaption(): void {
-    const { project, ids } = addCues(this.project(), [{ start: this.time(), end: this.time() + 3, text: 'Caption text' }]);
+    const { project, ids } = addCues(this.project(), [{ start: this.time(), end: this.time() + 3, text: 'Caption text' }], 0, true);
     this.commit(project, this.project(), 'Add caption');
     this.selectedIds.set(ids);
     this.tab.set('properties');
@@ -1578,6 +1622,21 @@ export class VideoEditor {
     this.change(clip.id, { keyframes: easeKeyframes(clip, kind) }, 'Keyframe curve');
   }
 
+  /** Effects a clip can show: titles are drawn as text, so only the colour, blur and opacity effects apply. */
+  protected effectFieldsFor(clip: Clip) {
+    return clip.title ? this.effectFields.filter((f) => TITLE_EFFECTS.has(f.key)) : this.effectFields;
+  }
+
+  /**
+   * After a dropdown, tick box or slider is used with the mouse, focus goes back to the page so
+   * shortcuts (Space, S, Delete…) work again. Keyboard users keep their place.
+   */
+  protected releaseFocus(event: Event): void {
+    const target = event.target as HTMLElement;
+    if (document.documentElement.dataset['input'] !== 'pointer') return;
+    if (target instanceof HTMLSelectElement || (target instanceof HTMLInputElement && ['checkbox', 'range', 'color'].includes(target.type))) target.blur();
+  }
+
   protected setMirror(clip: Clip, on: boolean): void {
     this.change(clip.id, { effects: { ...(clip.effects ?? NO_EFFECTS), mirror: on || undefined } }, 'Mirror');
   }
@@ -1603,12 +1662,12 @@ export class VideoEditor {
   protected clipThumbs(clip: Clip): { left: number; url: string }[] {
     const item = clip.mediaId ? this.mediaById().get(clip.mediaId) : undefined;
     if (!item?.thumbs?.length || clip.audioOnly) return [];
-    const speed = clip.speed ?? 1;
     const out: { left: number; url: string }[] = [];
     let last = -Infinity;
     for (const th of item.thumbs) {
       if (th.t < clip.in - 0.01 || th.t > clip.out) continue;
-      const left = ((clip.reverse ? clip.out - th.t : th.t - clip.in) / speed) * this.pps();
+      // Where on the timeline this picture shows (speed, reverse and ramps included).
+      const left = (timelineTime(clip, th.t) - clip.start) * this.pps();
       // Keep pictures at least a thumbnail apart.
       if (Math.abs(left - last) < 90) continue;
       last = left;

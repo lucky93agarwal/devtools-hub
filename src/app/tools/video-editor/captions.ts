@@ -1,5 +1,5 @@
 /** Subtitles: reading and writing .srt files, and turning their lines into caption clips. */
-import { Clip, Project, TitleStyle, clipEnd, makeId } from './project';
+import { Clip, Project, TitleStyle, clipEnd, freeStart, makeId } from './project';
 
 export interface Cue {
   start: number;
@@ -65,18 +65,29 @@ export function captionTrack(project: Project): { project: Project; track: numbe
   return { project: { ...project, tracks: [...project.tracks, { id, name: 'Captions', muted: false, hidden: false }] }, track: id };
 }
 
-/** Adds lines as caption clips on the Captions track (shifted by `offset` seconds). */
-export function addCues(project: Project, cues: readonly Cue[], offset = 0): { project: Project; ids: string[] } {
+/**
+ * Where captions sit: near the bottom, but in tall (9:16) videos above the part that
+ * Reels, Shorts and TikTok cover with their buttons and text.
+ */
+export function captionY(project: Pick<Project, 'width' | 'height'>): number {
+  return project.height / project.width >= 1.6 ? 0.66 : CAPTION_STYLE.y;
+}
+
+/**
+ * Adds lines as caption clips on the Captions track (shifted by `offset` seconds).
+ * With `avoidOverlap`, a line that would cover another caption moves to the next free time.
+ */
+export function addCues(project: Project, cues: readonly Cue[], offset = 0, avoidOverlap = false): { project: Project; ids: string[] } {
   const made = captionTrack(project);
-  const clips: Clip[] = cues.map((cue) => ({
-    id: makeId('caption'),
-    track: made.track,
-    start: cue.start + offset,
-    in: 0,
-    out: cue.end - cue.start,
-    title: { ...CAPTION_STYLE, text: cue.text },
-    caption: true,
-    volume: 1,
-  }));
-  return { project: { ...made.project, clips: [...made.project.clips, ...clips] }, ids: clips.map((c) => c.id) };
+  let next = made.project;
+  const ids: string[] = [];
+  const y = captionY(project);
+  for (const cue of cues) {
+    const length = cue.end - cue.start;
+    const start = avoidOverlap ? freeStart(next, made.track, cue.start + offset, length) : cue.start + offset;
+    const clip: Clip = { id: makeId('caption'), track: made.track, start, in: 0, out: length, title: { ...CAPTION_STYLE, y, text: cue.text }, caption: true, volume: 1 };
+    next = { ...next, clips: [...next.clips, clip] };
+    ids.push(clip.id);
+  }
+  return { project: next, ids };
 }

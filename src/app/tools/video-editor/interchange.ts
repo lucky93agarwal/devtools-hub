@@ -43,6 +43,8 @@ export function toEdl(project: Project, media: readonly MediaItem[], title = 'De
     }
     lines.push(`* FROM CLIP NAME: ${item.name}`, '');
   }
+  const skipped = project.clips.filter((c) => c.title).length;
+  if (skipped) lines.push(`* NOTE: ${skipped} title or caption clip${skipped === 1 ? ' is' : 's are'} not included (an EDL holds cuts only).`, '');
   return lines.join('\n');
 }
 
@@ -80,6 +82,6 @@ export function toFcpXml(project: Project, media: readonly MediaItem[], title = 
   const duration = Math.max(0, ...project.clips.map((c) => f(clipEnd(c))));
   return `<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE xmeml>
-<xmeml version="5"><sequence id="sequence-1"><name>${escape(title)}</name><duration>${duration}</duration>${rate}<media><video><format><samplecharacteristics>${rate}<width>${project.width}</width><height>${project.height}</height></samplecharacteristics></format>${videoTracks.join('')}</video><audio>${audioTracks.join('')}</audio></media></sequence></xmeml>
+${project.clips.some((c) => c.title) ? '<!-- Titles and captions are not included: this file holds the cuts only. -->\n' : ''}<xmeml version="5"><sequence id="sequence-1"><name>${escape(title)}</name><duration>${duration}</duration>${rate}<media><video><format><samplecharacteristics>${rate}<width>${project.width}</width><height>${project.height}</height></samplecharacteristics></format>${videoTracks.join('')}</video><audio>${audioTracks.join('')}</audio></media></sequence></xmeml>
 `;
 }

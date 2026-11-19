@@ -18,9 +18,10 @@ export function distortionCurve(amount: number, samples = 1024): Float32Array<Ar
 
 /**
  * Connects `input` through the effects and returns the last node, to connect onwards.
+ * Oscillators the effects start are added to `sources`, so they can be stopped later.
  * Works with a live AudioContext (preview) and an OfflineAudioContext (export).
  */
-export function connectAudioFx(context: BaseAudioContext, input: AudioNode, fx: AudioFx | undefined): AudioNode {
+export function connectAudioFx(context: BaseAudioContext, input: AudioNode, fx: AudioFx | undefined, sources: AudioScheduledSourceNode[] = []): AudioNode {
   if (!hasAudioFx(fx)) return input;
   let node: AudioNode = input;
   const chain = (next: AudioNode) => {
@@ -109,6 +110,8 @@ export function connectAudioFx(context: BaseAudioContext, input: AudioNode, fx: 
     oscillator.frequency.value = 50;
     oscillator.connect(ring.gain);
     oscillator.start();
+    // Kept so the preview can stop it when the effects change.
+    sources.push(oscillator);
     chain(ring);
     const lift = context.createGain();
     lift.gain.value = 1.6;

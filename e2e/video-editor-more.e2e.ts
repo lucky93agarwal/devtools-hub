@@ -133,7 +133,8 @@ test('captions: add, import .srt, export .srt, and the Captions track', async ({
 
   await page.getByRole('tab', { name: 'Titles' }).click();
   const srt = await download(page, () => page.getByRole('button', { name: /Export \.srt/ }).click());
-  expect(srt.name).toBe('clip-subtitles.srt');
+  // No file is on the timeline, so the name is the generic one.
+  expect(srt.name).toBe('video-subtitles.srt');
   const text = readFileSync(srt.path, 'utf8');
   expect(text).toContain('00:00:00,000 --> 00:00:03,000\nCaption text');
   expect(text).toContain('3\n00:00:06,000 --> 00:00:07,000\nBye');
@@ -191,4 +192,65 @@ test('frame pictures, picture sequence, EDL, Final Cut XML, slideshow, track ren
   await expect(page.getByRole('dialog', { name: 'Video editor shortcuts' })).toContainText('Split at the playhead');
   await page.keyboard.press('Escape');
   await expect(page.getByRole('dialog', { name: 'Video editor shortcuts' })).toHaveCount(0);
+});
+
+test('fixes from testing: caption overlap, range check, cancel, title effects, shortcuts after a dropdown', async ({ page }) => {
+  const files = await start(page, ['e2e/fixtures/clip.mp4', 'e2e/fixtures/photo.png', 'e2e/fixtures/small.png']);
+  await files.filter({ hasText: 'clip.mp4' }).dblclick();
+  const clip = page.getByRole('button', { name: 'Clip clip.mp4' });
+  await expect(clip).toBeVisible();
+
+  // After choosing from a dropdown with the mouse, Space plays again.
+  await clip.click();
+  await page.getByRole('tab', { name: 'Properties' }).click();
+  await page.getByLabel('Clip speed').click();
+  await page.getByLabel('Clip speed').selectOption('0.5');
+  await expect(page.getByLabel('Clip speed')).not.toBeFocused();
+  await page.keyboard.press('Space');
+  await expect(page.getByRole('button', { name: 'Pause' })).toBeVisible();
+  await page.keyboard.press('Space');
+
+  // Two captions at the same playhead sit one after the other.
+  await page.getByRole('button', { name: 'Jump to start' }).click();
+  for (let i = 0; i < 2; i++) {
+    await page.getByRole('tab', { name: 'Titles' }).click();
+    await page.getByRole('button', { name: /Caption at playhead/ }).click();
+  }
+  const captions = page.getByRole('button', { name: 'Clip Title: Caption text' });
+  await expect(captions).toHaveCount(2);
+  const [a, b] = await captions.evaluateAll((els) => els.map((e) => e.getBoundingClientRect().x));
+  expect(Math.abs(a - b)).toBeGreaterThan(100);
+
+  // Titles only offer the effects they can show.
+  await captions.first().click();
+  await page.getByRole('tab', { name: 'Properties' }).click();
+  await expect(page.getByLabel('Effect Brightness')).toBeVisible();
+  await expect(page.getByLabel('Mirror')).toHaveCount(0);
+  await expect(page.getByLabel('Effect Vignette')).toHaveCount(0);
+
+  // "Only a part" starts as the whole timeline, and To before From is refused.
+  await page.getByRole('button', { name: 'Export settings' }).click();
+  await page.getByLabel('Export only a part').check();
+  await expect(page.getByLabel('Export from')).toHaveValue('0');
+  expect(Number(await page.getByLabel('Export to').inputValue())).toBeGreaterThan(5);
+  await page.getByLabel('Export from').fill('1.5');
+  await page.getByLabel('Export to').fill('0.5');
+  await page.getByLabel('Export to').blur();
+  await page.getByRole('button', { name: /Export video/ }).click();
+  await expect(page.getByRole('alert')).toContainText('To must be after From');
+  await page.getByLabel('Export only a part').uncheck();
+
+  // A long export can be cancelled.
+  await page.getByRole('tab', { name: 'Project Files' }).click();
+  await page.getByLabel('Seconds per photo').fill('30');
+  await page.getByRole('button', { name: /Add 2 photos to the timeline/ }).click();
+  await page.getByLabel('Export resolution').selectOption('1080');
+  await page.getByLabel('Export frame rate').selectOption('60');
+  await page.getByRole('button', { name: /Export video/ }).click();
+  await expect(page.getByRole('progressbar', { name: 'Export progress' })).toBeVisible();
+  await page.getByRole('button', { name: 'Cancel', exact: true }).click();
+  await expect(page.getByRole('progressbar', { name: 'Export progress' })).toHaveCount(0, { timeout: 15_000 });
+  await expect(page.getByRole('button', { name: /^Download / })).toHaveCount(0);
+  await expect(page.getByRole('alert')).toHaveCount(0);
+  await expect(page.getByRole('button', { name: /Export video/ })).toBeEnabled();
 });

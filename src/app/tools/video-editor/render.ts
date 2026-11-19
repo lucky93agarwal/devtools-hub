@@ -13,6 +13,7 @@ import {
   scaleRect,
   titleEntrance,
   transformAt,
+  transitionGain,
   transitionProgress,
 } from './project';
 import { chromaKey, colourEffects, hexToRgb, noiseTile, rgbShift, sharpen } from './pixels';
@@ -477,6 +478,8 @@ export function drawFrame(
       const small = scratchSmall(32, Math.max(1, Math.round((32 * height) / width)));
       small.drawImage(source.image, 0, 0, source.width, source.height, (box.x / width) * 32, (box.y / height) * small.canvas.height, (box.width / width) * 32, (box.height / height) * small.canvas.height);
       context.save();
+      // The blurred copy fades in and out with the picture it copies.
+      context.globalAlpha = Math.max(0, Math.min(1, transitionGain(under!, time) * transformAt(under!, time).opacity));
       context.imageSmoothingEnabled = true;
       context.imageSmoothingQuality = 'high';
       context.drawImage(small.canvas, 0, 0, width, height);

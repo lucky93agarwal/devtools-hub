@@ -347,6 +347,21 @@ export function sourceTime(clip: Clip, time: number): number {
   return clip.reverse ? clip.out - into : clip.in + into;
 }
 
+/** The timeline time at which a clip shows source time `source` (the inverse of sourceTime, ramps included). */
+export function timelineTime(clip: Clip, source: number): number {
+  const length = clipLength(clip);
+  // sourceTime only rises (or, reversed, only falls) across the clip, so halve the range until it is found.
+  let lo = 0;
+  let hi = length;
+  for (let i = 0; i < 40; i++) {
+    const mid = (lo + hi) / 2;
+    const at = sourceTime(clip, clip.start + mid);
+    if (clip.reverse ? at > source : at < source) lo = mid;
+    else hi = mid;
+  }
+  return clip.start + (lo + hi) / 2;
+}
+
 /** How fast the source plays at timeline `time` (speed times the ramp). */
 export function rateAt(clip: Clip, time: number): number {
   return (clip.speed ?? 1) * rampRate(clip.ramp, (time - clip.start) / (clipLength(clip) || 1));
@@ -646,7 +661,9 @@ export function setKeyframe(clip: Clip, prop: KeyProp, t: number, v: number): Ke
   const old = clip.keyframes?.[prop] ?? [];
   const same = old.find((f) => Math.abs(f.t - t) <= 1 / 60);
   const list = old.filter((f) => f !== same);
-  const frame: Keyframe = same?.ease ? { t, v, ease: same.ease } : { t, v };
+  // A new keyframe follows the curve the clip's keyframes already use.
+  const curve = same ? same.ease : keyframeEase(clip);
+  const frame: Keyframe = curve && curve !== 'linear' ? { t, v, ease: curve } : { t, v };
   return { ...clip.keyframes, [prop]: [...list, frame].sort((a, b) => a.t - b.t) };
 }
 

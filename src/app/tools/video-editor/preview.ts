@@ -18,7 +18,7 @@ export class Previewer {
   private master: GainNode | null = null;
   private meters: AnalyserNode[] = [];
   private meterData = new Float32Array(1024);
-  private readonly chains = new Map<string, { source: MediaElementAudioSourceNode; gain: GainNode; fx: string }>();
+  private readonly chains = new Map<string, { source: MediaElementAudioSourceNode; gain: GainNode; fx: string; running: AudioScheduledSourceNode[] }>();
   /** Decoded frames of reversed clips, so they play smoothly backwards in the preview. */
   private readonly reverseFrames = new Map<string, { key: string; frames: { t: number; bitmap: ImageBitmap }[]; ready: boolean }>();
   private project: Project | null = null;
@@ -264,7 +264,14 @@ export class Previewer {
         if (!this.reverseFrames.get(clip.id)?.ready && Math.abs(element.currentTime - target) > 0.04) element.currentTime = target;
         continue;
       }
-      const rate = Math.min(16, Math.max(0.0625, rateAt(clip, this.time)));
+      const wanted = rateAt(clip, this.time);
+      if (wanted < 0.0625) {
+        // Slower than browsers can play: hold the element and step it like a slideshow of frames.
+        if (!element.paused) element.pause();
+        if (Math.abs(element.currentTime - target) > 1 / 15) element.currentTime = target;
+        continue;
+      }
+      const rate = Math.min(16, wanted);
       if (Math.abs(element.playbackRate - rate) > 0.01) element.playbackRate = rate;
       if (element.paused) {
         element.currentTime = target;
@@ -283,13 +290,15 @@ export class Previewer {
     if (!chain) {
       const source = this.audio.createMediaElementSource(element);
       const gain = this.audio.createGain();
-      chain = { source, gain, fx: '' };
+      chain = { source, gain, fx: '', running: [] };
       this.chains.set(clip.id, chain);
     }
     if (chain.fx !== key || chain.fx === '') {
       chain.source.disconnect();
       chain.gain.disconnect();
-      connectAudioFx(this.audio, chain.source, clip.audio).connect(chain.gain);
+      for (const node of chain.running) node.stop();
+      chain.running = [];
+      connectAudioFx(this.audio, chain.source, clip.audio, chain.running).connect(chain.gain);
       chain.gain.connect(this.master ?? this.audio.destination);
       chain.fx = key;
     }

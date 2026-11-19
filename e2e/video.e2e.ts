@@ -98,3 +98,24 @@ test('compresses and converts a video', async ({ page }) => {
   await page.getByRole('button', { name: 'Download clip-compressed.webm' }).click();
   expect((await download).suggestedFilename()).toBe('clip-compressed.webm');
 });
+
+test('the compressor warns instead of quietly making a file bigger, and checks the times', async ({ page }) => {
+  await page.goto('/video-compressor');
+  await choose(page, 'Choose video', 'clip.mp4');
+  await expect(page.getByText(/0:02 · 320×180/)).toBeVisible();
+  await page.getByLabel('Compression').selectOption('target');
+  await page.getByLabel('Target size in MB').fill('5');
+  await expect(page.getByRole('note')).toContainText('already');
+  await page.getByLabel('Compression').selectOption('better');
+  await page.getByRole('button', { name: 'Compress video' }).click();
+  await expect(page.getByText(/Ready: clip-compressed\.mp4/)).toBeVisible({ timeout: 60_000 });
+  // This tiny clip is already well compressed, so the result says so.
+  const ready = page.getByRole('status');
+  const size = await ready.textContent();
+  if (/larger|0% smaller/.test(size!)) await expect(ready.getByRole('note')).toContainText('not smaller');
+
+  await page.getByLabel('Start time').fill('1.5');
+  await page.getByLabel('End time').fill('0.5');
+  await page.getByRole('button', { name: 'Compress video' }).click();
+  await expect(page.getByRole('alert')).toContainText('End must be after Start');
+});

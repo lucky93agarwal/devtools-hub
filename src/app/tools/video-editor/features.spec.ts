@@ -1,4 +1,4 @@
-import { addCues, parseSrt, projectCues, toSrt } from './captions';
+import { addCues, captionY, parseSrt, projectCues, toSrt } from './captions';
 import { estimateSize, exportRange, frameTimes, outputSize } from './export';
 import { toEdl, toFcpXml } from './interchange';
 import {
@@ -18,9 +18,10 @@ import {
   slideshow,
   sourceTime,
   splitClip,
+  timelineTime,
   valueAt,
 } from './project';
-import { scaledSize, targetVideoBitrate } from '../video/media';
+import { audioBitrate, scaledSize, targetVideoBitrate, videoBitrate } from '../video/media';
 import { distortionCurve, hasAudioFx } from './audio-fx';
 
 const clip = (over: Partial<Clip> = {}): Clip => ({ id: 'a', track: 1, start: 0, in: 0, out: 10, mediaId: 'm', volume: 1, ...over });
@@ -186,5 +187,51 @@ describe('slideshow, tracks, audio effects, compressor', () => {
     expect(scaledSize(1920, 1080, 720)).toEqual({ width: 1280, height: 720 });
     expect(scaledSize(1080, 1920, 480)).toEqual({ width: 480, height: 854 });
     expect(scaledSize(640, 360, 1080)).toEqual({ width: 640, height: 360 });
+  });
+});
+
+describe('bug fixes after testing', () => {
+  it('finds the timeline time of a source time, with ramps and reverse', () => {
+    const ramped = clip({ start: 3, ramp: { shape: 'speed-up', amount: 0.6 } });
+    for (const t of [3.5, 5, 9, 12.5]) expect(timelineTime(ramped, sourceTime(ramped, t))).toBeCloseTo(t, 4);
+    const back = clip({ start: 1, reverse: true, speed: 2 });
+    expect(timelineTime(back, 10)).toBeCloseTo(1, 4);
+    expect(timelineTime(back, 0)).toBeCloseTo(6, 4);
+  });
+
+  it('gives new keyframes the curve the clip already uses', () => {
+    const c = clip({ keyframes: { x: [{ t: 0, v: 0, ease: 'ease-in' }] } });
+    expect(setKeyframe(c, 'x', 2, 1).x!.at(-1)).toEqual({ t: 2, v: 1, ease: 'ease-in' });
+    expect(setKeyframe(c, 'scale', 1, 2).scale).toEqual([{ t: 1, v: 2, ease: 'ease-in' }]);
+    expect(setKeyframe(clip(), 'x', 1, 1).x).toEqual([{ t: 1, v: 1 }]);
+  });
+
+  it('does not stack a new caption on another, and keeps captions out of the Reels buttons', () => {
+    let p = addCues(newProject(), [{ start: 0, end: 3, text: 'a' }], 0, true).project;
+    p = addCues(p, [{ start: 1, end: 4, text: 'b' }], 0, true).project;
+    expect(p.clips.map((c) => c.start)).toEqual([0, 3]);
+    // Imported lines keep their own times.
+    expect(addCues(p, [{ start: 1, end: 2, text: 'c' }]).project.clips.at(-1)!.start).toBe(1);
+    expect(captionY({ width: 1080, height: 1920 })).toBeLessThan(0.72);
+    expect(captionY({ width: 1280, height: 720 })).toBe(0.86);
+  });
+
+  it('estimates sizes with the bitrates the encoder uses', () => {
+    const project: Project = { ...newProject(), clips: [clip()] };
+    // 720p high H.264 ≈ 2.8 Mbit/s whatever the frame rate, plus 192 kbit/s AAC.
+    const bytes = estimateSize(project, { format: 'mp4', quality: 'high' });
+    expect(bytes / 10 / 125_000).toBeGreaterThan(2.8);
+    expect(bytes / 10 / 125_000).toBeLessThan(3.2);
+    expect(estimateSize(project, { format: 'mp4', quality: 'high', fps: 60 })).toBe(bytes);
+    expect(estimateSize(project, { format: 'mp4', quality: 'high' }, false)).toBeLessThan(bytes);
+    expect(estimateSize(project, { format: 'webm', quality: 'high' })).toBeLessThan(bytes);
+    expect(videoBitrate(1280, 720, 'high', 'avc')).toBeCloseTo(2_820_000, -5);
+    expect(audioBitrate('aac', 'high')).toBe(192_000);
+  });
+
+  it('notes that titles are left out of EDL and XML', () => {
+    const project: Project = { ...newProject(), clips: [clip(), { ...clip({ id: 't', mediaId: undefined }), title: { text: 'x', size: 5, colour: '#fff', x: 0.5, y: 0.5, background: false } }] };
+    expect(toEdl(project, [media()])).toContain('* NOTE: 1 title or caption clip is not included');
+    expect(toFcpXml(project, [media()])).toContain('Titles and captions are not included');
   });
 });

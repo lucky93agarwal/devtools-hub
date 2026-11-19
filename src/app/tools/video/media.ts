@@ -310,6 +310,27 @@ export async function peaks(file: Blob): Promise<number[]> {
 
 // ---------- compress and convert ----------
 
+export type QualityName = 'low' | 'medium' | 'high' | 'very-high';
+/** The quality levels as Mediabunny defines them (0..1). */
+const QUALITY_LEVEL: Record<QualityName, number> = { low: 0.25, medium: 0.5, high: 0.75, 'very-high': 1 };
+const qualityFactor = (quality: QualityName) => 0.3 * Math.exp(2.5538 * QUALITY_LEVEL[quality]);
+
+/** The video bitrate Mediabunny picks for a size and quality (it does not depend on the frame rate). */
+export function videoBitrate(width: number, height: number, quality: QualityName, codec: 'avc' | 'vp9' | 'hevc' | 'av1' | 'vp8'): number {
+  const scale = Math.pow((width * height) / (1920 * 1080), 0.95);
+  const efficiency = { avc: 1, hevc: 0.6, vp9: 0.6, av1: 0.4, vp8: 1.2 }[codec];
+  return 3_000_000 * scale * efficiency * qualityFactor(quality);
+}
+
+/** The sound bitrate Mediabunny picks: AAC snaps to 96–192 kbit/s, Opus and MP3 scale with quality. */
+export function audioBitrate(codec: 'aac' | 'opus' | 'mp3', quality: QualityName): number {
+  const raw = { aac: 128_000, opus: 64_000, mp3: 160_000 }[codec] * qualityFactor(quality);
+  const snap = (rates: number[]) => rates.reduce((a, b) => (Math.abs(b - raw) < Math.abs(a - raw) ? b : a));
+  if (codec === 'aac') return snap([96_000, 128_000, 160_000, 192_000]);
+  if (codec === 'mp3') return snap([64_000, 80_000, 96_000, 112_000, 128_000, 160_000, 192_000, 224_000, 256_000, 320_000]);
+  return Math.max(6000, raw);
+}
+
 export type VideoContainer = 'mp4' | 'webm' | 'mov' | 'mkv';
 export type CompressLevel = 'smaller' | 'balanced' | 'better' | 'target';
 
@@ -325,7 +346,12 @@ export interface CompressOptions {
   removeSound: boolean;
   start?: number;
   end?: number;
+  /** Stops the work (Cancel). */
+  signal?: AbortSignal;
 }
+
+/** The error thrown when compressing is cancelled. */
+export const COMPRESS_CANCELLED = 'Compressing was cancelled.';
 
 /** Sound bitrate used when compressing (bits a second). */
 export const COMPRESS_AUDIO_BITRATE = 96_000;
@@ -357,8 +383,12 @@ export async function compressVideo(file: File, options: CompressOptions, onProg
     if (!video) throw new Error('This file has no video picture.');
     const fullDuration = await input.computeDuration();
     const start = Math.max(0, options.start ?? 0);
-    const end = Math.min(fullDuration, options.end && options.end > start ? options.end : fullDuration);
+    if (start >= fullDuration) throw new Error(`Start is after the end of the video (${clock(fullDuration)}).`);
+    if (options.end !== undefined && options.end <= start) throw new Error('End must be after Start.');
+    const end = Math.min(fullDuration, options.end ?? fullDuration);
     const seconds = Math.max(0.1, end - start);
+    // Never ask for more bits than the source has: that only makes the file bigger.
+    const sourceBitrate = (file.size * 8) / Math.max(0.1, fullDuration);
     const webmLike = options.container === 'webm';
     const codecs: ('avc' | 'vp9' | 'vp8' | 'av1' | 'hevc')[] = webmLike ? ['vp9', 'vp8', 'av1'] : ['avc', 'hevc', 'vp9'];
     const size = scaledSize(video.displayWidth, video.displayHeight, options.height);
@@ -381,10 +411,11 @@ export async function compressVideo(file: File, options: CompressOptions, onProg
     }[options.container]();
     const output = new mb.Output({ format, target: new mb.BufferTarget() });
     const hasSound = !options.removeSound && !!(await input.getPrimaryAudioTrack());
-    const bitrate =
+    const wanted =
       options.level === 'target' && options.targetBytes
         ? targetVideoBitrate(options.targetBytes, seconds, hasSound)
-        : { smaller: mb.QUALITY_LOW, balanced: mb.QUALITY_MEDIUM, better: mb.QUALITY_HIGH, target: mb.QUALITY_MEDIUM }[options.level];
+        : videoBitrate(size.width, size.height, ({ smaller: 'low', balanced: 'medium', better: 'high', target: 'medium' } as const)[options.level], codec);
+    const bitrate = Math.max(100_000, Math.round(Math.min(wanted, sourceBitrate * 0.85 - (hasSound ? COMPRESS_AUDIO_BITRATE : 0))));
     const conversion = await mb.Conversion.init({
       input,
       output,
@@ -403,7 +434,16 @@ export async function compressVideo(file: File, options: CompressOptions, onProg
     });
     if (!conversion.isValid) throw new Error('This video could not be converted to that format. Try MP4 or WebM.');
     conversion.onProgress = (p) => onProgress(p);
-    await conversion.execute();
+    const cancel = () => void conversion.cancel();
+    options.signal?.addEventListener('abort', cancel);
+    try {
+      await conversion.execute();
+    } catch (e) {
+      if (options.signal?.aborted) throw new Error(COMPRESS_CANCELLED);
+      throw e;
+    } finally {
+      options.signal?.removeEventListener('abort', cancel);
+    }
     onProgress(1);
     const mime = { mp4: 'video/mp4', mov: 'video/quicktime', webm: 'video/webm', mkv: 'video/x-matroska' }[options.container];
     return { blob: new Blob([output.target.buffer!], { type: mime }), extension: options.container };

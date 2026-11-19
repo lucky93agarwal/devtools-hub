@@ -5,7 +5,7 @@
  * GIFs and the sound alone.
  */
 import type { VideoSample } from 'mediabunny';
-import { decodeAudio, openMedia } from '../video/media';
+import { audioBitrate, decodeAudio, openMedia, videoBitrate } from '../video/media';
 import { connectAudioFx, reversed } from './audio-fx';
 import { Clip, MediaItem, Project, clipEnd, clipLength, projectDuration, rateAt, sourceTime } from './project';
 import { FrameSource, drawFrame } from './render';
@@ -33,6 +33,14 @@ export interface ExportOptions {
   fps?: number;
   /** Only this part of the timeline, in seconds. */
   range?: { start: number; end: number };
+  /** Stops the export (Cancel). */
+  signal?: AbortSignal;
+}
+
+/** The error thrown when an export is cancelled. */
+export const CANCELLED = 'Export cancelled.';
+function checkCancel(signal: AbortSignal | undefined): void {
+  if (signal?.aborted) throw new Error(CANCELLED);
 }
 
 export const EXPORT_FORMATS: readonly { id: ExportFormat; label: string }[] = [
@@ -77,23 +85,20 @@ export function exportRange(project: Project, range: ExportOptions['range']): { 
   return { start, end };
 }
 
-/** Bits per pixel per frame that H.264/VP9 roughly use at each quality. */
-const BITS_PER_PIXEL: Record<ExportQuality, number> = { low: 0.035, medium: 0.06, high: 0.1, 'very-high': 0.16 };
-const AUDIO_KBPS: Record<ExportQuality, number> = { low: 64, medium: 96, high: 128, 'very-high': 192 };
-
 /** A rough file size in bytes before exporting, so people know what to expect. */
-export function estimateSize(project: Project, options: ExportOptions): number {
+export function estimateSize(project: Project, options: ExportOptions, hasSound = true): number {
   const { start, end } = exportRange(project, options.range);
   const seconds = end - start;
   const { width, height } = outputSize(project, options.resolution);
   const fps = options.fps ?? project.fps;
-  const audio = (AUDIO_KBPS[options.quality] * 1000 * seconds) / 8;
+  const sound = (codec: 'aac' | 'opus' | 'mp3') => (hasSound ? (audioBitrate(codec, options.quality) * seconds) / 8 : 0);
   switch (options.format) {
     case 'wav':
       return seconds * 48_000 * 2 * 2;
     case 'mp3':
+      return sound('mp3');
     case 'm4a':
-      return audio;
+      return sound('aac');
     case 'gif': {
       const scale = Math.min(1, GIF_MAX_WIDTH / width);
       return width * scale * height * scale * Math.min(GIF_FPS, fps) * seconds * 0.35;
@@ -101,10 +106,8 @@ export function estimateSize(project: Project, options: ExportOptions): number {
     case 'png-sequence':
       return width * height * 1.2 * Math.ceil(seconds * Math.min(SEQUENCE_MAX_FPS, fps));
     default: {
-      // Small frames need relatively more bits; this keeps the guess in a sensible range.
-      const pixels = width * height;
-      const bpp = BITS_PER_PIXEL[options.quality] * (pixels < 500_000 ? 1.4 : 1);
-      return (pixels * fps * bpp * seconds) / 8 + audio;
+      const webm = options.format === 'webm';
+      return (videoBitrate(width, height, options.quality, webm ? 'vp9' : 'avc') * seconds) / 8 + sound(webm ? 'opus' : 'aac');
     }
   }
 }
@@ -193,6 +196,7 @@ async function renderFrames(
   start: number,
   end: number,
   onFrame: (index: number, total: number, time: number) => Promise<void> | void,
+  signal?: AbortSignal,
 ): Promise<void> {
   const mb = await import('mediabunny');
   const context = canvas.getContext('2d', { willReadFrequently: true })!;
@@ -214,6 +218,7 @@ async function renderFrames(
     const first = Math.ceil(start * fps - 1e-6);
     const total = Math.max(1, Math.ceil(end * fps - 1e-6) - first);
     for (let index = 0; index < total; index++) {
+      checkCancel(signal);
       const time = (first + index) / fps;
       // Advance the reader of every video clip showing in this frame.
       for (const clip of project.clips) {
@@ -278,13 +283,14 @@ export async function exportProject(
   const canvas = document.createElement('canvas');
   canvas.width = width;
   canvas.height = height;
-  if (gif) return exportGif(project, byId, canvas, Math.min(GIF_FPS, baseFps), start, end, onProgress);
-  if (sequence) return exportSequence(project, byId, canvas, Math.min(SEQUENCE_MAX_FPS, baseFps), start, end, onProgress);
+  if (gif) return exportGif(project, byId, canvas, Math.min(GIF_FPS, baseFps), start, end, onProgress, options.signal);
+  if (sequence) return exportSequence(project, byId, canvas, Math.min(SEQUENCE_MAX_FPS, baseFps), start, end, onProgress, options.signal);
 
   // 1. Sound: mix every clip with audio, on tracks that are not muted.
   onProgress(0, 'Mixing the sound…');
   const fullMix = await mixSound(project, byId, end);
   const mix = fullMix ? sliceBuffer(fullMix, start) : null;
+  checkCancel(options.signal);
 
   if (audioOnly) {
     if (!mix) throw new Error('There is no sound on the timeline to export.');
@@ -314,12 +320,26 @@ export async function exportProject(
       soundAt += length;
     }
   };
-  await renderFrames(project, byId, canvas, fps, start, end, async (index, total) => {
-    const at = index / fps;
-    await addSound(at + 0.5);
-    await video.add(at, 1 / fps);
-    if (index % 5 === 0) onProgress(index / total, `Drawing frame ${index + 1} of ${total}…`);
-  });
+  try {
+    await renderFrames(
+      project,
+      byId,
+      canvas,
+      fps,
+      start,
+      end,
+      async (index, total) => {
+        const at = index / fps;
+        await addSound(at + 0.5);
+        await video.add(at, 1 / fps);
+        if (index % 5 === 0) onProgress(index / total, `Drawing frame ${index + 1} of ${total}…`);
+      },
+      options.signal,
+    );
+  } catch (e) {
+    await output.cancel().catch(() => undefined);
+    throw e;
+  }
   await addSound(Infinity);
   video.close();
   sound?.close();
@@ -370,6 +390,7 @@ async function exportGif(
   start: number,
   end: number,
   onProgress: (fraction: number, stage: string) => void,
+  signal?: AbortSignal,
 ): Promise<{ blob: Blob; extension: string }> {
   const { GIFEncoder, quantize, applyPalette } = await import('gifenc/dist/gifenc.esm.js');
   const scale = Math.min(1, GIF_MAX_WIDTH / project.width);
@@ -384,7 +405,7 @@ async function exportGif(
     const palette = quantize(data, 256);
     gif.writeFrame(applyPalette(data, palette), small.width, small.height, { palette, delay: Math.round(1000 / fps) } as never);
     if (index % 3 === 0) onProgress(index / total, `Drawing frame ${index + 1} of ${total}…`);
-  });
+  }, signal);
   gif.finish();
   onProgress(1, 'Done');
   return { blob: new Blob([gif.bytes() as Uint8Array<ArrayBuffer>], { type: 'image/gif' }), extension: 'gif' };
@@ -403,6 +424,7 @@ async function exportSequence(
   start: number,
   end: number,
   onProgress: (fraction: number, stage: string) => void,
+  signal?: AbortSignal,
 ): Promise<{ blob: Blob; extension: string }> {
   const { zipSync } = await import('fflate');
   const files: Record<string, [Uint8Array, { level: 0 }]> = {};
@@ -410,7 +432,7 @@ async function exportSequence(
     const png = await canvasBlob(canvas, 'image/png');
     files[`frame-${String(index + 1).padStart(5, '0')}.png`] = [new Uint8Array(await png.arrayBuffer()), { level: 0 }];
     if (index % 3 === 0) onProgress(index / total, `Saving picture ${index + 1} of ${total}…`);
-  });
+  }, signal);
   onProgress(1, 'Done');
   return { blob: new Blob([zipSync(files) as Uint8Array<ArrayBuffer>], { type: 'application/zip' }), extension: 'zip' };
 }

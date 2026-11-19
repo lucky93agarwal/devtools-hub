@@ -3,7 +3,7 @@ import { baseName, downloadBlob, formatBytes } from '../../shared/file-utils';
 import { ToolPage } from '../../shared/tool-page/tool-page';
 import { ToolContent } from '../../shared/tool-info/tool-info';
 import { UploadBox } from '../../shared/upload-box/upload-box';
-import { CompressLevel, MAX_VIDEO_BYTES, MediaInfo, VIDEO_ACCEPT, VideoContainer, clock, compressVideo, describe, scaledSize } from './media';
+import { COMPRESS_CANCELLED, CompressLevel, MAX_VIDEO_BYTES, MediaInfo, VIDEO_ACCEPT, VideoContainer, clock, compressVideo, describe, scaledSize } from './media';
 
 const CONTENT: ToolContent = {
   aboutHeading: 'About this video compressor and converter',
@@ -102,14 +102,25 @@ const CONTENT: ToolContent = {
             </div>
             <label class="flex items-center gap-2"><input type="checkbox" aria-label="Remove sound" [checked]="removeSound()" (change)="removeSound.set($any($event.target).checked)" /> Remove the sound</label>
             <p class="text-muted">Output: {{ outSize().width }}×{{ outSize().height }}</p>
-            <button type="button" class="btn-primary" [disabled]="!info()" (click)="compress()">{{ working() ? 'Compressing… ' + percent() + '%' : 'Compress video' }}</button>
-            <button type="button" class="btn-secondary" (click)="reset()">Another video</button>
+            @if (level() === 'target' && targetTooBig()) {
+              <p class="text-muted" role="note">Your video is already {{ formatBytes(file()!.size) }}, smaller than {{ targetMb() }} MB. The new file will not be bigger than the original.</p>
+            }
+            <button type="button" class="btn-primary" [disabled]="!info() || working()" (click)="compress()">{{ working() ? 'Compressing… ' + percent() + '%' : 'Compress video' }}</button>
+            <button type="button" class="btn-secondary" [disabled]="working()" (click)="reset()">Another video</button>
           </fieldset>
+          @if (working()) {
+            <button type="button" class="btn-secondary md:col-start-2" (click)="cancel()">Cancel</button>
+          }
         </div>
         @if (error()) { <p class="mt-3 rounded-xl border border-danger bg-danger/10 px-4 py-3 text-sm" role="alert">{{ error() }}</p> }
         @if (result(); as r) {
           <div class="card mt-4 flex flex-col gap-3 p-4 text-sm" role="status">
             <p class="font-semibold">Ready: {{ r.name }} · {{ formatBytes(file()!.size) }} → {{ formatBytes(r.blob.size) }} ({{ saving(r.blob.size) }})</p>
+            @if (r.blob.size >= file()!.size) {
+              <p class="rounded-lg bg-amber-500/15 px-3 py-2" role="note">The new file is not smaller: your video was already well compressed. Keep the original, or choose a lower resolution or frame rate.</p>
+            } @else if (r.target && r.blob.size > r.target * 1.15) {
+              <p class="rounded-lg bg-amber-500/15 px-3 py-2" role="note">{{ formatBytes(r.target) }} could not be reached at this size. Choose a lower resolution or frame rate for a smaller file.</p>
+            }
             <video [src]="r.url" controls class="max-h-80 w-full rounded-xl bg-black" aria-label="Compressed video"></video>
             <button type="button" class="btn-primary self-start" (click)="download()">Download {{ r.name }}</button>
           </div>
@@ -139,7 +150,9 @@ export class VideoCompressor {
   protected readonly working = signal(false);
   protected readonly percent = signal(0);
   protected readonly error = signal('');
-  protected readonly result = signal<{ blob: Blob; url: string; name: string } | null>(null);
+  protected readonly result = signal<{ blob: Blob; url: string; name: string; target?: number } | null>(null);
+  protected readonly targetTooBig = computed(() => !!this.file() && this.targetMb() * 1024 * 1024 >= this.file()!.size);
+  private abort: AbortController | null = null;
   protected readonly outSize = computed(() => scaledSize(this.info()?.width ?? 0, this.info()?.height ?? 0, this.height()));
 
   constructor() {
@@ -186,6 +199,8 @@ export class VideoCompressor {
     this.percent.set(0);
     this.error.set('');
     this.clearResult();
+    this.abort = new AbortController();
+    const target = this.level() === 'target' ? this.targetMb() * 1024 * 1024 : undefined;
     try {
       const { blob, extension } = await compressVideo(
         file,
@@ -198,15 +213,22 @@ export class VideoCompressor {
           removeSound: this.removeSound(),
           start: this.start() ?? undefined,
           end: this.end() ?? undefined,
+          signal: this.abort.signal,
         },
         (p) => this.percent.set(Math.round(p * 100)),
       );
-      this.result.set({ blob, url: URL.createObjectURL(blob), name: `${baseName(file.name)}-compressed.${extension}` });
+      this.result.set({ blob, url: URL.createObjectURL(blob), name: `${baseName(file.name)}-compressed.${extension}`, target });
     } catch (e) {
-      this.error.set(e instanceof Error && e.message ? e.message : 'The video could not be compressed.');
+      const message = e instanceof Error && e.message ? e.message : 'The video could not be compressed.';
+      this.error.set(message === COMPRESS_CANCELLED ? 'Cancelled.' : message);
     } finally {
       this.working.set(false);
+      this.abort = null;
     }
+  }
+
+  protected cancel(): void {
+    this.abort?.abort();
   }
 
   protected download(): void {
@@ -221,6 +243,7 @@ export class VideoCompressor {
   }
 
   protected reset(): void {
+    this.abort?.abort();
     this.clearResult();
     if (this.videoUrl()) URL.revokeObjectURL(this.videoUrl());
     this.videoUrl.set('');
