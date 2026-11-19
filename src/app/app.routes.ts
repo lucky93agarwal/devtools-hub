@@ -84,6 +84,7 @@ const toolComponents: Record<string, () => Promise<Type<unknown>>> = {
   'video-editor': () => import('./tools/video-editor/video-editor').then((m) => m.VideoEditor),
   'video-to-audio': () => import('./tools/video/video-to-audio').then((m) => m.VideoToAudio),
   'add-audio-to-video': () => import('./tools/video/add-audio-to-video').then((m) => m.AddAudioToVideo),
+  'video-compressor': () => import('./tools/video/video-compressor').then((m) => m.VideoCompressor),
   'image-upscaler': () => import('./tools/image-upscaler/image-upscaler').then((m) => m.ImageUpscaler),
   'object-remover': () => import('./tools/object-remover/object-remover').then((m) => m.ObjectRemover),
   'smart-crop': () => import('./tools/smart-crop/smart-crop').then((m) => m.SmartCrop),

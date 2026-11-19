@@ -74,3 +74,27 @@ test('adds two sounds to a video and keeps the picture', async ({ page }) => {
   expect(bytes).toContain('avc1');
   expect(bytes).toMatch(/mp4a|Opus/);
 });
+
+test('compresses and converts a video', async ({ page }) => {
+  await page.goto('/video-compressor');
+  await choose(page, 'Choose video', 'clip.mp4');
+  await expect(page.getByText(/0:02 · 320×180/)).toBeVisible();
+  await page.getByLabel('Compression').selectOption('target');
+  await page.getByLabel('Target size in MB').fill('0.5');
+  await page.getByRole('button', { name: 'Compress video' }).click();
+  await expect(page.getByText(/Ready: clip-compressed\.mp4/)).toBeVisible({ timeout: 60_000 });
+  await expect.poll(() => page.getByLabel('Compressed video').evaluate((v: HTMLVideoElement) => v.videoWidth), { timeout: 10_000 }).toBe(320);
+  let download = page.waitForEvent('download');
+  await page.getByRole('button', { name: 'Download clip-compressed.mp4' }).click();
+  expect((await download).suggestedFilename()).toBe('clip-compressed.mp4');
+
+  await page.getByLabel('Output format').selectOption('webm');
+  await page.getByLabel('Compression').selectOption('smaller');
+  await page.getByLabel('Remove sound').check();
+  await page.getByLabel('End time').fill('1');
+  await page.getByRole('button', { name: 'Compress video' }).click();
+  await expect(page.getByText(/Ready: clip-compressed\.webm/)).toBeVisible({ timeout: 60_000 });
+  download = page.waitForEvent('download');
+  await page.getByRole('button', { name: 'Download clip-compressed.webm' }).click();
+  expect((await download).suggestedFilename()).toBe('clip-compressed.webm');
+});

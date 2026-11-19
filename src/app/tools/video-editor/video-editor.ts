@@ -4,9 +4,34 @@ import { ToolPage } from '../../shared/tool-page/tool-page';
 import { ToolContent } from '../../shared/tool-info/tool-info';
 import { MAX_VIDEO_BYTES, describe, openMedia, peaks, thumbnails } from '../video/media';
 import { ago, clearProject, loadProject, saveProject } from './autosave';
-import { EXPORT_FORMATS, ExportFormat, ExportQuality, exportProject } from './export';
+import {
+  EXPORT_FORMATS,
+  EXPORT_FPS,
+  EXPORT_RESOLUTIONS,
+  ExportFormat,
+  ExportQuality,
+  ExportResolution,
+  estimateSize,
+  exportFrame,
+  exportProject,
+  formatBytes as sizeText,
+  outputSize,
+} from './export';
+import { addCues, parseSrt, projectCues, toSrt } from './captions';
+import { toEdl, toFcpXml } from './interchange';
 import { openProjectFile, saveProjectFile } from './project-file';
 import {
+  KEY_EASES,
+  KeyEase,
+  RAMP_SHAPES,
+  RampShape,
+  SCALE_MODES,
+  ScaleMode,
+  Background,
+  easeKeyframes,
+  keyframeEase,
+  renameTrack,
+  slideshow,
   TITLE_ANIMATIONS,
   TITLE_FONTS,
   TitleFont,
@@ -71,8 +96,8 @@ const CONTENT: ToolContent = {
     {
       question: 'Which keyboard shortcuts work?',
       answer:
-        'Space plays and pauses, S splits at the playhead, Delete removes the selected clip, Ctrl or Cmd + Z undoes ' +
-        'and Ctrl or Cmd + Shift + Z redoes, and the left and right arrows step one frame.',
+        'Space plays and pauses, S or C splits at the playhead, Delete removes the selected clip, Ctrl or Cmd + Z undoes ' +
+        'and Ctrl or Cmd + Shift + Z redoes, the left and right arrows step one frame, and M adds a marker. The ⌨ button lists them all.',
     },
     {
       question: 'How long can my video be?',
@@ -82,7 +107,21 @@ const CONTENT: ToolContent = {
     },
     {
       question: 'Does the project save itself?',
-      answer: 'Not yet. Keep the tab open while you edit; closing it clears the project. Your files stay on your device either way.',
+      answer:
+        'Yes. Every change is saved in this browser, with copies of your files, and offered back when you return. Use Save ' +
+        'project to keep a .zip you can open on another computer.',
+    },
+    {
+      question: 'Can I add subtitles?',
+      answer:
+        'Yes. Add caption lines from the Titles tab, or import an .srt file, and save them back as .srt. Captions are ' +
+        'burned into the exported video.',
+    },
+    {
+      question: 'Can I continue in Premiere, Resolve or Final Cut?',
+      answer:
+        'Export an EDL or a Final Cut XML from Export settings. They carry the cuts (files, in and out points, places ' +
+        'on the timeline); relink them to your original files in the other editor.',
     },
     { question: 'Are my videos uploaded?', answer: 'No. Importing, editing and exporting all happen in your browser.' },
   ],
@@ -105,6 +144,22 @@ const PROFILES = [
   { label: 'Full HD 1080p (1920×1080)', width: 1920, height: 1080 },
   { label: 'Vertical 1080×1920 (Reels, Shorts)', width: 1080, height: 1920 },
   { label: 'Square 1080×1080', width: 1080, height: 1080 },
+  { label: 'Portrait 4:5 1080×1350 (Instagram)', width: 1080, height: 1350 },
+];
+
+const SHORTCUTS: [string, string][] = [
+  ['Space', 'Play / pause'],
+  ['S or C', 'Split at the playhead'],
+  ['← / →', 'One frame back / forward'],
+  ['Delete', 'Remove the selected clips'],
+  ['Ctrl/Cmd + Z', 'Undo'],
+  ['Ctrl/Cmd + Shift + Z or Y', 'Redo'],
+  ['Ctrl/Cmd + C / V', 'Copy / paste clips'],
+  ['Ctrl/Cmd + D', 'Duplicate after the selection'],
+  ['M', 'Add or remove a marker'],
+  ['Shift/Ctrl + click', 'Select several clips'],
+  ['Double-click a file', 'Add it at the playhead'],
+  ['Double-click a track name', 'Rename the track'],
 ];
 
 const ROW = 52;
@@ -149,6 +204,17 @@ type Drag =
               @for (p of profiles; track p.label; let i = $index) { <option [value]="i" [selected]="p.width === project().width && p.height === project().height">{{ p.label }}</option> }
             </select>
           </label>
+          <label class="tool">Empty space
+            <select class="input" aria-label="Empty space" (change)="setBackground($any($event.target).value)">
+              <option value="black" [selected]="(project().background?.kind ?? 'black') === 'black'">Black</option>
+              <option value="colour" [selected]="project().background?.kind === 'colour'">Colour</option>
+              <option value="blur" [selected]="project().background?.kind === 'blur'">Blurred picture</option>
+            </select>
+            @if (project().background?.kind === 'colour') {
+              <input type="color" class="h-6 w-8" aria-label="Background colour" [value]="project().background?.colour ?? '#000000'" (change)="setBackground('colour', $any($event.target).value)" />
+            }
+          </label>
+          <button type="button" class="tool" aria-label="Video editor shortcuts" title="Keyboard shortcuts" (click)="showShortcuts.set(true)">⌨</button>
           <span class="flex-1"></span>
           <span class="mr-2 text-xs text-[#9aa0ab]" role="status" aria-label="Save status">
             @switch (saveState()) {
@@ -166,8 +232,58 @@ type Drag =
             <option value="high" selected>High</option>
             <option value="very-high">Very high</option>
           </select>
+          <button type="button" class="tool" [class.!bg-[#343842]]="showExportSettings()" [attr.aria-expanded]="showExportSettings()" aria-label="Export settings" (click)="showExportSettings.set(!showExportSettings())">⚙</button>
+          <span class="text-xs text-[#9aa0ab]" aria-label="Estimated file size" title="A rough guess; the real size depends on the picture">≈ {{ estimate() }}</span>
           <button type="button" class="tool !bg-[#6d83f2] !text-white" [disabled]="exporting() || !project().clips.length" (click)="exportVideo()">⬇ Export video</button>
         </div>
+        @if (showExportSettings()) {
+          <div class="flex flex-wrap items-center gap-2 border-b border-[#343842] bg-[#20232a] px-3 py-2 text-xs" role="group" aria-label="Export settings panel">
+            <label class="flex items-center gap-1">Resolution
+              <select class="input" aria-label="Export resolution" (change)="setResolution($any($event.target).value)">
+                @for (r of exportResolutions; track r.id) { <option [value]="r.id" [selected]="r.id === exportResolution()">{{ r.label }}</option> }
+              </select>
+            </label>
+            <span class="text-[#9aa0ab]">{{ exportSize().width }}×{{ exportSize().height }}</span>
+            <label class="flex items-center gap-1">Frame rate
+              <select class="input" aria-label="Export frame rate" (change)="exportFps.set(+$any($event.target).value)">
+                <option value="0" [selected]="!exportFps()">Project ({{ project().fps }} fps)</option>
+                @for (f of exportFpsList; track f) { <option [value]="f" [selected]="f === exportFps()">{{ f }} fps</option> }
+              </select>
+            </label>
+            <label class="flex items-center gap-1"><input type="checkbox" aria-label="Export only a part" [checked]="useRange()" (change)="useRange.set($any($event.target).checked)" /> Only a part</label>
+            @if (useRange()) {
+              <label class="flex items-center gap-1">From (s)
+                <input type="number" min="0" step="0.1" class="input w-20" aria-label="Export from" [value]="round(rangeStart())" (change)="rangeStart.set(Math.max(0, $any($event.target).valueAsNumber || 0))" />
+              </label>
+              <label class="flex items-center gap-1">To (s)
+                <input type="number" min="0" step="0.1" class="input w-20" aria-label="Export to" [value]="round(rangeEnd())" (change)="rangeEnd.set(Math.max(0, $any($event.target).valueAsNumber || 0))" />
+              </label>
+              <button type="button" class="tool !py-0.5" (click)="rangeFromPlayhead('start')">From playhead</button>
+              <button type="button" class="tool !py-0.5" (click)="rangeFromPlayhead('end')">To playhead</button>
+            }
+            <span class="mx-1 h-5 w-px bg-[#343842]"></span>
+            <button type="button" class="tool !py-0.5" [disabled]="!project().clips.length" (click)="saveFrame('png')">📷 Frame PNG</button>
+            <button type="button" class="tool !py-0.5" [disabled]="!project().clips.length" (click)="saveFrame('jpg')">📷 Frame JPG</button>
+            <button type="button" class="tool !py-0.5" [disabled]="!hasCaptions()" (click)="saveSrt()">💬 Subtitles .srt</button>
+            <button type="button" class="tool !py-0.5" [disabled]="!project().clips.length" (click)="saveEdl()">🎞 EDL</button>
+            <button type="button" class="tool !py-0.5" [disabled]="!project().clips.length" (click)="saveXml()">🎞 Final Cut XML</button>
+          </div>
+        }
+        @if (showShortcuts()) {
+          <div class="fixed inset-0 z-50 grid place-items-center bg-black/60 p-4" (click)="showShortcuts.set(false)">
+            <div class="panel w-full max-w-md rounded-lg p-4 text-sm" role="dialog" aria-modal="true" aria-label="Video editor shortcuts" (click)="$event.stopPropagation()">
+              <p class="mb-2 flex items-center justify-between font-semibold text-white">⌨ Keyboard shortcuts
+                <button type="button" class="tool" aria-label="Close shortcuts" (click)="showShortcuts.set(false)">✕</button>
+              </p>
+              <dl class="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1">
+                @for (s of shortcuts; track s[0]) {
+                  <dt><kbd class="rounded border border-[#3a3f4a] bg-[#15171c] px-1.5 font-mono text-xs">{{ s[0] }}</kbd></dt>
+                  <dd class="text-[#c3c7cf]">{{ s[1] }}</dd>
+                }
+              </dl>
+            </div>
+          </div>
+        }
         @if (restoreOffer(); as offer) {
           <div class="flex flex-wrap items-center gap-2 border-b border-[#343842] bg-[#2a2f3c] px-3 py-2 text-sm" role="alert">
             <span>You have a project saved {{ ago(offer.saved.savedAt) }} ({{ offer.saved.project.clips.length }} clips, {{ offer.media.length }} files).</span>
@@ -211,6 +327,14 @@ type Drag =
                         </li>
                       }
                     </ul>
+                  }
+                  @if (imageCount() > 0) {
+                    <div class="mt-2 flex flex-wrap items-center gap-2 rounded border border-[#343842] p-2 text-xs">
+                      <span>🖼 Photos to slideshow:</span>
+                      <label class="flex items-center gap-1"><input type="number" min="0.5" max="30" step="0.5" class="input w-16" aria-label="Seconds per photo" [value]="slideSeconds()" (change)="slideSeconds.set(Math.max(0.5, $any($event.target).valueAsNumber || 3))" /> s each</label>
+                      <label class="flex items-center gap-1"><input type="checkbox" aria-label="Fade between photos" [checked]="slideFade()" (change)="slideFade.set($any($event.target).checked)" /> Fade</label>
+                      <button type="button" class="tool !bg-[#2c3a4a]" (click)="makeSlideshow()">Add {{ imageCount() }} photo{{ imageCount() === 1 ? '' : 's' }} to the timeline</button>
+                    </div>
                   }
                   @if (importing()) { <p class="mt-2 text-xs text-[#9aa0ab]" role="status">Importing…</p> }
                   @if (error()) { <p class="mt-2 text-xs text-red-400" role="alert">{{ error() }}</p> }
@@ -257,6 +381,16 @@ type Drag =
                     }
                   </ul>
                   <p class="mt-2 text-xs text-[#9aa0ab]">Click a template to add it at the playhead, then edit it in Properties.</p>
+                  <div class="mt-3 flex flex-col gap-2 rounded border border-[#343842] p-2 text-xs">
+                    <p class="font-semibold text-white">💬 Captions / subtitles</p>
+                    <span class="flex flex-wrap gap-1">
+                      <button type="button" class="tool !bg-[#2c3a4a]" (click)="addCaption()">＋ Caption at playhead</button>
+                      <button type="button" class="tool !bg-[#2c3a4a]" (click)="srtInput.click()">📥 Import .srt</button>
+                      <button type="button" class="tool !bg-[#2c3a4a]" [disabled]="!hasCaptions()" (click)="saveSrt()">📤 Export .srt</button>
+                      <input #srtInput type="file" class="sr-only" tabindex="-1" aria-hidden="true" accept=".srt,.vtt,text/plain" (change)="importSrt(srtInput)" />
+                    </span>
+                    <p class="text-[#9aa0ab]">Captions go on their own Captions track. Edit the text in Properties; they are drawn into the exported video.</p>
+                  </div>
                 }
                 @case ('history') {
                   <ol class="flex flex-col gap-0.5 text-xs" aria-label="History">
@@ -287,6 +421,16 @@ type Drag =
                           </select>
                         </label>
                         <label class="flex items-center gap-2"><input type="checkbox" aria-label="Play backwards" [checked]="!!clip.reverse" (change)="change(clip.id, { reverse: $any($event.target).checked }, 'Reverse')" /> Play backwards (reverse)</label>
+                        <label class="flex items-center justify-between gap-2">Speed ramp
+                          <select class="input" aria-label="Speed ramp" (change)="setRamp(clip, $any($event.target).value, clip.ramp?.amount ?? 0.6)">
+                            @for (r of rampShapes; track r.id) { <option [value]="r.id" [selected]="(clip.ramp?.shape ?? 'none') === r.id">{{ r.label }}</option> }
+                          </select>
+                        </label>
+                        @if (clip.ramp && clip.ramp.shape !== 'none') {
+                          <label class="flex items-center justify-between gap-2">Ramp strength {{ Math.round(clip.ramp.amount * 100) }}%
+                            <input type="range" min="0.1" max="0.9" step="0.05" class="w-32" aria-label="Ramp strength" [value]="clip.ramp.amount" (change)="setRamp(clip, clip.ramp.shape, $any($event.target).valueAsNumber)" />
+                          </label>
+                        }
                       }
                       @if (hasSound(clip) && !clip.muted) {
                         <label class="flex items-center justify-between gap-2">Volume {{ Math.round(clip.volume * 100) }}%
@@ -311,6 +455,7 @@ type Drag =
                         </label>
                         <label class="flex items-center gap-2"><input type="checkbox" [checked]="t.background" (change)="setTitle(clip, { background: $any($event.target).checked }, true)" /> Dark box behind text</label>
                         <label class="flex items-center gap-2"><input type="checkbox" [checked]="!!t.outline" aria-label="Title outline" (change)="setTitle(clip, { outline: $any($event.target).checked }, true)" /> Outline</label>
+                        <label class="flex items-center gap-2"><input type="checkbox" [checked]="!!clip.caption" aria-label="Subtitle line" (change)="change(clip.id, { caption: $any($event.target).checked || undefined }, 'Caption')" /> Subtitle line (saved in .srt)</label>
                         <label class="flex items-center justify-between gap-2">Font
                           <select class="input" aria-label="Title font" (change)="setTitle(clip, { font: $any($event.target).value }, true)">
                             @for (f of titleFonts; track f.id) { <option [value]="f.id" [selected]="(t.font ?? 'sans') === f.id">{{ f.label }}</option> }
@@ -333,13 +478,37 @@ type Drag =
                         <label class="flex items-center justify-between gap-2">Treble {{ audioFx(clip).treble }} dB
                           <input type="range" min="-12" max="12" step="1" class="w-32" aria-label="Treble" [value]="audioFx(clip).treble" (change)="setAudioFx(clip, { treble: $any($event.target).valueAsNumber })" />
                         </label>
+                        <label class="flex items-center justify-between gap-2">Mid (voice) {{ audioFx(clip).mid ?? 0 }} dB
+                          <input type="range" min="-12" max="12" step="1" class="w-32" aria-label="Mid" [value]="audioFx(clip).mid ?? 0" (change)="setAudioFx(clip, { mid: $any($event.target).valueAsNumber })" />
+                        </label>
+                        <label class="flex items-center justify-between gap-2">Distortion {{ Math.round((audioFx(clip).distortion ?? 0) * 100) }}%
+                          <input type="range" min="0" max="1" step="0.05" class="w-32" aria-label="Distortion" [value]="audioFx(clip).distortion ?? 0" (change)="setAudioFx(clip, { distortion: $any($event.target).valueAsNumber })" />
+                        </label>
                         <label class="flex items-center gap-2"><input type="checkbox" aria-label="Clean up voice" [checked]="audioFx(clip).clean" (change)="setAudioFx(clip, { clean: $any($event.target).checked })" /> Clean up voice (cut rumble and hiss)</label>
+                        <label class="flex items-center gap-2"><input type="checkbox" aria-label="Noise reduction" [checked]="!!audioFx(clip).denoise" (change)="setAudioFx(clip, { denoise: $any($event.target).checked })" /> Noise reduction (hum and hiss)</label>
+                        <label class="flex items-center gap-2"><input type="checkbox" aria-label="Compressor" [checked]="!!audioFx(clip).compressor" (change)="setAudioFx(clip, { compressor: $any($event.target).checked })" /> Compressor (even out loud and quiet)</label>
+                        <label class="flex items-center gap-2"><input type="checkbox" aria-label="Robot voice" [checked]="!!audioFx(clip).robot" (change)="setAudioFx(clip, { robot: $any($event.target).checked })" /> 🤖 Robot voice</label>
+                        <label class="flex items-center gap-2"><input type="checkbox" aria-label="Phone voice" [checked]="!!audioFx(clip).phone" (change)="setAudioFx(clip, { phone: $any($event.target).checked })" /> ☎ Phone call voice</label>
                       }
                       @if (!clip.audioOnly && !isAudioMedia(clip)) {
                         <p class="mt-2 flex items-center justify-between font-semibold text-white">Transform
                           <button type="button" class="tool !px-1.5 !py-0.5" [disabled]="!clip.transform && !clip.keyframes" (click)="resetTransform(clip)">Reset</button>
                         </p>
+                        @if (!clip.title) {
+                          <label class="flex items-center justify-between gap-2">Scale mode
+                            <select class="input" aria-label="Scale mode" (change)="setScaleMode(clip, $any($event.target).value)">
+                              @for (m of scaleModes; track m.id) { <option [value]="m.id" [selected]="(clip.transform?.fit ?? 'fit') === m.id">{{ m.label }}</option> }
+                            </select>
+                          </label>
+                        }
                         <p class="text-[#9aa0ab]">◆ adds a keyframe at the playhead, so the value can change over time.</p>
+                        @if (clip.keyframes) {
+                          <label class="flex items-center justify-between gap-2">Keyframe curve
+                            <select class="input" aria-label="Keyframe curve" (change)="setKeyEase(clip, $any($event.target).value)">
+                              @for (k of keyEases; track k.id) { <option [value]="k.id" [selected]="keyEaseOf(clip) === k.id">{{ k.label }}</option> }
+                            </select>
+                          </label>
+                        }
                         @for (f of transformFields; track f.key) {
                           <div class="flex items-center justify-between gap-2">
                             <span>{{ f.label }} {{ round(transformValue(clip, f.key)) }}</span>
@@ -381,6 +550,7 @@ type Drag =
                           <input type="color" class="h-6 w-10" aria-label="Green screen colour" [value]="clip.effects?.chromaColour ?? '#00ff00'" (change)="setChromaColour(clip, $any($event.target).value)" />
                         </label>
                       }
+                      <label class="flex items-center gap-2"><input type="checkbox" aria-label="Mirror" [checked]="!!clip.effects?.mirror" (change)="setMirror(clip, $any($event.target).checked)" /> 🪞 Mirror (flip left to right)</label>
                       @for (f of effectFields; track f.key) {
                         <label class="flex items-center justify-between gap-2">{{ f.label }} {{ effectValue(clip, f.key) }}{{ f.unit }}
                           <input type="range" class="w-32" [min]="f.min" [max]="f.max" [step]="f.step" [attr.aria-label]="'Effect ' + f.label" [value]="effectValue(clip, f.key)" (input)="setEffect(f.key, $any($event.target).valueAsNumber, false)" (change)="setEffect(f.key, $any($event.target).valueAsNumber, true)" />
@@ -403,17 +573,43 @@ type Drag =
           <!-- Right: preview -->
           <div class="panel flex flex-col rounded">
             <div #previewBox class="grid flex-1 place-items-center bg-black p-1">
-              <canvas #preview class="max-h-[46vh] max-w-full [:fullscreen_&]:max-h-screen" role="img" aria-label="Video preview" (dblclick)="fullscreen()"></canvas>
+              <div class="relative max-w-full">
+                <canvas #preview class="block max-h-[46vh] max-w-full [:fullscreen_&]:max-h-screen" role="img" aria-label="Video preview" (dblclick)="fullscreen()"></canvas>
+                @if (safeZones()) {
+                  <svg class="pointer-events-none absolute inset-0 h-full w-full" viewBox="0 0 100 100" preserveAspectRatio="none" aria-label="Safe zones">
+                    @if (project().height > project().width) {
+                      <!-- Reels / Shorts / TikTok: the app's buttons and captions cover these parts. -->
+                      <rect x="0" y="0" width="100" height="13" fill="rgba(239,68,68,0.28)" />
+                      <rect x="0" y="72" width="100" height="28" fill="rgba(239,68,68,0.28)" />
+                      <rect x="84" y="13" width="16" height="59" fill="rgba(239,68,68,0.2)" />
+                      <rect x="6" y="13" width="78" height="59" fill="none" stroke="#22c55e" stroke-width="0.4" stroke-dasharray="1.5 1" vector-effect="non-scaling-stroke" />
+                    } @else {
+                      <rect x="5" y="5" width="90" height="90" fill="none" stroke="#22c55e" stroke-width="1" stroke-dasharray="4 3" vector-effect="non-scaling-stroke" />
+                      <rect x="10" y="10" width="80" height="80" fill="none" stroke="#facc15" stroke-width="1" stroke-dasharray="4 3" vector-effect="non-scaling-stroke" />
+                    }
+                    <line x1="50" y1="48" x2="50" y2="52" stroke="#fff" stroke-width="1" vector-effect="non-scaling-stroke" />
+                    <line x1="48" y1="50" x2="52" y2="50" stroke="#fff" stroke-width="1" vector-effect="non-scaling-stroke" />
+                  </svg>
+                }
+              </div>
             </div>
             <div class="flex flex-wrap items-center justify-center gap-1 border-t border-[#343842] px-2 py-1.5">
               <button type="button" class="tool" aria-label="Jump to start" (click)="seek(0)">⏮</button>
               <button type="button" class="tool" aria-label="Back one second" (click)="seek(time() - 1)">⏪</button>
+              <button type="button" class="tool" aria-label="Previous frame" title="Previous frame (←)" (click)="stepFrame(-1)">◁|</button>
               <button type="button" class="tool text-base" [attr.aria-label]="playing() ? 'Pause' : 'Play'" (click)="togglePlay()">{{ playing() ? '⏸' : '▶' }}</button>
+              <button type="button" class="tool" aria-label="Next frame" title="Next frame (→)" (click)="stepFrame(1)">|▷</button>
               <button type="button" class="tool" aria-label="Forward one second" (click)="seek(time() + 1)">⏩</button>
               <button type="button" class="tool" aria-label="Jump to end" (click)="seek(duration())">⏭</button>
               <span class="ml-2 font-mono text-xs" aria-label="Current time">{{ timecode(time(), project().fps) }}</span>
               <span class="font-mono text-xs text-[#9aa0ab]">/ {{ timecode(duration(), project().fps) }}</span>
-              <button type="button" class="tool ml-2" aria-label="Full screen preview" (click)="fullscreen()">⛶</button>
+              <span class="ml-2 flex h-6 w-16 flex-col justify-center gap-0.5" role="meter" aria-label="Sound level" aria-valuemin="0" aria-valuemax="100" [attr.aria-valuenow]="Math.round(Math.max(levels()[0], levels()[1]) * 100)" title="Sound level (left and right)">
+                @for (l of levels(); track $index) {
+                  <span class="block h-1.5 overflow-hidden rounded bg-[#15171c]"><span class="block h-full" [style.width.%]="l * 100" [style.background]="l > 0.95 ? '#ef4444' : l > 0.7 ? '#facc15' : '#22c55e'"></span></span>
+                }
+              </span>
+              <button type="button" class="tool" [class.!bg-[#343842]]="safeZones()" [attr.aria-pressed]="safeZones()" aria-label="Safe zones" title="Safe zones for titles and for Reels/Shorts buttons" (click)="safeZones.set(!safeZones())">▣</button>
+              <button type="button" class="tool" aria-label="Full screen preview" (click)="fullscreen()">⛶</button>
             </div>
           </div>
         </div>
@@ -468,7 +664,11 @@ type Drag =
               @for (track of tracksTopDown(); track track.id) {
                 <div class="flex border-b border-[#2c3038]" [style.height.px]="ROW">
                   <div class="sticky left-0 z-10 flex shrink-0 flex-col justify-center gap-0.5 border-r border-[#343842] bg-[#23262e] px-2 text-xs" [style.width.px]="HEADER">
-                    <span class="font-semibold">{{ track.name }}</span>
+                    @if (renaming() === track.id) {
+                      <input class="input w-full !py-0 text-xs" [attr.aria-label]="'Rename ' + track.name" [value]="track.name" maxlength="30" (keydown.enter)="$any($event.target).blur()" (keydown.escape)="renaming.set(null)" (blur)="finishRename(track.id, $any($event.target).value)" (pointerdown)="$event.stopPropagation()" />
+                    } @else {
+                      <span class="cursor-text truncate font-semibold" title="Double-click to rename" (dblclick)="startRename(track.id)">{{ track.name }}</span>
+                    }
                     <span class="flex gap-1">
                       <button type="button" class="rounded px-1" [class.opacity-40]="track.hidden" [attr.aria-label]="(track.hidden ? 'Show ' : 'Hide ') + track.name" (click)="toggleTrack(track.id, 'hidden')">👁</button>
                       <button type="button" class="rounded px-1" [class.opacity-40]="track.muted" [attr.aria-label]="(track.muted ? 'Unmute ' : 'Mute ') + track.name" (click)="toggleTrack(track.id, 'muted')">🔊</button>
@@ -494,7 +694,7 @@ type Drag =
                           <svg class="pointer-events-none absolute inset-0 h-full w-full opacity-60" [attr.viewBox]="'0 0 ' + wave.width + ' 100'" preserveAspectRatio="none" aria-hidden="true"><path [attr.d]="wave.path" fill="currentColor" /></svg>
                         }
                         <span class="pointer-events-none relative block truncate px-2 pt-1 font-semibold">{{ clipName(clip) }}</span>
-                        <span class="pointer-events-none relative block truncate px-2 opacity-80">{{ timecodeShort(length(clip)) }}@if ((clip.speed ?? 1) !== 1) { · {{ clip.speed }}× }@if (clip.reverse) { · ⟲ }@if (clip.effects) { · fx }@if (clip.keyframes) { · ◆ }@if (clip.muted) { · 🔇 }</span>
+                        <span class="pointer-events-none relative block truncate px-2 opacity-80">{{ timecodeShort(length(clip)) }}@if ((clip.speed ?? 1) !== 1) { · {{ clip.speed }}× }@if (clip.reverse) { · ⟲ }@if (clip.effects) { · fx }@if (clip.keyframes) { · ◆ }@if (clip.muted) { · 🔇 }@if (clip.caption) { · CC }@if (clip.ramp && clip.ramp.shape !== 'none') { · ramp }</span>
                         @if (clip.transitionIn) {
                           <span class="pointer-events-none absolute top-0 bottom-0 left-0 bg-gradient-to-r from-black/60 to-transparent" [style.width.px]="Math.min(length(clip), clip.transitionIn.duration) * pps()"></span>
                         }
@@ -581,7 +781,33 @@ export class VideoEditor {
     { key: 'pixelate', label: 'Pixelate', min: 0, max: 40, step: 1, unit: 'px' },
     { key: 'sharpen', label: 'Sharpen', min: 0, max: 100, step: 5, unit: '%' },
     { key: 'chroma', label: 'Green screen', min: 0, max: 100, step: 5, unit: '%' },
+    { key: 'vignette', label: 'Vignette', min: 0, max: 100, step: 5, unit: '%' },
+    { key: 'grain', label: 'Film grain', min: 0, max: 100, step: 5, unit: '%' },
+    { key: 'wave', label: 'Wave', min: 0, max: 100, step: 5, unit: '%' },
+    { key: 'rgbShift', label: 'Colour shift', min: 0, max: 30, step: 1, unit: 'px' },
   ];
+  protected readonly rampShapes = RAMP_SHAPES;
+  protected readonly scaleModes = SCALE_MODES;
+  protected readonly keyEases = KEY_EASES;
+  protected readonly shortcuts = SHORTCUTS;
+  protected readonly exportResolutions = EXPORT_RESOLUTIONS;
+  protected readonly exportFpsList = EXPORT_FPS;
+  protected readonly showExportSettings = signal(false);
+  protected readonly showShortcuts = signal(false);
+  protected readonly exportResolution = signal<ExportResolution>('project');
+  protected readonly exportFps = signal(0);
+  protected readonly useRange = signal(false);
+  protected readonly rangeStart = signal(0);
+  protected readonly rangeEnd = signal(0);
+  protected readonly safeZones = signal(false);
+  protected readonly levels = signal<[number, number]>([0, 0]);
+  protected readonly renaming = signal<number | null>(null);
+  protected readonly slideSeconds = signal(3);
+  protected readonly slideFade = signal(true);
+  protected readonly imageCount = computed(() => this.media().filter((m) => m.kind === 'image').length);
+  protected readonly hasCaptions = computed(() => this.project().clips.some((c) => c.caption && c.title));
+  protected readonly exportSize = computed(() => outputSize(this.project(), this.exportResolution()));
+  protected readonly estimate = computed(() => (this.project().clips.length ? sizeText(estimateSize(this.project(), this.exportOptions())) : '0 MB'));
   protected readonly time = signal(0);
   protected readonly playing = signal(false);
   protected readonly pps = signal(60);
@@ -622,8 +848,14 @@ export class VideoEditor {
     afterNextRender(() => {
       this.previewer = new Previewer(
         this.previewCanvas().nativeElement,
-        (t) => this.time.set(t),
-        () => this.playing.set(false),
+        (t) => {
+          this.time.set(t);
+          this.levels.set(this.previewer?.levels() ?? [0, 0]);
+        },
+        () => {
+          this.playing.set(false);
+          this.levels.set([0, 0]);
+        },
       );
       this.previewer.setProject(this.project(), this.media());
       addEventListener('pointermove', this.onMove);
@@ -1000,6 +1232,7 @@ export class VideoEditor {
     if (this.previewer.isPlaying) {
       this.previewer.pause();
       this.playing.set(false);
+      this.levels.set([0, 0]);
     } else if (this.duration() > 0) {
       this.previewer.play(this.duration());
       this.playing.set(true);
@@ -1088,8 +1321,10 @@ export class VideoEditor {
       }
     } else if (!mod && event.key.toLowerCase() === 'm') {
       this.toggleMarker();
-    } else if (!mod && event.key.toLowerCase() === 's') {
+    } else if (!mod && (event.key.toLowerCase() === 's' || event.key.toLowerCase() === 'c')) {
       this.splitAtPlayhead();
+    } else if (event.key === 'Escape') {
+      this.showShortcuts.set(false);
     } else if (event.key === 'Delete' || event.key === 'Backspace') {
       if (this.selectedId()) {
         event.preventDefault();
@@ -1214,7 +1449,7 @@ export class VideoEditor {
           this.exportPercent.set(Math.round(fraction * 100));
           this.exportStage.set(stage);
         },
-        { format: this.exportFormat(), quality: this.exportQuality() },
+        this.exportOptions(),
       );
       const first = this.media()[0];
       this.exported.set({ blob, name: `${first ? baseName(first.name) : 'video'}-edit.${extension}` });
@@ -1224,6 +1459,127 @@ export class VideoEditor {
     } finally {
       this.exporting.set(false);
     }
+  }
+
+  protected exportOptions() {
+    const range = this.useRange() ? { start: this.rangeStart(), end: this.rangeEnd() > this.rangeStart() ? this.rangeEnd() : this.duration() } : undefined;
+    return { format: this.exportFormat(), quality: this.exportQuality(), resolution: this.exportResolution(), fps: this.exportFps() || undefined, range };
+  }
+
+  protected setResolution(value: string): void {
+    this.exportResolution.set(value === 'project' ? 'project' : (Number(value) as ExportResolution));
+  }
+
+  protected rangeFromPlayhead(edge: 'start' | 'end'): void {
+    if (edge === 'start') this.rangeStart.set(this.time());
+    else this.rangeEnd.set(this.time());
+  }
+
+  private exportName(extension: string, suffix = 'edit'): string {
+    const first = this.media()[0];
+    return `${first ? baseName(first.name) : 'video'}-${suffix}.${extension}`;
+  }
+
+  protected async saveFrame(type: 'png' | 'jpg'): Promise<void> {
+    try {
+      const blob = await exportFrame(this.project(), this.media(), this.time(), type);
+      downloadBlob(blob, this.exportName(type, `frame-${this.time().toFixed(2)}s`));
+    } catch {
+      this.error.set('The frame could not be saved.');
+      this.tab.set('files');
+    }
+  }
+
+  protected saveSrt(): void {
+    const cues = projectCues(this.project());
+    if (cues.length) downloadBlob(new Blob([toSrt(cues)], { type: 'application/x-subrip' }), this.exportName('srt', 'subtitles'));
+  }
+
+  protected saveEdl(): void {
+    downloadBlob(new Blob([toEdl(this.project(), this.media())], { type: 'text/plain' }), this.exportName('edl', 'timeline'));
+  }
+
+  protected saveXml(): void {
+    downloadBlob(new Blob([toFcpXml(this.project(), this.media())], { type: 'application/xml' }), this.exportName('xml', 'timeline'));
+  }
+
+  // ---------- captions ----------
+  protected addCaption(): void {
+    const { project, ids } = addCues(this.project(), [{ start: this.time(), end: this.time() + 3, text: 'Caption text' }]);
+    this.commit(project, this.project(), 'Add caption');
+    this.selectedIds.set(ids);
+    this.tab.set('properties');
+  }
+
+  protected async importSrt(element: HTMLInputElement): Promise<void> {
+    const file = element.files?.[0];
+    element.value = '';
+    if (!file) return;
+    const cues = parseSrt(await file.text());
+    if (!cues.length) {
+      this.error.set('No subtitle lines were found in this file. Choose an .srt file.');
+      this.tab.set('files');
+      return;
+    }
+    const { project, ids } = addCues(this.project(), cues);
+    this.commit(project, this.project(), `Import ${cues.length} captions`);
+    this.selectedIds.set(ids.slice(0, 1));
+  }
+
+  // ---------- slideshow, tracks, background ----------
+  protected makeSlideshow(): void {
+    const images = this.media().filter((m) => m.kind === 'image');
+    if (!images.length) return;
+    const track = Math.min(...this.project().tracks.map((t) => t.id));
+    const { project, ids } = slideshow(this.project(), images, track, this.time(), this.slideSeconds(), this.slideFade());
+    this.commit(project, this.project(), 'Slideshow');
+    this.selectedIds.set(ids);
+  }
+
+  protected startRename(id: number): void {
+    this.renaming.set(id);
+    setTimeout(() => {
+      const input = this.scroller().nativeElement.querySelector<HTMLInputElement>('input[aria-label^="Rename"]');
+      input?.focus();
+      input?.select();
+    });
+  }
+
+  protected finishRename(id: number, name: string): void {
+    if (this.renaming() !== id) return;
+    this.renaming.set(null);
+    this.commit(renameTrack(this.project(), id, name), this.project(), 'Rename track');
+  }
+
+  protected setBackground(kind: Background['kind'], colour?: string): void {
+    const background: Background | undefined = kind === 'black' ? undefined : { kind, colour: colour ?? this.project().background?.colour ?? '#1e293b' };
+    this.commit({ ...this.project(), background }, this.project(), 'Empty space');
+  }
+
+  protected stepFrame(direction: 1 | -1): void {
+    const fps = this.project().fps;
+    void this.seek(Math.round(this.time() * fps + direction) / fps);
+  }
+
+  // ---------- ramps, scale, curves, mirror ----------
+  protected setRamp(clip: Clip, shape: RampShape, amount: number): void {
+    this.change(clip.id, { ramp: shape === 'none' ? undefined : { shape, amount } }, 'Speed ramp');
+  }
+
+  protected setScaleMode(clip: Clip, fit: ScaleMode): void {
+    this.change(clip.id, { transform: { ...(clip.transform ?? NO_TRANSFORM), fit: fit === 'fit' ? undefined : fit } }, 'Scale mode');
+  }
+
+  protected keyEaseOf(clip: Clip): KeyEase {
+    return keyframeEase(clip);
+  }
+
+  protected setKeyEase(clip: Clip, kind: KeyEase): void {
+    this.change(clip.id, { keyframes: easeKeyframes(clip, kind) }, 'Keyframe curve');
+  }
+
+  protected setMirror(clip: Clip, on: boolean): void {
+    this.change(clip.id, { effects: { ...(clip.effects ?? NO_EFFECTS), mirror: on || undefined } }, 'Mirror');
   }
 
   protected downloadExport(): void {

@@ -307,3 +307,107 @@ export async function peaks(file: Blob): Promise<number[]> {
   }
   return out;
 }
+
+// ---------- compress and convert ----------
+
+export type VideoContainer = 'mp4' | 'webm' | 'mov' | 'mkv';
+export type CompressLevel = 'smaller' | 'balanced' | 'better' | 'target';
+
+export interface CompressOptions {
+  container: VideoContainer;
+  level: CompressLevel;
+  /** For level 'target': the file size wanted, in bytes. */
+  targetBytes?: number;
+  /** Height of the shorter side, or 0 to keep the size. */
+  height: number;
+  /** Frames a second, or 0 to keep. */
+  fps: number;
+  removeSound: boolean;
+  start?: number;
+  end?: number;
+}
+
+/** Sound bitrate used when compressing (bits a second). */
+export const COMPRESS_AUDIO_BITRATE = 96_000;
+
+/**
+ * The video bitrate (bits a second) that makes a file of `targetBytes` for `seconds` of video,
+ * leaving room for the sound and the container. At least 100 kbit/s, so the picture stays visible.
+ */
+export function targetVideoBitrate(targetBytes: number, seconds: number, withSound: boolean): number {
+  if (seconds <= 0) return 1_000_000;
+  const total = (targetBytes * 8 * 0.95) / seconds;
+  return Math.max(100_000, Math.round(total - (withSound ? COMPRESS_AUDIO_BITRATE : 0)));
+}
+
+/** The output size keeping the shape, with the shorter side `height` (never larger than the source), even numbers. */
+export function scaledSize(width: number, height: number, shorter: number): { width: number; height: number } {
+  const even = (n: number) => Math.max(2, Math.round(n / 2) * 2);
+  if (!shorter || !width || !height || shorter >= Math.min(width, height)) return { width: even(width), height: even(height) };
+  const scale = shorter / Math.min(width, height);
+  return { width: even(width * scale), height: even(height * scale) };
+}
+
+/** Makes a video smaller or changes its format, on this device. */
+export async function compressVideo(file: File, options: CompressOptions, onProgress: (fraction: number) => void): Promise<{ blob: Blob; extension: string }> {
+  const mb = await import('mediabunny');
+  const input = await openMedia(file);
+  try {
+    const video = await input.getPrimaryVideoTrack();
+    if (!video) throw new Error('This file has no video picture.');
+    const fullDuration = await input.computeDuration();
+    const start = Math.max(0, options.start ?? 0);
+    const end = Math.min(fullDuration, options.end && options.end > start ? options.end : fullDuration);
+    const seconds = Math.max(0.1, end - start);
+    const webmLike = options.container === 'webm';
+    const codecs: ('avc' | 'vp9' | 'vp8' | 'av1' | 'hevc')[] = webmLike ? ['vp9', 'vp8', 'av1'] : ['avc', 'hevc', 'vp9'];
+    const size = scaledSize(video.displayWidth, video.displayHeight, options.height);
+    let codec: (typeof codecs)[number] | null = null;
+    for (const c of codecs) {
+      // QuickTime players do not play VP9.
+      if (options.container === 'mov' && c === 'vp9') continue;
+      if (await mb.canEncodeVideo(c, size)) {
+        codec = c;
+        break;
+      }
+    }
+    if (!codec) throw new Error('This browser cannot encode video. Try Chrome or Edge.');
+    const audioCodec = webmLike ? 'opus' : (await mb.canEncodeAudio('aac')) ? 'aac' : 'opus';
+    const format = {
+      mp4: () => new mb.Mp4OutputFormat({ fastStart: 'in-memory' }),
+      mov: () => new mb.MovOutputFormat({ fastStart: 'in-memory' }),
+      webm: () => new mb.WebMOutputFormat(),
+      mkv: () => new mb.MkvOutputFormat(),
+    }[options.container]();
+    const output = new mb.Output({ format, target: new mb.BufferTarget() });
+    const hasSound = !options.removeSound && !!(await input.getPrimaryAudioTrack());
+    const bitrate =
+      options.level === 'target' && options.targetBytes
+        ? targetVideoBitrate(options.targetBytes, seconds, hasSound)
+        : { smaller: mb.QUALITY_LOW, balanced: mb.QUALITY_MEDIUM, better: mb.QUALITY_HIGH, target: mb.QUALITY_MEDIUM }[options.level];
+    const conversion = await mb.Conversion.init({
+      input,
+      output,
+      video: {
+        codec,
+        bitrate,
+        width: size.width,
+        height: size.height,
+        fit: 'contain',
+        frameRate: options.fps || undefined,
+        forceTranscode: true,
+      },
+      audio: options.removeSound ? { discard: true } : { codec: audioCodec, bitrate: COMPRESS_AUDIO_BITRATE, forceTranscode: true },
+      trim: start > 0 || end < fullDuration ? { start, end } : undefined,
+      showWarnings: false,
+    });
+    if (!conversion.isValid) throw new Error('This video could not be converted to that format. Try MP4 or WebM.');
+    conversion.onProgress = (p) => onProgress(p);
+    await conversion.execute();
+    onProgress(1);
+    const mime = { mp4: 'video/mp4', mov: 'video/quicktime', webm: 'video/webm', mkv: 'video/x-matroska' }[options.container];
+    return { blob: new Blob([output.target.buffer!], { type: mime }), extension: options.container };
+  } finally {
+    input.dispose();
+  }
+}

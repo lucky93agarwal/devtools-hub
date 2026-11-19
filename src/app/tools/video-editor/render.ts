@@ -10,12 +10,12 @@ import {
   easeOut,
   easeOutBack,
   effectsFilter,
-  fitRect,
+  scaleRect,
   titleEntrance,
   transformAt,
   transitionProgress,
 } from './project';
-import { chromaKey, colourEffects, hexToRgb, sharpen } from './pixels';
+import { chromaKey, colourEffects, hexToRgb, noiseTile, rgbShift, sharpen } from './pixels';
 
 /** Safari (before 18) and some others ignore canvas filters; their effects are then done on pixels. */
 let filtersWork: boolean | null = null;
@@ -234,6 +234,76 @@ export function applyTransition(
       context.globalAlpha *= p;
       break;
     }
+    default:
+      maskPath(context, transition.type, p, width, height);
+      context.clip();
+  }
+}
+
+/** The growing shape of a mask transition (star, heart, clock…) at progress `p`; it covers the frame at 1. */
+export function maskPath(context: CanvasRenderingContext2D, type: Transition['type'], p: number, width: number, height: number): void {
+  const cx = width / 2;
+  const cy = height / 2;
+  const diagonal = Math.hypot(width, height);
+  context.beginPath();
+  switch (type) {
+    case 'star': {
+      // The inner corners must pass the frame corners, so the star grows past the frame.
+      const outer = (p * diagonal) / 2 / 0.4;
+      const inner = outer * 0.45;
+      for (let i = 0; i < 10; i++) {
+        const r = i % 2 ? inner : outer;
+        const a = -Math.PI / 2 + (i * Math.PI) / 5;
+        if (i) context.lineTo(cx + r * Math.cos(a), cy + r * Math.sin(a));
+        else context.moveTo(cx + r * Math.cos(a), cy + r * Math.sin(a));
+      }
+      context.closePath();
+      break;
+    }
+    case 'heart': {
+      const k = (p * diagonal * 1.7) / 32;
+      // A classic heart curve, 32 units wide, centred.
+      context.moveTo(cx, cy + 10 * k);
+      context.bezierCurveTo(cx - 16 * k, cy, cx - 16 * k, cy - 12 * k, cx - 8 * k, cy - 12 * k);
+      context.bezierCurveTo(cx - 3 * k, cy - 12 * k, cx, cy - 8 * k, cx, cy - 6 * k);
+      context.bezierCurveTo(cx, cy - 8 * k, cx + 3 * k, cy - 12 * k, cx + 8 * k, cy - 12 * k);
+      context.bezierCurveTo(cx + 16 * k, cy - 12 * k, cx + 16 * k, cy, cx, cy + 10 * k);
+      context.closePath();
+      break;
+    }
+    case 'diamond':
+      context.moveTo(cx, cy - p * height);
+      context.lineTo(cx + p * width, cy);
+      context.lineTo(cx, cy + p * height);
+      context.lineTo(cx - p * width, cy);
+      context.closePath();
+      break;
+    case 'clock':
+      // A hand sweeping round from twelve o'clock.
+      context.moveTo(cx, cy);
+      context.arc(cx, cy, diagonal, -Math.PI / 2, -Math.PI / 2 + p * Math.PI * 2);
+      context.closePath();
+      break;
+    case 'blinds': {
+      const strips = 10;
+      const strip = height / strips;
+      for (let i = 0; i < strips; i++) context.rect(0, i * strip, width, strip * p);
+      break;
+    }
+    case 'checker': {
+      const cols = 8;
+      const rows = Math.max(1, Math.round((cols * height) / width));
+      const w = width / cols;
+      const h = height / rows;
+      for (let r = 0; r < rows; r++)
+        for (let c = 0; c < cols; c++) context.rect(c * w + (w * (1 - p)) / 2, r * h + (h * (1 - p)) / 2, w * p, h * p);
+      break;
+    }
+    case 'barn-door':
+      context.rect(cx - (p * width) / 2, 0, p * width, height);
+      break;
+    default:
+      context.rect(0, 0, width, height);
   }
 }
 
@@ -283,39 +353,95 @@ function drawClip(context: CanvasRenderingContext2D, project: Project, clip: Cli
   const sy = source.height * t.cropTop;
   const sw = Math.max(1, source.width * (1 - t.cropLeft - t.cropRight));
   const sh = Math.max(1, source.height * (1 - t.cropTop - t.cropBottom));
-  const box = fitRect(sw, sh, width, height);
+  const box = scaleRect(t.fit, sw, sh, width, height);
   const effects = clip.effects;
-  const pixelWork = !!(effects?.chroma || effects?.sharpen || effects?.pixelate || (filter && !nativeFilters));
-  if (!pixelWork) {
-    context.drawImage(source.image, sx, sy, sw, sh, -box.width / 2, -box.height / 2, box.width, box.height);
-    context.restore();
-    return;
+  if (effects?.mirror) context.scale(-1, 1);
+  const pixelWork = !!(effects?.chroma || effects?.sharpen || effects?.pixelate || effects?.rgbShift || (filter && !nativeFilters));
+  let picture: { image: CanvasImageSource; sx: number; sy: number; sw: number; sh: number } = { image: source.image, sx, sy, sw, sh };
+  if (pixelWork) {
+    // Effects on pixels: draw the cropped picture at its final size, change it, then place it.
+    const w = Math.max(1, Math.round(Math.min(box.width, width * 2)));
+    const h = Math.max(1, Math.round(Math.min(box.height, height * 2)));
+    const work = scratchCanvas(w, h);
+    const softBlur = !nativeFilters && (effects!.blur ?? 0) > 0;
+    if (effects!.pixelate || softBlur) {
+      // Pixelate draws blocks; without canvas filters, blur is faked by shrinking and smoothing back up.
+      const block = Math.max(2, ((effects!.pixelate || effects!.blur) * height) / 720);
+      const small = scratchSmall(Math.max(1, Math.round(w / block)), Math.max(1, Math.round(h / block)));
+      small.drawImage(source.image, sx, sy, sw, sh, 0, 0, small.canvas.width, small.canvas.height);
+      work.imageSmoothingEnabled = !effects!.pixelate;
+      work.drawImage(small.canvas, 0, 0, w, h);
+      work.imageSmoothingEnabled = true;
+    } else {
+      work.drawImage(source.image, sx, sy, sw, sh, 0, 0, w, h);
+    }
+    if (effects!.chroma || effects!.sharpen || effects!.rgbShift || (filter && !nativeFilters)) {
+      const pixels = work.getImageData(0, 0, w, h);
+      if (filter && !nativeFilters) colourEffects(pixels.data, effects!);
+      if (effects!.chroma) chromaKey(pixels.data, hexToRgb(effects!.chromaColour ?? '#00ff00'), effects!.chroma);
+      let data: Uint8ClampedArray = effects!.sharpen ? sharpen(pixels.data, w, h, effects!.sharpen) : pixels.data;
+      if (effects!.rgbShift) data = rgbShift(data, w, h, (effects!.rgbShift * w) / Math.max(1, box.width) * (height / 720));
+      work.putImageData(new ImageData(new Uint8ClampedArray(data), w, h), 0, 0);
+    }
+    picture = { image: work.canvas, sx: 0, sy: 0, sw: w, sh: h };
   }
-  // Effects on pixels: draw the cropped picture at its final size, change it, then place it.
-  const w = Math.max(1, Math.round(box.width));
-  const h = Math.max(1, Math.round(box.height));
-  const work = scratchCanvas(w, h);
-  const softBlur = !nativeFilters && (effects!.blur ?? 0) > 0;
-  if (effects!.pixelate || softBlur) {
-    // Pixelate draws blocks; without canvas filters, blur is faked by shrinking and smoothing back up.
-    const block = Math.max(2, ((effects!.pixelate || effects!.blur) * height) / 720);
-    const small = scratchSmall(Math.max(1, Math.round(w / block)), Math.max(1, Math.round(h / block)));
-    small.drawImage(source.image, sx, sy, sw, sh, 0, 0, small.canvas.width, small.canvas.height);
-    work.imageSmoothingEnabled = !effects!.pixelate;
-    work.drawImage(small.canvas, 0, 0, w, h);
-    work.imageSmoothingEnabled = true;
+  const left = -box.width / 2;
+  const top = -box.height / 2;
+  if (effects?.wave) {
+    // Rows of the picture slide left and right in a moving wave.
+    const strips = 48;
+    const amplitude = ((effects.wave / 100) * box.width) / 40;
+    const local = time - clip.start;
+    for (let i = 0; i < strips; i++) {
+      const sy0 = picture.sy + (picture.sh * i) / strips;
+      const dy = top + (box.height * i) / strips;
+      const dx = Math.sin(i * 0.45 + local * 4) * amplitude;
+      context.drawImage(picture.image, picture.sx, sy0, picture.sw, picture.sh / strips + 0.5, left + dx, dy, box.width, box.height / strips + 1);
+    }
   } else {
-    work.drawImage(source.image, sx, sy, sw, sh, 0, 0, w, h);
+    context.drawImage(picture.image, picture.sx, picture.sy, picture.sw, picture.sh, left, top, box.width, box.height);
   }
-  if (effects!.chroma || effects!.sharpen || (filter && !nativeFilters)) {
-    const pixels = work.getImageData(0, 0, w, h);
-    if (filter && !nativeFilters) colourEffects(pixels.data, effects!);
-    if (effects!.chroma) chromaKey(pixels.data, hexToRgb(effects!.chromaColour ?? '#00ff00'), effects!.chroma);
-    const data = effects!.sharpen ? sharpen(pixels.data, w, h, effects!.sharpen) : pixels.data;
-    work.putImageData(new ImageData(new Uint8ClampedArray(data), w, h), 0, 0);
+  if (effects?.grain || effects?.vignette) {
+    context.filter = 'none';
+    context.save();
+    context.beginPath();
+    context.rect(left, top, box.width, box.height);
+    context.clip();
+    if (effects.grain) {
+      // Noise that changes every frame, mixed over the picture.
+      const tile = grainTile(context);
+      if (tile) {
+        const frame = Math.floor((time - clip.start) * 24);
+        context.globalAlpha *= Math.min(1, effects.grain / 100) * 0.45;
+        context.globalCompositeOperation = 'overlay';
+        context.translate(left - ((frame * 73) % 128), top - ((frame * 41) % 128));
+        context.fillStyle = tile;
+        context.fillRect(0, 0, box.width + 128, box.height + 128);
+      }
+    }
+    context.restore();
+    if (effects.vignette) {
+      const radius = Math.hypot(box.width, box.height) / 2;
+      const gradient = context.createRadialGradient(0, 0, radius * (1 - effects.vignette / 130), 0, 0, radius);
+      gradient.addColorStop(0, 'rgba(0,0,0,0)');
+      gradient.addColorStop(1, `rgba(0,0,0,${Math.min(0.95, effects.vignette / 100)})`);
+      context.fillStyle = gradient;
+      context.fillRect(left, top, box.width, box.height);
+    }
   }
-  context.drawImage(work.canvas, -box.width / 2, -box.height / 2, box.width, box.height);
   context.restore();
+}
+
+let grainCanvas: HTMLCanvasElement | null = null;
+let grainPattern: CanvasPattern | null = null;
+function grainTile(context: CanvasRenderingContext2D): CanvasPattern | null {
+  if (!grainCanvas) {
+    grainCanvas = document.createElement('canvas');
+    grainCanvas.width = grainCanvas.height = 256;
+    grainCanvas.getContext('2d')!.putImageData(new ImageData(new Uint8ClampedArray(noiseTile(256, 7)), 256, 256), 0, 0);
+  }
+  grainPattern ??= context.createPattern(grainCanvas, 'repeat');
+  return grainPattern;
 }
 
 let smallCanvas: HTMLCanvasElement | null = null;
@@ -337,10 +463,29 @@ export function drawFrame(
   sourceFor: (clip: Clip) => FrameSource,
 ): void {
   const { width, height } = project;
-  context.fillStyle = '#000000';
+  const background = project.background;
+  context.fillStyle = background?.kind === 'colour' ? (background.colour ?? '#000000') : '#000000';
   context.fillRect(0, 0, width, height);
   const hidden = new Set(project.tracks.filter((t) => t.hidden).map((t) => t.id));
-  for (const clip of clipsAt(project, time)) {
+  const showing = clipsAt(project, time);
+  if (background?.kind === 'blur') {
+    // A big, soft, darker copy of the bottom picture fills the bars around it.
+    const under = showing.find((c) => !hidden.has(c.track) && !c.audioOnly && !c.title);
+    const source = under ? sourceFor(under) : null;
+    if (source?.width && source.height) {
+      const box = scaleRect('fill', source.width, source.height, width, height);
+      const small = scratchSmall(32, Math.max(1, Math.round((32 * height) / width)));
+      small.drawImage(source.image, 0, 0, source.width, source.height, (box.x / width) * 32, (box.y / height) * small.canvas.height, (box.width / width) * 32, (box.height / height) * small.canvas.height);
+      context.save();
+      context.imageSmoothingEnabled = true;
+      context.imageSmoothingQuality = 'high';
+      context.drawImage(small.canvas, 0, 0, width, height);
+      context.fillStyle = 'rgba(0,0,0,0.35)';
+      context.fillRect(0, 0, width, height);
+      context.restore();
+    }
+  }
+  for (const clip of showing) {
     if (hidden.has(clip.track) || clip.audioOnly) continue;
     if (clip.title) {
       drawClip(context, project, clip, time, 'title');

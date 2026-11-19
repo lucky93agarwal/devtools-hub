@@ -93,3 +93,35 @@ export function colourEffects(
     data[i + 2] = bl;
   }
 }
+
+/** Moves the red channel left and the blue channel right by `shift` pixels, for a colour-split look. */
+export function rgbShift(data: Uint8ClampedArray, width: number, height: number, shift: number): Uint8ClampedArray {
+  const s = Math.max(1, Math.round(shift));
+  const out = new Uint8ClampedArray(data);
+  for (let y = 0; y < height; y++) {
+    const row = y * width * 4;
+    for (let x = 0; x < width; x++) {
+      const i = row + x * 4;
+      const left = row + Math.min(width - 1, x + s) * 4;
+      const right = row + Math.max(0, x - s) * 4;
+      out[i] = data[left];
+      out[i + 2] = data[right + 2];
+    }
+  }
+  return out;
+}
+
+/** A tile of grey noise from a fixed seed, so the export looks the same every time. */
+export function noiseTile(size: number, seed = 1): Uint8ClampedArray {
+  const data = new Uint8ClampedArray(size * size * 4);
+  let x = seed >>> 0 || 1;
+  for (let i = 0; i < data.length; i += 4) {
+    x ^= x << 13;
+    x ^= x >>> 17;
+    x ^= x << 5;
+    const v = (x >>> 0) % 256;
+    data[i] = data[i + 1] = data[i + 2] = v;
+    data[i + 3] = 255;
+  }
+  return data;
+}

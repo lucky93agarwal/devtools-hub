@@ -4,7 +4,7 @@
  */
 import { openMedia } from '../video/media';
 import { connectAudioFx } from './audio-fx';
-import { Clip, MediaItem, Project, clipEnd, sourceTime, transitionGain } from './project';
+import { Clip, MediaItem, Project, clipEnd, rateAt, sourceTime, transitionGain } from './project';
 import { FrameSource, drawFrame } from './render';
 
 type Element = HTMLVideoElement | HTMLAudioElement;
@@ -14,6 +14,10 @@ export class Previewer {
   private readonly images = new Map<string, HTMLImageElement>();
   /** Web Audio, made on the first play (browsers need a click first), for volume above 100% and sound effects. */
   private audio: AudioContext | null = null;
+  /** Everything plays through this, so the level meter can listen. */
+  private master: GainNode | null = null;
+  private meters: AnalyserNode[] = [];
+  private meterData = new Float32Array(1024);
   private readonly chains = new Map<string, { source: MediaElementAudioSourceNode; gain: GainNode; fx: string }>();
   /** Decoded frames of reversed clips, so they play smoothly backwards in the preview. */
   private readonly reverseFrames = new Map<string, { key: string; frames: { t: number; bitmap: ImageBitmap }[]; ready: boolean }>();
@@ -192,7 +196,19 @@ export class Previewer {
   play(end: number): void {
     if (!this.project || this.playing) return;
     try {
-      this.audio ??= new AudioContext();
+      if (!this.audio) {
+        this.audio = new AudioContext();
+        this.master = this.audio.createGain();
+        this.master.connect(this.audio.destination);
+        const split = this.audio.createChannelSplitter(2);
+        this.master.connect(split);
+        this.meters = [0, 1].map((channel) => {
+          const analyser = this.audio!.createAnalyser();
+          analyser.fftSize = 1024;
+          split.connect(analyser, channel);
+          return analyser;
+        });
+      }
       void this.audio.resume();
     } catch {
       this.audio = null;
@@ -248,11 +264,12 @@ export class Previewer {
         if (!this.reverseFrames.get(clip.id)?.ready && Math.abs(element.currentTime - target) > 0.04) element.currentTime = target;
         continue;
       }
-      element.playbackRate = clip.speed ?? 1;
+      const rate = Math.min(16, Math.max(0.0625, rateAt(clip, this.time)));
+      if (Math.abs(element.playbackRate - rate) > 0.01) element.playbackRate = rate;
       if (element.paused) {
         element.currentTime = target;
         void element.play().catch(() => undefined);
-      } else if (Math.abs(element.currentTime - target) > 0.25 * (clip.speed ?? 1)) {
+      } else if (Math.abs(element.currentTime - target) > 0.25 * Math.max(1, rate)) {
         element.currentTime = target;
       }
     }
@@ -273,10 +290,21 @@ export class Previewer {
       chain.source.disconnect();
       chain.gain.disconnect();
       connectAudioFx(this.audio, chain.source, clip.audio).connect(chain.gain);
-      chain.gain.connect(this.audio.destination);
+      chain.gain.connect(this.master ?? this.audio.destination);
       chain.fx = key;
     }
     return chain;
+  }
+
+  /** Peak sound level of the left and right channels now, 0..1 (0 when nothing plays). */
+  levels(): [number, number] {
+    if (!this.playing || this.meters.length < 2) return [0, 0];
+    return this.meters.map((analyser) => {
+      analyser.getFloatTimeDomainData(this.meterData);
+      let peak = 0;
+      for (const v of this.meterData) peak = Math.max(peak, Math.abs(v));
+      return Math.min(1, peak);
+    }) as [number, number];
   }
 
   pause(): void {
@@ -301,5 +329,7 @@ export class Previewer {
     for (const id of [...this.reverseFrames.keys()]) this.dropReverse(id);
     void this.audio?.close().catch(() => undefined);
     this.audio = null;
+    this.master = null;
+    this.meters = [];
   }
 }

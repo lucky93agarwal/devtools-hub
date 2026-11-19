@@ -1204,6 +1204,20 @@ export const TOOLS: readonly ToolInfo[] = [
     onHome: true,
     live: true,
   },
+  {
+    path: 'video-compressor',
+    name: 'Video Compressor & Converter',
+    shortName: 'Compress video',
+    description: 'Make videos smaller or convert them to MP4, WebM, MOV or MKV: pick a quality or a target size.',
+    seoTitle: 'Compress Video Online: Reduce MP4 Size, Convert',
+    metaDescription:
+      'Compress videos to a target size in MB or a quality, lower resolution and frame rate, and convert to MP4, WebM, MOV or MKV. Nothing is uploaded.',
+    icon: 'M3 6h11v12H3zM14 10l4-2v8l-4-2M8 9v6M6 13l2 2 2-2',
+    phase: 16,
+    category: 'video',
+    onHome: true,
+    live: true,
+  },
 ];
 
 /** Links in the top bar, in display order. */

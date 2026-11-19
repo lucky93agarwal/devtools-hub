@@ -104,6 +104,64 @@ export interface Clip {
   muted?: boolean;
   /** Echo, tone and clean-up for the clip's sound. */
   audio?: AudioFx;
+  /** A speed ramp: the clip's time is bent so parts play slower or faster (length stays the same). */
+  ramp?: SpeedRamp;
+  /** A subtitle line (a title clip that is saved to and read from .srt files). */
+  caption?: boolean;
+}
+
+export type RampShape = 'none' | 'speed-up' | 'slow-down' | 'slow-middle' | 'fast-middle';
+export interface SpeedRamp {
+  shape: RampShape;
+  /** 0.1..0.9: how strong the change of speed is. */
+  amount: number;
+}
+
+export const RAMP_SHAPES: readonly { id: RampShape; label: string }[] = [
+  { id: 'none', label: 'Steady' },
+  { id: 'speed-up', label: 'Speed up (slow → fast)' },
+  { id: 'slow-down', label: 'Slow down (fast → slow)' },
+  { id: 'slow-middle', label: 'Slow motion in the middle' },
+  { id: 'fast-middle', label: 'Fast in the middle' },
+];
+
+/**
+ * How far through its source a ramped clip is (0..1) when it is `p` (0..1) through its
+ * time on the timeline. Always rises, starts at 0 and ends at 1.
+ */
+export function rampPosition(ramp: SpeedRamp | undefined, p: number): number {
+  const x = Math.min(1, Math.max(0, p));
+  if (!ramp || ramp.shape === 'none') return x;
+  const a = Math.min(0.9, Math.max(0.1, ramp.amount));
+  switch (ramp.shape) {
+    case 'speed-up':
+      // Slope rises from 1-a to 1+a.
+      return (1 - a) * x + a * x * x;
+    case 'slow-down':
+      return (1 + a) * x - a * x * x;
+    case 'slow-middle':
+      // Slope 1+a at the ends, 1-a in the middle.
+      return x + (a * Math.sin(2 * Math.PI * x)) / (2 * Math.PI);
+    case 'fast-middle':
+      return x - (a * Math.sin(2 * Math.PI * x)) / (2 * Math.PI);
+  }
+}
+
+/** The speed factor (slope) of a ramp at `p`: 1 is normal speed for the clip. */
+export function rampRate(ramp: SpeedRamp | undefined, p: number): number {
+  const x = Math.min(1, Math.max(0, p));
+  if (!ramp || ramp.shape === 'none') return 1;
+  const a = Math.min(0.9, Math.max(0.1, ramp.amount));
+  switch (ramp.shape) {
+    case 'speed-up':
+      return 1 - a + 2 * a * x;
+    case 'slow-down':
+      return 1 + a - 2 * a * x;
+    case 'slow-middle':
+      return 1 + a * Math.cos(2 * Math.PI * x);
+    case 'fast-middle':
+      return 1 - a * Math.cos(2 * Math.PI * x);
+  }
 }
 
 export interface Transform {
@@ -119,7 +177,17 @@ export interface Transform {
   cropRight: number;
   cropTop: number;
   cropBottom: number;
+  /** How the picture fills the frame: fit inside (default), crop to fill, stretch, or its own size. */
+  fit?: ScaleMode;
 }
+
+export type ScaleMode = 'fit' | 'fill' | 'stretch' | 'none';
+export const SCALE_MODES: readonly { id: ScaleMode; label: string }[] = [
+  { id: 'fit', label: 'Fit (bars)' },
+  { id: 'fill', label: 'Crop to fill' },
+  { id: 'stretch', label: 'Stretch' },
+  { id: 'none', label: 'Original size' },
+];
 
 export const NO_TRANSFORM: Transform = { x: 0.5, y: 0.5, scale: 1, rotation: 0, cropLeft: 0, cropRight: 0, cropTop: 0, cropBottom: 0 };
 
@@ -128,6 +196,32 @@ export interface Keyframe {
   /** Seconds from the start of the clip on the timeline. */
   t: number;
   v: number;
+  /** How the value moves from this keyframe to the next one (straight line when unset). */
+  ease?: KeyEase;
+}
+export type KeyEase = 'linear' | 'ease' | 'ease-in' | 'ease-out' | 'hold';
+export const KEY_EASES: readonly { id: KeyEase; label: string }[] = [
+  { id: 'linear', label: 'Linear' },
+  { id: 'ease', label: 'Ease in & out' },
+  { id: 'ease-in', label: 'Ease in (slow start)' },
+  { id: 'ease-out', label: 'Ease out (slow end)' },
+  { id: 'hold', label: 'Hold (jump)' },
+];
+
+/** Applies an easing curve to 0..1 progress. */
+export function ease(kind: KeyEase | undefined, p: number): number {
+  switch (kind) {
+    case 'ease':
+      return p < 0.5 ? 4 * p * p * p : 1 - (-2 * p + 2) ** 3 / 2;
+    case 'ease-in':
+      return p * p * p;
+    case 'ease-out':
+      return 1 - (1 - p) ** 3;
+    case 'hold':
+      return 0;
+    default:
+      return p;
+  }
 }
 export type Keyframes = Partial<Record<KeyProp, Keyframe[]>>;
 
@@ -139,6 +233,18 @@ export interface AudioFx {
   treble: number;
   /** Cuts rumble and hiss to make speech clearer. */
   clean: boolean;
+  /** Decibels at 1 kHz (voices), -12..12. */
+  mid?: number;
+  /** Removes hum (50/60 Hz) and steady hiss. */
+  denoise?: boolean;
+  /** Evens out loud and quiet parts. */
+  compressor?: boolean;
+  /** 0..1 amount of crunchy distortion. */
+  distortion?: number;
+  /** Metallic robot voice. */
+  robot?: boolean;
+  /** Sounds like a telephone call. */
+  phone?: boolean;
 }
 
 export const NO_AUDIO_FX: AudioFx = { echo: 0, bass: 0, treble: 0, clean: false };
@@ -160,6 +266,13 @@ export interface Project {
   clips: Clip[];
   /** Times (seconds) marked on the timeline. */
   markers?: number[];
+  /** What fills the frame where no picture is: black (default), a colour, or a blurred copy of the picture. */
+  background?: Background;
+}
+
+export interface Background {
+  kind: 'black' | 'colour' | 'blur';
+  colour?: string;
 }
 
 export const DEFAULT_STILL = 5;
@@ -228,8 +341,15 @@ export function removeClip(project: Project, id: string): Project {
 
 /** The source time a clip shows at timeline `time`, taking speed and reverse into account. */
 export function sourceTime(clip: Clip, time: number): number {
-  const into = (time - clip.start) * (clip.speed ?? 1);
+  const into = clip.ramp && clip.ramp.shape !== 'none'
+    ? rampPosition(clip.ramp, (time - clip.start) / (clipLength(clip) || 1)) * (clip.out - clip.in)
+    : (time - clip.start) * (clip.speed ?? 1);
   return clip.reverse ? clip.out - into : clip.in + into;
+}
+
+/** How fast the source plays at timeline `time` (speed times the ramp). */
+export function rateAt(clip: Clip, time: number): number {
+  return (clip.speed ?? 1) * rampRate(clip.ramp, (time - clip.start) / (clipLength(clip) || 1));
 }
 
 /** Cuts a clip in two at a timeline time. Returns the project unchanged when the time is not inside the clip. */
@@ -243,13 +363,14 @@ export function splitClip(project: Project, id: string, time: number): Project {
   const keys = (from: number, to: number, shift: number): Keyframes | undefined =>
     clip.keyframes
       ? Object.fromEntries(
-          Object.entries(clip.keyframes).map(([k, list]) => [k, (list ?? []).filter((f) => f.t >= from && f.t <= to).map((f) => ({ t: f.t - shift, v: f.v }))]),
+          Object.entries(clip.keyframes).map(([k, list]) => [k, (list ?? []).filter((f) => f.t >= from && f.t <= to).map((f) => ({ ...f, t: f.t - shift }))]),
         )
       : undefined;
   const leftSource = clip.reverse ? { in: cut, out: clip.out } : { in: clip.in, out: cut };
   const rightSource = clip.reverse ? { in: clip.in, out: cut } : { in: cut, out: clip.out };
-  const left: Clip = { ...clip, ...leftSource, transitionOut: undefined, keyframes: keys(0, local, 0) };
-  const right: Clip = { ...clip, ...rightSource, id: makeId('clip'), start: time, transitionIn: undefined, keyframes: keys(local, Infinity, local) };
+  // A ramp bends the whole clip's time, so the parts play at a steady speed instead.
+  const left: Clip = { ...clip, ...leftSource, transitionOut: undefined, keyframes: keys(0, local, 0), ramp: undefined };
+  const right: Clip = { ...clip, ...rightSource, id: makeId('clip'), start: time, transitionIn: undefined, keyframes: keys(local, Infinity, local), ramp: undefined };
   return { ...project, clips: project.clips.flatMap((c) => (c.id === id ? [left, right] : [c])) };
 }
 
@@ -332,9 +453,38 @@ export function fitRect(sourceWidth: number, sourceHeight: number, frameWidth: n
   return { x: (frameWidth - width) / 2, y: (frameHeight - height) / 2, width, height };
 }
 
+/** Where a source sits in the frame for a scale mode (fit, crop to fill, stretch, original size), centred. */
+export function scaleRect(mode: ScaleMode | undefined, sourceWidth: number, sourceHeight: number, frameWidth: number, frameHeight: number) {
+  if (mode === 'stretch') return { x: 0, y: 0, width: frameWidth, height: frameHeight };
+  const scale =
+    mode === 'fill'
+      ? Math.max(frameWidth / sourceWidth, frameHeight / sourceHeight)
+      : mode === 'none'
+        ? 1
+        : Math.min(frameWidth / sourceWidth, frameHeight / sourceHeight);
+  const width = sourceWidth * scale;
+  const height = sourceHeight * scale;
+  return { x: (frameWidth - width) / 2, y: (frameHeight - height) / 2, width, height };
+}
+
 // ---------- transitions ----------
 
-export type TransitionType = 'fade' | 'wipe-left' | 'wipe-right' | 'wipe-up' | 'slide-left' | 'slide-right' | 'circle' | 'zoom';
+export type TransitionType =
+  | 'fade'
+  | 'wipe-left'
+  | 'wipe-right'
+  | 'wipe-up'
+  | 'slide-left'
+  | 'slide-right'
+  | 'circle'
+  | 'zoom'
+  | 'star'
+  | 'heart'
+  | 'diamond'
+  | 'clock'
+  | 'blinds'
+  | 'checker'
+  | 'barn-door';
 
 export interface Transition {
   type: TransitionType;
@@ -351,6 +501,13 @@ export const TRANSITIONS: readonly { type: TransitionType; label: string; icon: 
   { type: 'slide-right', label: 'Slide right', icon: '⇢' },
   { type: 'circle', label: 'Circle', icon: '◯' },
   { type: 'zoom', label: 'Zoom', icon: '⤢' },
+  { type: 'star', label: 'Star', icon: '★' },
+  { type: 'heart', label: 'Heart', icon: '♥' },
+  { type: 'diamond', label: 'Diamond', icon: '◆' },
+  { type: 'clock', label: 'Clock', icon: '🕒' },
+  { type: 'blinds', label: 'Blinds', icon: '▤' },
+  { type: 'checker', label: 'Checker', icon: '▦' },
+  { type: 'barn-door', label: 'Barn door', icon: '▯' },
 ];
 
 /**
@@ -397,6 +554,16 @@ export interface Effects {
   /** Green screen: how close to `chromaColour` a pixel must be to become see-through, 0 (off)..100. */
   chroma?: number;
   chromaColour?: string;
+  /** 0..100 darkening towards the corners. */
+  vignette?: number;
+  /** 0..100 film grain (moving noise). */
+  grain?: number;
+  /** Flips the picture left to right. */
+  mirror?: boolean;
+  /** 0..100 wavy, rippling picture. */
+  wave?: number;
+  /** 0..100 pixels (at 720p) of red/blue colour shift. */
+  rgbShift?: number;
 }
 
 export const NO_EFFECTS: Effects = { brightness: 100, contrast: 100, saturation: 100, grayscale: 0, sepia: 0, invert: 0, hue: 0, blur: 0, opacity: 100 };
@@ -415,6 +582,13 @@ export const EFFECT_PRESETS: readonly { name: string; icon: string; effects: Par
   { name: 'Green screen', icon: '🟩', effects: { chroma: 40, chromaColour: '#00ff00' } },
   { name: 'Pixelate', icon: '🔲', effects: { pixelate: 12 } },
   { name: 'Sharpen', icon: '🔪', effects: { sharpen: 60 } },
+  { name: 'Vignette', icon: '⭕', effects: { vignette: 60 } },
+  { name: 'Film grain', icon: '🎞', effects: { grain: 35 } },
+  { name: 'Old film', icon: '📽', effects: { sepia: 60, grain: 45, vignette: 55, contrast: 110 } },
+  { name: 'Mirror', icon: '🪞', effects: { mirror: true } },
+  { name: 'Wave', icon: '🌊', effects: { wave: 40 } },
+  { name: 'Colour shift', icon: '🎨', effects: { rgbShift: 8 } },
+  { name: 'Negative', icon: '🎞️', effects: { invert: 100, hue: 180 } },
 ];
 
 /** CSS / canvas filter string for the effects; '' when nothing changes. */
@@ -435,7 +609,7 @@ export function effectsFilter(effects: Effects | undefined, frameHeight: number)
 
 // ---------- keyframes, transform ----------
 
-/** A keyframed value at clip-local time `t`, straight lines between keyframes; `base` when there are none. */
+/** A keyframed value at clip-local time `t`, following each keyframe's curve to the next; `base` when there are none. */
 export function valueAt(list: readonly Keyframe[] | undefined, t: number, base: number): number {
   if (!list?.length) return base;
   const sorted = [...list].sort((a, b) => a.t - b.t);
@@ -446,7 +620,7 @@ export function valueAt(list: readonly Keyframe[] | undefined, t: number, base: 
     const b = sorted[i];
     if (t <= b.t) {
       const a = sorted[i - 1];
-      return a.v + ((b.v - a.v) * (t - a.t)) / (b.t - a.t || 1);
+      return a.v + (b.v - a.v) * ease(a.ease, (t - a.t) / (b.t - a.t || 1));
     }
   }
   return last.v;
@@ -469,8 +643,11 @@ export function transformAt(clip: Clip, time: number): Transform & { opacity: nu
 
 /** Adds or replaces a keyframe at clip-local time `t` (frames closer than 1/60 s are the same keyframe). */
 export function setKeyframe(clip: Clip, prop: KeyProp, t: number, v: number): Keyframes {
-  const list = (clip.keyframes?.[prop] ?? []).filter((f) => Math.abs(f.t - t) > 1 / 60);
-  return { ...clip.keyframes, [prop]: [...list, { t, v }].sort((a, b) => a.t - b.t) };
+  const old = clip.keyframes?.[prop] ?? [];
+  const same = old.find((f) => Math.abs(f.t - t) <= 1 / 60);
+  const list = old.filter((f) => f !== same);
+  const frame: Keyframe = same?.ease ? { t, v, ease: same.ease } : { t, v };
+  return { ...clip.keyframes, [prop]: [...list, frame].sort((a, b) => a.t - b.t) };
 }
 
 export function removeKeyframe(clip: Clip, prop: KeyProp, t: number): Keyframes {
@@ -525,4 +702,41 @@ export function moveClips(project: Project, ids: readonly string[], by: number):
   const chosen = project.clips.filter((c) => ids.includes(c.id));
   const shift = Math.max(by, -Math.min(...chosen.map((c) => c.start)));
   return { ...project, clips: project.clips.map((c) => (ids.includes(c.id) ? { ...c, start: c.start + shift } : c)) };
+}
+
+/** Gives every keyframe of a clip the same curve. */
+export function easeKeyframes(clip: Clip, kind: KeyEase): Keyframes | undefined {
+  if (!clip.keyframes) return undefined;
+  return Object.fromEntries(Object.entries(clip.keyframes).map(([k, list]) => [k, (list ?? []).map((f) => ({ ...f, ease: kind }))])) as Keyframes;
+}
+
+/** The curve most of a clip's keyframes use (linear when none). */
+export function keyframeEase(clip: Clip): KeyEase {
+  const all = Object.values(clip.keyframes ?? {}).flat();
+  return all.find((f) => f?.ease)?.ease ?? 'linear';
+}
+
+/** Places pictures one after another on a track: a slideshow, each `seconds` long, with a fade between. */
+export function slideshow(project: Project, images: readonly MediaItem[], track: number, start: number, seconds: number, fade: boolean): { project: Project; ids: string[] } {
+  let next = project;
+  const ids: string[] = [];
+  let at = freeStart(project, track, start, seconds * images.length);
+  for (const image of images) {
+    const clip: Clip = { id: makeId('clip'), track, start: at, in: 0, out: seconds, mediaId: image.id, volume: 1 };
+    if (fade) {
+      clip.transitionIn = { type: 'fade', duration: Math.min(0.5, seconds / 3) };
+      clip.transitionOut = { type: 'fade', duration: Math.min(0.5, seconds / 3) };
+    }
+    next = { ...next, clips: [...next.clips, clip] };
+    ids.push(clip.id);
+    at += seconds;
+  }
+  return { project: next, ids };
+}
+
+/** A track's new name, cleaned up; the old name when it is empty. */
+export function renameTrack(project: Project, id: number, name: string): Project {
+  const clean = name.trim().slice(0, 30);
+  if (!clean) return project;
+  return { ...project, tracks: project.tracks.map((t) => (t.id === id ? { ...t, name: clean } : t)) };
 }
