@@ -68,8 +68,9 @@ test('adds two sounds to a video and keeps the picture', async ({ page }) => {
   await page.getByRole('button', { name: 'Download clip-with-audio.mp4' }).click();
   const saved = await download;
   expect(saved.suggestedFilename()).toBe('clip-with-audio.mp4');
-  // The new file holds the copied H.264 video and an AAC sound track.
+  // The new file holds the copied H.264 video and a sound track: AAC, or Opus where
+  // the browser has no AAC encoder (open-source Chromium on Linux, Firefox).
   const bytes = (await import('node:fs')).readFileSync(await saved.path()).toString('latin1');
   expect(bytes).toContain('avc1');
-  expect(bytes).toContain('mp4a');
+  expect(bytes).toMatch(/mp4a|Opus/);
 });
