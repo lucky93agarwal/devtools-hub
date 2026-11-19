@@ -64,7 +64,6 @@ test('edits a video on the timeline and exports an MP4', async ({ page }) => {
   await page.getByRole('button', { name: 'Play', exact: true }).click();
   await expect(page.getByLabel('Current time')).not.toHaveText('00:00:00:00');
   await page.getByRole('button', { name: 'Pause', exact: true }).click();
-  await page.screenshot({ path: '/private/tmp/claude-501/-Users-luckyagarwal-Desktop-Development/3e93280a-a340-465f-8d0c-4b4c1bb69845/scratchpad/editor.png' });
 
   // Export.
   await page.getByRole('button', { name: /Export video/ }).click();
