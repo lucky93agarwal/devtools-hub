@@ -5,6 +5,7 @@
 import * as admin from './admin';
 import * as auth from './auth';
 import type { Env } from './env';
+import * as tracking from './tracking';
 import { ApiError, errorResponse, json } from './http';
 
 type Handler = (env: Env, request: Request, id: string) => Promise<Response>;
@@ -19,6 +20,10 @@ const ROUTES: [method: string, pattern: RegExp, handler: Handler][] = [
   ['POST', /^\/api\/auth\/forgot-password$/, auth.forgotPassword],
   ['POST', /^\/api\/auth\/reset-password$/, auth.resetPassword],
   ['POST', /^\/api\/auth\/change-password$/, auth.changePassword],
+  ['GET', /^\/api\/auth\/activity$/, tracking.activity],
+  ['POST', /^\/api\/auth\/sessions\/([\w-]+)\/logout$/, tracking.endSession],
+  ['POST', /^\/api\/visit$/, tracking.recordVisit],
+  ['POST', /^\/api\/visit\/(\d+)\/location$/, tracking.recordLocation],
   ['GET', /^\/api\/admin\/stats$/, admin.stats],
   ['GET', /^\/api\/admin\/users$/, admin.users],
   ['GET', /^\/api\/admin\/users\/([\w-]+)$/, admin.user],
@@ -27,6 +32,8 @@ const ROUTES: [method: string, pattern: RegExp, handler: Handler][] = [
   ['POST', /^\/api\/admin\/users\/([\w-]+)\/delete$/, admin.deleteUser],
   ['GET', /^\/api\/admin\/outbox$/, admin.outbox],
   ['GET', /^\/api\/admin\/log$/, admin.adminLog],
+  ['GET', /^\/api\/admin\/visits$/, admin.visits],
+  ['GET', /^\/api\/admin\/logins$/, admin.logins],
 ];
 
 async function api(request: Request, env: Env): Promise<Response> {

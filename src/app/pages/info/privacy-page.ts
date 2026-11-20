@@ -12,7 +12,9 @@ import { InfoPage } from './info-page';
     <app-info-page heading="Privacy policy" updated="20 November 2026">
       <p>
         {{ siteName }} is a set of developer tools that run in your web browser. This page explains what happens to your
-        data when you use the site. In short: the tools do not send your input anywhere, an account is optional, and
+        data when you use the site. In short: the tools do not send your input anywhere, an account is optional, each
+        visit and login is recorded with its IP address, approximate place and device (and your location only if you
+        allow it), and
         the only cookies are the login cookie (only if you log in)@if (adsOn) { and those Google uses to show ads}, as
         described below.
       </p>
@@ -57,7 +59,8 @@ import { InfoPage } from './info-page';
       <h2>Saved in your browser</h2>
       <p>
         Apart from the login cookie{{ adsOn ? ' and the advertising cookies described below, which come from Google' : '' }},
-        the site does not set cookies. It may save small preferences, such as the light or dark theme, in your browser's local storage, and the API
+        the site does not set cookies. It keeps the random visitor id described under Visit and login records, and
+        whether you closed the visit notice. It may also save small preferences, such as the light or dark theme, in your browser's local storage, and the API
         Client keeps the requests, collections, environments and history you create there too, as do the tools you star
         or used recently and, for tools with a Share link, your last inputs and the inputs you save by name. JWT, cURL
         and .env inputs are never kept. All of this stays on your device; you can back it up, restore it or clear it on
@@ -101,6 +104,32 @@ import { InfoPage } from './info-page';
         when it loads a page, such as your IP address, browser type and the address of the page, and may keep them in
         logs for security and to keep the service running. This does not include anything you type into or open in the
         tools. Cloudflare's own privacy policy describes how it handles this data.
+      </p>
+
+      <h2 id="visit-records">Visit and login records</h2>
+      <p>
+        Each time you open the site, whether you are logged in or not, we record the visit: the date and time, your IP
+        address, the approximate city, region and country worked out from it by Cloudflare, your device type (computer,
+        phone or tablet), operating system, browser, the page you opened, the referring site, your language, time zone
+        and screen size, and a random visitor id kept in your browser's local storage (<code>dt_visitor</code>) so that
+        visits from the same browser can be grouped. If you are logged in, the visit is linked to your account; if not,
+        it shows as an unknown user.
+      </p>
+      <p>
+        The site also asks your browser for your location. Your browser shows its own permission prompt, and the exact
+        location (latitude and longitude) is recorded only if you allow it. If you block it, we record only that it was
+        not allowed, and every tool keeps working. You can change this at any time in your browser's site settings.
+      </p>
+      <p>
+        Every login attempt is recorded the same way, with the email entered and whether it worked (for example "wrong
+        password"). When you log in from a device you have not used before, we email you about it. You can see your own
+        recent logins and the devices you are logged in on, and log out any of them, under My account → Login activity.
+      </p>
+      <p>
+        We use these records to keep accounts safe (spotting logins that are not yours, blocking abuse) and to
+        understand how the site is used. Only the site's administrators can see them; we do not sell them or use them for
+        advertising. They are stored with Cloudflare and deleted after 90 days. A small notice at the bottom of the site
+        tells you about this on your first visit.
       </p>
 
       <h2>Visit counting</h2>

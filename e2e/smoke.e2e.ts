@@ -277,6 +277,8 @@ test('Image Resizer resizes a real image to a width and under a KB limit', async
 
 test('Image Cropper crops with a dragged corner and a square shape', async ({ page }) => {
   await page.goto('/image-cropper');
+  // The visit notice sits at the bottom of the screen, over the corner to drag.
+  await page.getByRole('region', { name: 'Visit notice' }).getByRole('button', { name: 'OK' }).click();
   const chooser = page.waitForEvent('filechooser');
   await page.getByRole('button', { name: 'Choose image' }).click();
   await (await chooser).setFiles('e2e/fixtures/photo.png');

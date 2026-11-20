@@ -1,6 +1,7 @@
 import { Component, computed, effect, inject, signal, untracked } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { AccountError, Auth } from '../../core/accounts/auth';
+import { AdminTraffic, REASONS, gpsText, placeName, type TrafficRow } from './admin-traffic';
 
 interface AdminUser {
   id: string;
@@ -48,6 +49,7 @@ interface Detail {
   user: AdminUser;
   sessions: { createdAt: number; lastSeenAt: number; expiresAt: number; userAgent: string; ip: string }[];
   emails: { id: number; subject: string; sent: number; created_at: number }[];
+  logins?: TrafficRow[];
 }
 
 interface Email {
@@ -60,7 +62,7 @@ interface Email {
   created_at: number;
 }
 
-type Tab = 'overview' | 'users' | 'emails' | 'activity';
+type Tab = 'overview' | 'users' | 'visits' | 'logins' | 'emails' | 'activity';
 
 /** A short, readable device name from a browser's user agent. */
 export function deviceName(userAgent: string): string {
@@ -73,7 +75,7 @@ export function deviceName(userAgent: string): string {
 /** The admin panel: numbers, every user with search and filters, one user's details, emails and the admin log. */
 @Component({
   selector: 'app-admin-page',
-  imports: [RouterLink],
+  imports: [RouterLink, AdminTraffic],
   template: `
     <div class="container-page pt-10 pb-16 sm:pt-12">
       <div class="flex flex-wrap items-center justify-between gap-3">
@@ -87,7 +89,7 @@ export function deviceName(userAgent: string): string {
       } @else if (auth.user()!.role !== 'admin') {
         <div class="card mt-6 max-w-md p-5" role="alert"><p>Only admins can open this page.</p><a routerLink="/account" class="btn-secondary mt-4">My account</a></div>
       } @else {
-        <div class="mt-6 flex gap-1 border-b border-line" role="tablist" aria-label="Admin sections">
+        <div class="mt-6 flex gap-1 overflow-x-auto border-b border-line" role="tablist" aria-label="Admin sections">
           @for (t of tabs; track t.id) {
             <button type="button" role="tab" class="-mb-px border-b-2 px-4 py-2 text-sm font-semibold" [class]="tab() === t.id ? 'border-brand text-ink' : 'border-transparent text-muted hover:text-ink'" [attr.aria-selected]="tab() === t.id" (click)="open(t.id)">{{ t.label }}</button>
           }
@@ -250,6 +252,18 @@ export function deviceName(userAgent: string): string {
                     }
                   </ul>
                 } @else { <p class="mt-2 text-sm text-muted">Not logged in anywhere.</p> }
+                <h3 class="mt-5 text-base font-semibold">Recent logins</h3>
+                <ul class="mt-2 divide-y divide-line rounded-xl border border-line text-sm">
+                  @for (l of d.logins ?? []; track l.id) {
+                    <li class="flex flex-wrap justify-between gap-2 px-3 py-2">
+                      <span>
+                        @if (l.success) { <span class="text-success">✓</span> } @else { <span class="text-danger">✗ {{ reasonName(l.reason) }}</span> }
+                        {{ l.browser }} on {{ l.os }} ({{ l.device_type }})@if (l.new_device) { · <strong>new device</strong> }
+                      </span>
+                      <span class="text-muted">{{ when(l.created_at) }} · {{ place(l) }} · {{ l.ip }}@if (l.gps_lat !== null) { · GPS {{ gps(l) }} }</span>
+                    </li>
+                  } @empty { <li class="px-3 py-2 text-muted">None recorded yet</li> }
+                </ul>
                 <h3 class="mt-5 text-base font-semibold">Emails sent</h3>
                 <ul class="mt-2 text-sm">
                   @for (e of d.emails; track e.id) { <li class="py-0.5">{{ when(e.created_at) }} · {{ e.subject }}</li> } @empty { <li class="text-muted">None</li> }
@@ -257,6 +271,8 @@ export function deviceName(userAgent: string): string {
               </section>
             }
           }
+          @case ('visits') { <app-admin-traffic kind="visits" /> }
+          @case ('logins') { <app-admin-traffic kind="logins" /> }
           @case ('emails') {
             <p class="mt-6 text-sm text-muted">
               @if (emailServiceOn()) { Emails are sent by the email service and also listed here. }
@@ -302,6 +318,8 @@ export class AdminPage {
   protected readonly tabs: { id: Tab; label: string }[] = [
     { id: 'overview', label: 'Overview' },
     { id: 'users', label: 'Users' },
+    { id: 'visits', label: 'Visitors' },
+    { id: 'logins', label: 'Logins' },
     { id: 'emails', label: 'Emails' },
     { id: 'activity', label: 'Activity' },
   ];
@@ -345,6 +363,11 @@ export class AdminPage {
   protected readonly log = signal<{ id: number; action: string; created_at: number; admin_email: string; target_email: string }[]>([]);
   protected readonly error = signal('');
   protected readonly device = deviceName;
+  protected readonly place = placeName;
+  protected readonly gps = gpsText;
+  protected reasonName(reason: string | null | undefined): string {
+    return reason ? (REASONS[reason] ?? reason) : 'Failed';
+  }
   private searchTimer?: ReturnType<typeof setTimeout>;
 
   protected readonly maxDay = computed(() => Math.max(1, ...(this.stats()?.signupsByDay ?? [1])));

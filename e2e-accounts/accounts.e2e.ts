@@ -253,3 +253,80 @@ test('admin users table: serial numbers, pages, delete with a popup, and the del
   await page.getByLabel('Filter users').selectOption('deleted');
   await expect(page.getByRole('table', { name: 'Deleted users' }).getByRole('row', { name: `Deleted user ${USER.email}` })).toContainText('Signed up again');
 });
+
+test('visits and logins are recorded with place, GPS and device; new-device email; log out another device', async ({ browser }) => {
+  const LUCKNOW = { latitude: 26.8467, longitude: 80.9462 };
+  // A visitor who allows the location.
+  const visitor = await browser.newContext({ permissions: ['geolocation'], geolocation: LUCKNOW, serviceWorkers: 'block' });
+  const page = await visitor.newPage();
+  const visit = page.waitForResponse((r) => r.url().endsWith('/api/visit') && r.ok());
+  const located = page.waitForRequest((r) => /\/api\/visit\/\d+\/location$/.test(r.url()));
+  await page.goto('/');
+  await visit;
+  expect((await located).postDataJSON()).toMatchObject({ status: 'allowed', lat: LUCKNOW.latitude, lon: LUCKNOW.longitude });
+  // The notice bar shows until OK is pressed, then stays away.
+  const notice = page.getByRole('region', { name: 'Visit notice' });
+  await expect(notice).toContainText('We record each visit');
+  await expect(notice.getByRole('link', { name: 'Privacy' })).toHaveAttribute('href', '/privacy');
+  await notice.getByRole('button', { name: 'OK' }).click();
+  await expect(notice).toHaveCount(0);
+  await page.reload();
+  await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
+  await expect(notice).toHaveCount(0);
+
+  // A visitor who blocks the location.
+  const blocker = await browser.newContext({ serviceWorkers: 'block' });
+  const other = await blocker.newPage();
+  const denied = other.waitForRequest((r) => /\/api\/visit\/\d+\/location$/.test(r.url()));
+  await other.goto('/');
+  expect((await denied).postDataJSON()).toMatchObject({ status: expect.stringMatching(/denied|unavailable/) });
+
+  // A wrong password, then the right one, from the first browser.
+  await logIn(page, ADMIN.email, 'Wrong-pass-2026');
+  await expect(page.getByRole('alert')).toContainText('Email or password is wrong');
+  await logIn(page, ADMIN.email, ADMIN.password);
+  await expect(page).toHaveURL(/\/account/);
+
+  // The admin sees the visits: unknown visitors and the GPS.
+  await page.goto('/admin');
+  await page.getByRole('tab', { name: 'Visitors' }).click();
+  const visits = page.getByRole('table', { name: 'Visits' });
+  await expect(visits).toContainText('Unknown user');
+  await expect(visits).toContainText('26.84670, 80.94620');
+  await expect(visits).toContainText('Not allowed');
+  await expect(visits).toContainText('Computer');
+  await expect(visits).toContainText('Chrome');
+  await page.getByLabel('Filter visits').selectOption('users');
+  await expect(visits).not.toContainText('Unknown user');
+  await expect(visits).toContainText(ADMIN.email);
+
+  // ... and every login attempt.
+  await page.getByRole('tab', { name: 'Logins' }).click();
+  const logins = page.getByRole('table', { name: 'Logins' });
+  await expect(logins).toContainText('Wrong password');
+  await expect(logins).toContainText('Logged in');
+  await expect(logins.getByRole('row').nth(1)).toContainText('26.84670, 80.94620');
+  await page.getByLabel('Filter logins').selectOption('failed');
+  await expect(logins).not.toContainText('✓');
+
+  // This browser had not logged in before: the admin got a new-device email.
+  await page.getByRole('tab', { name: 'Emails' }).click();
+  await expect(page.getByRole('list', { name: 'Emails' })).toContainText('New login to your DevTools24 account');
+
+  // Logged in on a second browser too; the first one can log it out.
+  await logIn(other, ADMIN.email, ADMIN.password);
+  await expect(other).toHaveURL(/\/account/);
+  await page.goto('/account');
+  const activity = page.getByRole('region', { name: 'Login activity' });
+  await expect(activity).toContainText('This device');
+  await expect(activity).toContainText('Wrong password'.toLowerCase());
+  const others = activity.getByRole('button', { name: 'Log out this device' });
+  const before = await others.count();
+  expect(before).toBeGreaterThan(0);
+  await others.first().click();
+  await expect(others).toHaveCount(before - 1);
+  await page.reload();
+  await expect(page.getByRole('heading', { name: 'Login activity' })).toBeVisible();
+  await visitor.close();
+  await blocker.close();
+});

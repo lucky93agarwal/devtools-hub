@@ -7,10 +7,12 @@ import { Header } from './layout/header/header';
 import { Footer } from './layout/footer/footer';
 import { ExtraAds } from './shared/extra-ads/extra-ads';
 import { GlobalActions } from './shared/global-actions/global-actions';
+import { VisitNotice } from './shared/visit-notice/visit-notice';
+import { Visits } from './core/accounts/visits';
 
 @Component({
   selector: 'app-root',
-  imports: [RouterOutlet, Header, Footer, ExtraAds, GlobalActions],
+  imports: [RouterOutlet, Header, Footer, ExtraAds, GlobalActions, VisitNotice],
   template: `
     <a
       href="#main"
@@ -26,6 +28,7 @@ import { GlobalActions } from './shared/global-actions/global-actions';
     </div>
     <app-extra-ads />
     <app-global-actions />
+    <app-visit-notice />
   `,
 })
 export class App {
@@ -34,8 +37,11 @@ export class App {
     // Starts remembering recently used tools for the home page and the search box.
     inject(UserTools);
     inject(AppUpdates);
+    const visits = inject(Visits);
     afterNextRender(() => {
       analytics.load();
+      // Records this visit (logged in or not) and asks for the location.
+      visits.start();
       // The focus ring shows only for keyboard users: a click or tap hides it, Tab brings it back.
       const root = document.documentElement;
       addEventListener('pointerdown', () => (root.dataset['input'] = 'pointer'), {

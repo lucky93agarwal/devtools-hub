@@ -59,6 +59,13 @@ export async function startServer(dir, port = 0) {
       res.end('{"user":null}');
       return;
     }
+    // The visit log: accepted and forgotten.
+    if (pathname === '/api/visit' || /^\/api\/visit\/\d+\/location$/.test(pathname)) {
+      req.resume();
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(pathname === '/api/visit' ? '{"visitId":1}' : '{"ok":true}');
+      return;
+    }
     if (pathname.length > 1 && pathname.endsWith('/')) {
       res.writeHead(307, { Location: pathname.slice(0, -1) + search });
       res.end();

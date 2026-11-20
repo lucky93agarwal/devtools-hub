@@ -155,7 +155,9 @@ export async function user(env: Env, request: Request, id: string): Promise<Resp
     .bind(id, Date.now())
     .all<{ created_at: number; last_seen_at: number; expires_at: number; user_agent: string; ip: string }>();
   const emails = await env.DB.prepare('SELECT id, subject, sent, created_at FROM outbox WHERE to_email = ? ORDER BY id DESC LIMIT 20').bind(row.email).all();
+  const logins = await env.DB.prepare(`SELECT ${LOGIN_COLUMNS} FROM login_events WHERE user_id = ? ORDER BY id DESC LIMIT 20`).bind(id).all();
   return json({
+    logins: logins.results,
     user: { ...listUser({ ...row, sessions: sessions.results.length }) },
     sessions: sessions.results.map((s) => ({ createdAt: s.created_at, lastSeenAt: s.last_seen_at, expiresAt: s.expires_at, userAgent: s.user_agent, ip: s.ip })),
     emails: emails.results,
@@ -205,6 +207,7 @@ export async function deleteUser(env: Env, request: Request, id: string): Promis
     ).bind(user.id, user.first_name, user.last_name, user.email, user.mobile, user.role, user.email_verified_at, user.created_at, user.last_login_at, user.login_count, now, admin.email),
     env.DB.prepare('DELETE FROM sessions WHERE user_id = ?').bind(id),
     env.DB.prepare('DELETE FROM tokens WHERE user_id = ?').bind(id),
+    env.DB.prepare('DELETE FROM known_devices WHERE user_id = ?').bind(id),
     env.DB.prepare('DELETE FROM attempts WHERE key = ?').bind(`login:${user.email}`),
     env.DB.prepare('DELETE FROM users WHERE id = ?').bind(id),
   ]);
@@ -226,4 +229,61 @@ export async function adminLog(env: Env, request: Request): Promise<Response> {
      ORDER BY admin_log.id DESC LIMIT 100`,
   ).all();
   return json({ entries: rows.results });
+}
+
+// ---------- visitors and logins ----------
+
+const VISIT_COLUMNS =
+  'visits.id, visits.visitor_id, visits.user_id, visits.created_at, visits.ip, visits.country, visits.region, visits.city, visits.gps_status, visits.gps_lat, visits.gps_lon, visits.gps_accuracy, visits.device_type, visits.os, visits.browser, visits.platform, visits.page, visits.referrer, visits.language, visits.timezone, visits.screen, visits.user_agent';
+const LOGIN_COLUMNS =
+  'id, user_id, email, success, method, reason, new_device, created_at, visitor_id, ip, country, region, city, gps_lat, gps_lon, gps_accuracy, device_type, os, browser, platform, user_agent';
+
+function paging(url: URL) {
+  const size = Math.min(100, Math.max(5, Number(url.searchParams.get('size')) || 20));
+  const page = Math.max(1, Number(url.searchParams.get('page')) || 1);
+  const q = (url.searchParams.get('q') ?? '').trim().toLowerCase().slice(0, 100);
+  return { size, page, q, like: `%${q.replace(/[%_]/g, '')}%` };
+}
+
+/** Every time the site was opened. Visitors who were not logged in show as "Unknown user". */
+export async function visits(env: Env, request: Request): Promise<Response> {
+  await requireAdmin(env, request);
+  const url = new URL(request.url);
+  const { size, page, q, like } = paging(url);
+  const who = url.searchParams.get('who');
+  const filter = who === 'users' ? 'visits.user_id IS NOT NULL' : who === 'unknown' ? 'visits.user_id IS NULL' : '1 = 1';
+  const where = `${filter} AND (? = '' OR LOWER(COALESCE(u.email, '') || ' ' || COALESCE(u.first_name, '') || ' ' || COALESCE(u.last_name, '')) LIKE ? OR visits.ip LIKE ? OR LOWER(COALESCE(visits.city, '')) LIKE ? OR visits.visitor_id LIKE ?)`;
+  const from = 'FROM visits LEFT JOIN users u ON u.id = visits.user_id';
+  const since = Date.now() - DAY;
+  const total = await env.DB.prepare(`SELECT COUNT(*) AS n ${from} WHERE ${where}`).bind(q, like, like, like, like).first<{ n: number }>();
+  const rows = await env.DB.prepare(`SELECT ${VISIT_COLUMNS}, u.email, u.first_name, u.last_name ${from} WHERE ${where} ORDER BY visits.id DESC LIMIT ? OFFSET ?`)
+    .bind(q, like, like, like, like, size, (page - 1) * size)
+    .all();
+  const today = await env.DB.prepare(
+    "SELECT COUNT(*) AS visits, COUNT(DISTINCT visitor_id) AS visitors, SUM(user_id IS NOT NULL) AS loggedIn, SUM(gps_status = 'allowed') AS gps FROM visits WHERE created_at >= ?",
+  )
+    .bind(since)
+    .first<Record<string, number | null>>();
+  return json({
+    visits: rows.results,
+    total: total?.n ?? 0,
+    page,
+    size,
+    today: { visits: today?.['visits'] ?? 0, visitors: today?.['visitors'] ?? 0, loggedIn: today?.['loggedIn'] ?? 0, gps: today?.['gps'] ?? 0 },
+  });
+}
+
+/** Every login attempt, successful or not. */
+export async function logins(env: Env, request: Request): Promise<Response> {
+  await requireAdmin(env, request);
+  const url = new URL(request.url);
+  const { size, page, q, like } = paging(url);
+  const result = url.searchParams.get('result');
+  const filter = result === 'success' ? 'success = 1' : result === 'failed' ? 'success = 0' : result === 'new-device' ? 'new_device = 1' : '1 = 1';
+  const where = `${filter} AND (? = '' OR email LIKE ? OR ip LIKE ? OR LOWER(COALESCE(city, '')) LIKE ?)`;
+  const total = await env.DB.prepare(`SELECT COUNT(*) AS n FROM login_events WHERE ${where}`).bind(q, like, like, like).first<{ n: number }>();
+  const rows = await env.DB.prepare(`SELECT ${LOGIN_COLUMNS} FROM login_events WHERE ${where} ORDER BY id DESC LIMIT ? OFFSET ?`)
+    .bind(q, like, like, like, size, (page - 1) * size)
+    .all();
+  return json({ logins: rows.results, total: total?.n ?? 0, page, size });
 }

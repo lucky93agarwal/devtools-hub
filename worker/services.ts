@@ -123,12 +123,13 @@ export const SESSION_DAYS_REMEMBER = 30;
 export const SESSION_DAYS_DEFAULT = 1;
 
 /** Creates a session and returns the cookie value. */
-export async function createSession(env: Env, request: Request, userId: string, remember: boolean): Promise<string> {
+export async function createSession(env: Env, request: Request, userId: string, remember: boolean, visitorId?: string | null): Promise<string> {
   const token = randomToken();
   const now = Date.now();
   const days = remember ? SESSION_DAYS_REMEMBER : SESSION_DAYS_DEFAULT;
-  await env.DB.prepare('INSERT INTO sessions (id, user_id, created_at, expires_at, last_seen_at, user_agent, ip) VALUES (?, ?, ?, ?, ?, ?, ?)')
-    .bind(await sha256(token), userId, now, now + days * 86_400_000, now, (request.headers.get('user-agent') ?? '').slice(0, 400), clientIp(request))
+  const visitor = visitorId && /^[\w-]{8,64}$/.test(visitorId) ? visitorId : null;
+  await env.DB.prepare('INSERT INTO sessions (id, user_id, created_at, expires_at, last_seen_at, user_agent, ip, visitor_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?)')
+    .bind(await sha256(token), userId, now, now + days * 86_400_000, now, (request.headers.get('user-agent') ?? '').slice(0, 400), clientIp(request), visitor)
     .run();
   return token;
 }

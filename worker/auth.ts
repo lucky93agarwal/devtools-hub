@@ -23,6 +23,7 @@ import {
   useToken,
   type UserRow,
 } from './services';
+import { recordLogin } from './tracking';
 
 const MAX_LOGIN_FAILURES = 5;
 const LOGIN_LOCK_MS = 15 * 60_000;
@@ -43,7 +44,7 @@ async function sendVerification(env: Env, request: Request, user: Pick<UserRow, 
 }
 
 export async function signup(env: Env, request: Request): Promise<Response> {
-  const body = await readJson<SignupInput & { remember?: boolean; captcha?: string }>(request);
+  const body = await readJson<SignupInput & { remember?: boolean; captcha?: string; visitorId?: string }>(request);
   await limit(env, `signup-ip:${clientIp(request)}`, 10, 3_600_000, 'Too many new accounts from this network.');
   await checkCaptcha(env, request, body.captcha);
   const input: SignupInput = {
@@ -77,37 +78,51 @@ export async function signup(env: Env, request: Request): Promise<Response> {
     .run();
   await sendVerification(env, request, user);
   const remember = body.remember !== false;
-  const token = await createSession(env, request, user.id, remember);
+  const token = await createSession(env, request, user.id, remember, body.visitorId);
   const row = (await env.DB.prepare('SELECT * FROM users WHERE id = ?').bind(user.id).first<UserRow>())!;
+  await recordLogin(env, request, { email, userId: user.id, success: true, method: 'signup', visitorId: body.visitorId }, row);
   return json({ user: publicUser(row) }, 201, sessionHeaders(token, remember));
 }
 
 export async function login(env: Env, request: Request): Promise<Response> {
-  const body = await readJson<{ email?: string; password?: string; remember?: boolean; captcha?: string }>(request);
-  await limit(env, `login-ip:${clientIp(request)}`, 40, LOGIN_LOCK_MS, 'Too many login attempts from this network.');
-  await checkCaptcha(env, request, body.captcha);
+  const body = await readJson<{ email?: string; password?: string; remember?: boolean; captcha?: string; visitorId?: string }>(request);
   const email = cleanEmail(String(body.email ?? ''));
+  const visitorId = typeof body.visitorId === 'string' ? body.visitorId : null;
+  const failed = (reason: string, userId?: string) => recordLogin(env, request, { email, userId, success: false, method: 'password', reason, visitorId });
+  await limit(env, `login-ip:${clientIp(request)}`, 40, LOGIN_LOCK_MS, 'Too many login attempts from this network.');
+  try {
+    await checkCaptcha(env, request, body.captcha);
+  } catch (e) {
+    if (email) await failed('captcha');
+    throw e;
+  }
   const password = String(body.password ?? '');
   if (emailError(email) || !password) throw new ApiError(400, 'Enter your email and password.');
   const key = `login:${email}`;
   const lockedUntil = await isLimited(env, key, MAX_LOGIN_FAILURES);
   if (lockedUntil) {
+    await failed('paused');
     const minutes = Math.max(1, Math.ceil((lockedUntil - Date.now()) / 60_000));
     throw new ApiError(429, `Too many wrong passwords. For your safety this account is paused for ${minutes} minute${minutes === 1 ? '' : 's'}. You can reset your password instead.`);
   }
   const user = await env.DB.prepare('SELECT * FROM users WHERE email = ?').bind(email).first<UserRow>();
   const ok = await verifyPassword(password, user?.password_hash ?? DUMMY_HASH);
   if (!user || !ok) {
+    await failed(user ? 'wrong-password' : 'no-account', user?.id);
     const left = await limit(env, key, MAX_LOGIN_FAILURES, LOGIN_LOCK_MS, 'Too many wrong passwords.');
     throw new ApiError(401, left <= 2 && left > 0 ? `Email or password is wrong. ${left} more tr${left === 1 ? 'y' : 'ies'} before a 15-minute pause.` : 'Email or password is wrong.');
   }
-  if (user.blocked_at) throw new ApiError(403, 'This account is blocked. Please contact support.');
+  if (user.blocked_at) {
+    await failed('blocked', user.id);
+    throw new ApiError(403, 'This account is blocked. Please contact support.');
+  }
   await clearLimit(env, key);
   const now = Date.now();
   const role = user.role === 'admin' || isAdminEmail(env, email) ? 'admin' : 'user';
   await env.DB.prepare('UPDATE users SET last_login_at = ?, login_count = login_count + 1, role = ? WHERE id = ?').bind(now, role, user.id).run();
   const remember = body.remember === true;
-  const token = await createSession(env, request, user.id, remember);
+  const token = await createSession(env, request, user.id, remember, visitorId);
+  await recordLogin(env, request, { email, userId: user.id, success: true, method: 'password', visitorId }, user);
   return json({ user: publicUser({ ...user, role, last_login_at: now }) }, 200, sessionHeaders(token, remember));
 }
 
@@ -167,7 +182,7 @@ export async function forgotPassword(env: Env, request: Request): Promise<Respon
 }
 
 export async function resetPassword(env: Env, request: Request): Promise<Response> {
-  const body = await readJson<{ token?: string; password?: string }>(request);
+  const body = await readJson<{ token?: string; password?: string; visitorId?: string }>(request);
   const password = String(body.password ?? '');
   const problem = passwordError(password);
   if (problem) throw new ApiError(400, problem, { password: problem });
@@ -180,6 +195,7 @@ export async function resetPassword(env: Env, request: Request): Promise<Respons
     env.DB.prepare('DELETE FROM sessions WHERE user_id = ?').bind(userId),
   ]);
   await clearLimit(env, `login:${user.email}`);
+  await recordLogin(env, request, { email: user.email, userId, success: true, method: 'reset', visitorId: body.visitorId });
   await sendMail(env, {
     to: user.email,
     subject: 'Your DevTools24 password was changed',

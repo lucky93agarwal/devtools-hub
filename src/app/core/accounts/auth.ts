@@ -2,6 +2,7 @@ import { Injectable, PLATFORM_ID, inject, signal } from '@angular/core';
 import { isPlatformBrowser } from '@angular/common';
 import { ACCOUNTS } from '../app-config';
 import type { SignupInput } from './validation';
+import { visitorId } from './visits';
 
 export interface AccountUser {
   id: string;
@@ -12,6 +13,37 @@ export interface AccountUser {
   role: 'user' | 'admin';
   emailVerified: boolean;
   createdAt: number;
+}
+
+export interface LoginRecord {
+  created_at: number;
+  success: number;
+  method: string;
+  reason: string | null;
+  new_device: number;
+  ip: string | null;
+  country: string | null;
+  region: string | null;
+  city: string | null;
+  device_type: string | null;
+  os: string | null;
+  browser: string | null;
+}
+
+export interface DeviceSession {
+  id: string;
+  createdAt: number;
+  lastSeenAt: number;
+  ip: string;
+  deviceType: string;
+  os: string;
+  browser: string;
+  current: boolean;
+}
+
+export interface LoginActivity {
+  logins: LoginRecord[];
+  sessions: DeviceSession[];
 }
 
 /** An error from the accounts API, with a message for people and, for forms, one per field. */
@@ -60,13 +92,13 @@ export class Auth {
   }
 
   async signup(input: SignupInput & { captcha: string }): Promise<AccountUser> {
-    const { user } = await this.call<{ user: AccountUser }>('POST', '/api/auth/signup', input);
+    const { user } = await this.call<{ user: AccountUser }>('POST', '/api/auth/signup', { ...input, visitorId: visitorId() });
     this.user.set(user);
     return user;
   }
 
   async login(email: string, password: string, remember: boolean, captcha: string): Promise<AccountUser> {
-    const { user } = await this.call<{ user: AccountUser }>('POST', '/api/auth/login', { email, password, remember, captcha });
+    const { user } = await this.call<{ user: AccountUser }>('POST', '/api/auth/login', { email, password, remember, captcha, visitorId: visitorId() });
     this.user.set(user);
     return user;
   }
@@ -81,7 +113,7 @@ export class Auth {
   }
 
   resetPassword(token: string, password: string): Promise<unknown> {
-    return this.call('POST', '/api/auth/reset-password', { token, password });
+    return this.call('POST', '/api/auth/reset-password', { token, password, visitorId: visitorId() });
   }
 
   async verifyEmail(token: string): Promise<void> {
@@ -91,6 +123,16 @@ export class Auth {
 
   resendVerification(): Promise<unknown> {
     return this.call('POST', '/api/auth/resend-verification', {});
+  }
+
+  /** This user's recent logins and the devices they are logged in on. */
+  activity(): Promise<LoginActivity> {
+    return this.call<LoginActivity>('GET', '/api/auth/activity');
+  }
+
+  /** Logs out one of this user's other devices. */
+  endSession(id: string): Promise<unknown> {
+    return this.call('POST', `/api/auth/sessions/${encodeURIComponent(id)}/logout`, {});
   }
 
   changePassword(currentPassword: string, newPassword: string): Promise<unknown> {
