@@ -172,6 +172,23 @@ const guideRoutes: Routes = [
   })),
 ];
 
+/** Accounts: log in, sign up, passwords, the user's account and the admin panel. Kept out of search results. */
+const accountPage = (load: () => Promise<Type<unknown>>, path: string, title: string, description: string) => ({
+  path,
+  title,
+  loadComponent: load,
+  data: { description, noindex: true },
+});
+const accountRoutes: Routes = [
+  accountPage(() => import('./pages/account/login-page').then((m) => m.LoginPage), 'login', 'Log in', 'Log in to your DevTools24 account.'),
+  accountPage(() => import('./pages/account/signup-page').then((m) => m.SignupPage), 'signup', 'Create an account', 'Create a free DevTools24 account.'),
+  accountPage(() => import('./pages/account/password-pages').then((m) => m.ForgotPage), 'forgot-password', 'Forgot password', 'Get a link to reset your DevTools24 password.'),
+  accountPage(() => import('./pages/account/password-pages').then((m) => m.ResetPage), 'reset-password', 'Reset password', 'Choose a new password for your DevTools24 account.'),
+  accountPage(() => import('./pages/account/password-pages').then((m) => m.VerifyPage), 'verify-email', 'Confirm email', 'Confirm the email address of your DevTools24 account.'),
+  accountPage(() => import('./pages/account/account-page').then((m) => m.AccountPage), 'account', 'My account', 'Your DevTools24 account details.'),
+  accountPage(() => import('./pages/account/admin-page').then((m) => m.AdminPage), 'admin', 'Admin panel', 'DevTools24 admin panel.'),
+];
+
 export const routes: Routes = [
   {
     path: '',
@@ -185,6 +202,7 @@ export const routes: Routes = [
   ...toolRoutes,
   ...guideRoutes,
   ...infoRoutes,
+  ...accountRoutes,
   {
     // Hidden proof-of-concept page for the background remover; not linked and not indexed.
     path: 'lab/background-remover',

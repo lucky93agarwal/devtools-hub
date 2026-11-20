@@ -64,6 +64,13 @@
       >
         <app-icon [path]="theme.theme() === 'dark' ? icons.sun : icons.moon" [size]="20" />
       </button>
+      @if (accountsOn) {
+        @if (auth.user(); as u) {
+          <a routerLink="/account" class="ml-1 grid size-10 place-items-center rounded-full bg-brand text-sm font-semibold text-on-brand hover:bg-brand-strong" [attr.aria-label]="'My account (' + u.email + ')'" [title]="u.firstName + ' ' + u.lastName">{{ u.firstName[0] }}{{ u.lastName[0] }}</a>
+        } @else {
+          <a routerLink="/login" class="ml-1 flex h-10 shrink-0 items-center rounded-full border border-line px-4 text-sm font-semibold whitespace-nowrap hover:bg-surface">Log in</a>
+        }
+      }
 
     </div>
   </div>

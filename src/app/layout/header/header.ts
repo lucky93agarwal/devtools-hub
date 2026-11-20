@@ -1,7 +1,8 @@
 import { Component, ElementRef, inject, signal, viewChild } from '@angular/core';
 import { RouterLink, RouterLinkActive } from '@angular/router';
 import { NAV_LINKS } from '../../core/tools';
-import { SITE_NAME } from '../../core/app-config';
+import { ACCOUNTS, SITE_NAME } from '../../core/app-config';
+import { Auth } from '../../core/accounts/auth';
 import { ThemeService } from '../../core/theme.service';
 import { InstallPrompt } from '../../core/install-prompt';
 import { CommandPalette } from '../../shared/command-palette/command-palette';
@@ -16,6 +17,9 @@ import { ToolNav } from '../../shared/tool-nav/tool-nav';
 export class Header {
   protected readonly theme = inject(ThemeService);
   protected readonly install = inject(InstallPrompt);
+  protected readonly auth = inject(Auth);
+  /** Log in is optional and only shown when accounts are switched on. */
+  protected readonly accountsOn = ACCOUNTS.enabled;
   protected readonly links = NAV_LINKS;
   protected readonly siteName = SITE_NAME;
   protected readonly icons = ICONS;

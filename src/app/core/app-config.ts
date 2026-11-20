@@ -76,3 +76,13 @@ export const LIMITS = {
   /** Maximum JSON file size for upload, in bytes (20 MB). */
   MAX_JSON_BYTES: 20 * 1024 * 1024,
 } as const;
+
+/**
+ * Accounts (sign up, log in, forgot password, admin panel). Logging in is optional: every
+ * tool works without an account. `enabled` shows the Log in link in the header.
+ */
+export const ACCOUNTS = {
+  enabled: true,
+  /** Cloudflare Turnstile site key. This is Cloudflare's public test key (the check always passes); the real key replaces it before going live. */
+  turnstileSiteKey: '1x00000000000000000000AA',
+} as const;

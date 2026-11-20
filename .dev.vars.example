@@ -1,0 +1,9 @@
+# Local secrets for `npx wrangler dev`. Copy this file to .dev.vars (which git ignores).
+# Cloudflare's Turnstile test secret: the robot check always passes.
+TURNSTILE_SECRET=1x0000000000000000000000000000000AA
+# Accounts with these emails become admins when they sign up or log in.
+ADMIN_EMAILS=admin@devtools24.test
+# Leave empty locally: emails then appear in Admin panel → Emails instead of being sent.
+RESEND_API_KEY=
+# Address used in email links when testing locally.
+APP_URL=http://localhost:8788

@@ -1,7 +1,9 @@
-// Cloudflare Workers config. The site is fully prerendered, so it is served as
-// static assets only: no Worker code runs and requests stay on the free tier.
+// Cloudflare Workers config. The site is fully prerendered and served as static
+// assets. Only /api/* (accounts) runs Worker code (worker/index.ts) with a D1
+// database; every other request is served as a file, as before.
 {
   "name": "devtools-hub",
+  "main": "worker/index.ts",
   "compatibility_date": "2026-10-01",
   // The site's own domain. Cloudflare creates the DNS records and certificates;
   // the zone must be active in this Cloudflare account first.
@@ -16,6 +18,20 @@
     "directory": "./dist/devtools-hub/browser",
     // Unknown URLs get 404.html with a 404 status (see scripts/postbuild.mjs).
     "not_found_handling": "404-page",
-    "html_handling": "drop-trailing-slash"
-  }
+    "html_handling": "drop-trailing-slash",
+    "binding": "ASSETS",
+    // The Worker only runs for the API; pages and files skip it.
+    "run_worker_first": ["/api/*"]
+  },
+  // Accounts database. For local testing this id is only a name; before going live a
+  // real D1 database is created and its id goes here.
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "devtools24-accounts",
+      "database_id": "00000000-0000-0000-0000-000000000000",
+      "migrations_dir": "migrations"
+    }
+  ],
+  "observability": { "enabled": true }
 }

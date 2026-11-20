@@ -49,3 +49,7 @@ Thumbs.db
 # Playwright
 /test-results
 /playwright-report
+
+# Cloudflare local development (local database, secrets)
+.wrangler/
+.dev.vars

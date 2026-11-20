@@ -1,0 +1,154 @@
+/** The admin panel's API: numbers, the users list, one user, blocking, emails and the admin log. */
+import type { Env } from './env';
+import { ApiError, json, readJson } from './http';
+import { requireAdmin, type UserRow } from './services';
+
+const DAY = 86_400_000;
+
+function listUser(u: UserRow & { sessions?: number }) {
+  return {
+    id: u.id,
+    firstName: u.first_name,
+    lastName: u.last_name,
+    email: u.email,
+    mobile: u.mobile,
+    role: u.role,
+    emailVerified: !!u.email_verified_at,
+    emailVerifiedAt: u.email_verified_at,
+    blocked: !!u.blocked_at,
+    blockedAt: u.blocked_at,
+    createdAt: u.created_at,
+    lastLoginAt: u.last_login_at,
+    loginCount: u.login_count,
+    activeSessions: u.sessions ?? 0,
+  };
+}
+
+async function log(env: Env, adminId: string, action: string, targetId: string | null): Promise<void> {
+  await env.DB.prepare('INSERT INTO admin_log (admin_id, action, target_id, created_at) VALUES (?, ?, ?, ?)').bind(adminId, action, targetId, Date.now()).run();
+}
+
+export async function stats(env: Env, request: Request): Promise<Response> {
+  await requireAdmin(env, request);
+  const now = Date.now();
+  const row = await env.DB.prepare(
+    `SELECT
+       COUNT(*) AS total,
+       SUM(created_at >= ?) AS today,
+       SUM(created_at >= ?) AS week,
+       SUM(email_verified_at IS NOT NULL) AS verified,
+       SUM(blocked_at IS NOT NULL) AS blocked,
+       SUM(role = 'admin') AS admins,
+       SUM(last_login_at >= ?) AS activeToday
+     FROM users`,
+  )
+    .bind(now - DAY, now - 7 * DAY, now - DAY)
+    .first<Record<string, number | null>>();
+  const sessions = await env.DB.prepare('SELECT COUNT(*) AS n FROM sessions WHERE expires_at > ?').bind(now).first<{ n: number }>();
+  const daily = await env.DB.prepare(
+    `SELECT CAST((created_at - ?) / ? AS INTEGER) AS day, COUNT(*) AS n FROM users WHERE created_at >= ? GROUP BY day ORDER BY day`,
+  )
+    .bind(now - 14 * DAY, DAY, now - 14 * DAY)
+    .all<{ day: number; n: number }>();
+  const signupsByDay = Array.from({ length: 14 }, (_, i) => daily.results.find((d) => d.day === i)?.n ?? 0);
+  return json({
+    total: row?.total ?? 0,
+    today: row?.today ?? 0,
+    week: row?.week ?? 0,
+    verified: row?.verified ?? 0,
+    blocked: row?.blocked ?? 0,
+    admins: row?.admins ?? 0,
+    activeToday: row?.activeToday ?? 0,
+    activeSessions: sessions?.n ?? 0,
+    signupsByDay,
+  });
+}
+
+const FILTERS: Record<string, string> = {
+  all: '1 = 1',
+  verified: 'email_verified_at IS NOT NULL',
+  unverified: 'email_verified_at IS NULL',
+  blocked: 'blocked_at IS NOT NULL',
+  admins: "role = 'admin'",
+};
+const SORTS: Record<string, string> = {
+  newest: 'created_at DESC',
+  oldest: 'created_at ASC',
+  'last-login': 'last_login_at IS NULL, last_login_at DESC',
+  name: 'first_name COLLATE NOCASE, last_name COLLATE NOCASE',
+};
+
+export async function users(env: Env, request: Request): Promise<Response> {
+  await requireAdmin(env, request);
+  const url = new URL(request.url);
+  const q = (url.searchParams.get('q') ?? '').trim().toLowerCase().slice(0, 100);
+  const filter = FILTERS[url.searchParams.get('filter') ?? 'all'] ?? FILTERS['all'];
+  const sort = SORTS[url.searchParams.get('sort') ?? 'newest'] ?? SORTS['newest'];
+  const size = Math.min(100, Math.max(5, Number(url.searchParams.get('size')) || 20));
+  const page = Math.max(1, Number(url.searchParams.get('page')) || 1);
+  const like = `%${q.replace(/[%_]/g, '')}%`;
+  const where = `${filter} AND (? = '' OR LOWER(first_name || ' ' || last_name) LIKE ? OR email LIKE ? OR mobile LIKE ?)`;
+  const total = await env.DB.prepare(`SELECT COUNT(*) AS n FROM users WHERE ${where}`).bind(q, like, like, like).first<{ n: number }>();
+  const rows = await env.DB.prepare(
+    `SELECT users.*, (SELECT COUNT(*) FROM sessions WHERE sessions.user_id = users.id AND sessions.expires_at > ?) AS sessions
+     FROM users WHERE ${where} ORDER BY ${sort} LIMIT ? OFFSET ?`,
+  )
+    .bind(Date.now(), q, like, like, like, size, (page - 1) * size)
+    .all<UserRow & { sessions: number }>();
+  return json({ users: rows.results.map(listUser), total: total?.n ?? 0, page, size });
+}
+
+export async function user(env: Env, request: Request, id: string): Promise<Response> {
+  await requireAdmin(env, request);
+  const row = await env.DB.prepare('SELECT * FROM users WHERE id = ?').bind(id).first<UserRow>();
+  if (!row) throw new ApiError(404, 'This user does not exist.');
+  const sessions = await env.DB.prepare('SELECT created_at, last_seen_at, expires_at, user_agent, ip FROM sessions WHERE user_id = ? AND expires_at > ? ORDER BY last_seen_at DESC')
+    .bind(id, Date.now())
+    .all<{ created_at: number; last_seen_at: number; expires_at: number; user_agent: string; ip: string }>();
+  const emails = await env.DB.prepare('SELECT id, subject, sent, created_at FROM outbox WHERE to_email = ? ORDER BY id DESC LIMIT 20').bind(row.email).all();
+  return json({
+    user: { ...listUser({ ...row, sessions: sessions.results.length }) },
+    sessions: sessions.results.map((s) => ({ createdAt: s.created_at, lastSeenAt: s.last_seen_at, expiresAt: s.expires_at, userAgent: s.user_agent, ip: s.ip })),
+    emails: emails.results,
+  });
+}
+
+export async function block(env: Env, request: Request, id: string): Promise<Response> {
+  const admin = await requireAdmin(env, request);
+  const body = await readJson<{ blocked?: boolean }>(request);
+  if (id === admin.id) throw new ApiError(400, 'You cannot block your own account.');
+  const target = await env.DB.prepare('SELECT id FROM users WHERE id = ?').bind(id).first();
+  if (!target) throw new ApiError(404, 'This user does not exist.');
+  const blocked = body.blocked === true;
+  await env.DB.batch([
+    env.DB.prepare('UPDATE users SET blocked_at = ? WHERE id = ?').bind(blocked ? Date.now() : null, id),
+    // A blocked user is logged out everywhere at once.
+    ...(blocked ? [env.DB.prepare('DELETE FROM sessions WHERE user_id = ?').bind(id)] : []),
+  ]);
+  await log(env, admin.id, blocked ? 'block user' : 'unblock user', id);
+  return json({ ok: true });
+}
+
+export async function logoutEverywhere(env: Env, request: Request, id: string): Promise<Response> {
+  const admin = await requireAdmin(env, request);
+  await readJson(request);
+  await env.DB.prepare('DELETE FROM sessions WHERE user_id = ?').bind(id).run();
+  await log(env, admin.id, 'log out everywhere', id);
+  return json({ ok: true });
+}
+
+export async function outbox(env: Env, request: Request): Promise<Response> {
+  await requireAdmin(env, request);
+  const rows = await env.DB.prepare('SELECT id, to_email, subject, body, link, sent, created_at FROM outbox ORDER BY id DESC LIMIT 100').all();
+  return json({ emails: rows.results, emailServiceOn: !!env.RESEND_API_KEY });
+}
+
+export async function adminLog(env: Env, request: Request): Promise<Response> {
+  await requireAdmin(env, request);
+  const rows = await env.DB.prepare(
+    `SELECT admin_log.id, admin_log.action, admin_log.created_at, a.email AS admin_email, t.email AS target_email
+     FROM admin_log LEFT JOIN users a ON a.id = admin_log.admin_id LEFT JOIN users t ON t.id = admin_log.target_id
+     ORDER BY admin_log.id DESC LIMIT 100`,
+  ).all();
+  return json({ entries: rows.results });
+}

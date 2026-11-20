@@ -53,6 +53,12 @@ export async function startServer(dir, port = 0) {
 
   const server = createServer(async (req, res) => {
     const { pathname, search } = new URL(req.url ?? '/', 'http://localhost');
+    // Stands in for the accounts Worker, which these tests do not run: nobody is logged in.
+    if (pathname === '/api/auth/me') {
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end('{"user":null}');
+      return;
+    }
     if (pathname.length > 1 && pathname.endsWith('/')) {
       res.writeHead(307, { Location: pathname.slice(0, -1) + search });
       res.end();
