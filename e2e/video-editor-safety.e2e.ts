@@ -30,7 +30,7 @@ test('locked tracks are not changed by paste, slideshow, titles or properties', 
   const clip = page.getByRole('button', { name: 'Clip clip.mp4' });
   await clip.click();
   await page.keyboard.press('Control+c');
-  for (const n of [1, 2, 3, 4, 5]) await page.getByRole('button', { name: `Lock Track ${n}` }).click();
+  for (const n of [1, 2, 3]) await page.getByRole('button', { name: `Lock Track ${n}` }).click();
 
   await page.getByRole('button', { name: 'Jump to end' }).click();
   await page.keyboard.press('Control+v');

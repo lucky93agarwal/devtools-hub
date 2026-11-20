@@ -71,7 +71,8 @@ export function drawTitle(context: CanvasRenderingContext2D, title: TitleStyle, 
   context.save();
   context.font = `700 ${size}px ${fontCss}`;
   // Long lines wrap so the title stays inside the frame.
-  const allLines = wrapLines(context, title.text, width * 0.9);
+  // The text is centred on title.x, so it may only be as wide as the space on its narrower side.
+  const allLines = wrapLines(context, title.text, width * Math.min(0.9, 2 * Math.min(title.x, 1 - title.x) * 0.96));
   let lines = allLines;
   if (animation === 'typewriter' && p < 1) {
     let left = Math.floor(allLines.join('').length * p);

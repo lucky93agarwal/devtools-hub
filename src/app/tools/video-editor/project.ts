@@ -285,7 +285,8 @@ export function newProject(): Project {
     width: 1280,
     height: 720,
     fps: 30,
-    tracks: [1, 2, 3, 4, 5].map((n) => ({ id: n, name: `Track ${n}`, muted: false, hidden: false })),
+    // Three tracks fit on a laptop screen; more can be added with + Track.
+    tracks: [1, 2, 3].map((n) => ({ id: n, name: `Track ${n}`, muted: false, hidden: false })),
     clips: [],
   };
 }
@@ -799,4 +800,53 @@ export function renameTrack(project: Project, id: number, name: string): Project
   const clean = name.trim().slice(0, 30);
   if (!clean) return project;
   return { ...project, tracks: project.tracks.map((t) => (t.id === id ? { ...t, name: clean } : t)) };
+}
+
+/**
+ * Deletes clips and closes the hole each leaves on its own track: later clips on that track
+ * slide left, but never into the clip before the hole (an existing gap stays).
+ */
+export function rippleDelete(project: Project, ids: readonly string[]): Project {
+  let next = project;
+  const doomed = project.clips.filter((c) => ids.includes(c.id)).sort((a, b) => b.start - a.start);
+  for (const clip of doomed) {
+    next = removeClip(next, clip.id);
+    const same = next.clips.filter((c) => c.track === clip.track);
+    const after = same.filter((c) => c.start >= clipEnd(clip) - 1e-6);
+    if (!after.length) continue;
+    const before = Math.max(0, ...same.filter((c) => c.start < clip.start).map(clipEnd));
+    const nextStart = Math.min(...after.map((c) => c.start));
+    // Close only the deleted clip's own span; gaps that were already there stay.
+    const by = Math.max(0, Math.min(clipLength(clip), nextStart - before));
+    if (by <= 1e-6) continue;
+    const moving = new Set(after.map((c) => c.id));
+    next = { ...next, clips: next.clips.map((c) => (moving.has(c.id) ? { ...c, start: c.start - by } : c)) };
+  }
+  return next;
+}
+
+/**
+ * Makes a sound clip end with the video at `end`: a longer sound is cut, a shorter one is
+ * repeated back to back. The last part fades out over `fade` seconds.
+ */
+export function fitAudio(project: Project, id: string, end: number, sourceLength: number, fade = 1.5): { project: Project; ids: string[] } {
+  const clip = project.clips.find((c) => c.id === id);
+  if (!clip || end <= clip.start + MIN_CLIP) return { project, ids: [] };
+  let next = project;
+  const ids = [id];
+  if (clipEnd(clip) > end) {
+    next = trimClip(next, id, 'end', end, sourceLength);
+  } else {
+    let at = clipEnd(clip);
+    while (at < end - MIN_CLIP) {
+      const copy: Clip = { ...structuredClone(clip), id: makeId('clip'), start: at, transitionIn: undefined, transitionOut: undefined };
+      next = { ...next, clips: [...next.clips, copy] };
+      ids.push(copy.id);
+      if (clipEnd(copy) > end) next = trimClip(next, copy.id, 'end', end, sourceLength);
+      at = clipEnd(next.clips.find((c) => c.id === copy.id)!);
+    }
+  }
+  const last = next.clips.find((c) => c.id === ids[ids.length - 1])!;
+  next = updateClip(next, last.id, { transitionOut: { type: 'fade', duration: Math.min(fade, clipLength(last)) } });
+  return { project: next, ids };
 }

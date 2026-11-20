@@ -1,4 +1,4 @@
-import { Component, DestroyRef, ElementRef, afterNextRender, computed, effect, inject, signal, untracked, viewChild } from '@angular/core';
+import { Component, DestroyRef, ElementRef, afterNextRender, afterRenderEffect, computed, effect, inject, signal, untracked, viewChild } from '@angular/core';
 import { baseName, downloadBlob, formatBytes } from '../../shared/file-utils';
 import { ToolPage } from '../../shared/tool-page/tool-page';
 import { ToolContent } from '../../shared/tool-info/tool-info';
@@ -34,6 +34,8 @@ import {
   renameTrack,
   timelineTime,
   speedChange,
+  fitAudio,
+  rippleDelete,
   slideshow,
   TITLE_ANIMATIONS,
   TITLE_FONTS,
@@ -247,11 +249,16 @@ type Drag =
     .tool:disabled { opacity: 0.4; }
     .tab { padding: 0.4rem 0.8rem; font-size: 0.8rem; border-bottom: 2px solid transparent; color: #9aa0ab; }
     .tab[aria-selected='true'] { color: #fff; border-color: #6d83f2; }
-    .input { background: #15171c; border: 1px solid #3a3f4a; border-radius: 0.3rem; padding: 0.2rem 0.4rem; color: #e5e7eb; }
+    .input { background: #15171c; border: 1px solid #3a3f4a; border-radius: 0.3rem; padding: 0.2rem 0.4rem; color: #e5e7eb; font-size: 0.8rem; }
+    /* Fingers need bigger targets than a mouse pointer. */
+    @media (pointer: coarse) {
+      .tool { min-height: 2.5rem; min-width: 2.5rem; justify-content: center; }
+      .tap { min-width: 2.25rem; min-height: 2rem; display: inline-grid; place-items: center; }
+    }
   `,
   template: `
     <app-tool-page path="video-editor" [content]="content" [wide]="true" privacy="Your videos are edited on your device and never uploaded.">
-      <div class="editor overflow-hidden rounded-xl select-none" (dragover)="$event.preventDefault()" (change)="releaseFocus($event)">
+      <div #editorRoot class="editor flex flex-col overflow-hidden rounded-xl select-none" (dragover)="$event.preventDefault()" (change)="releaseFocus($event)">
         <!-- Toolbar -->
         <div class="flex flex-wrap items-center gap-1 border-b border-[#343842] px-2 py-1.5" role="toolbar" aria-label="Editor">
           <button type="button" class="tool" (click)="newProjectClick()">＋ New project</button>
@@ -279,7 +286,7 @@ type Drag =
               <input type="color" class="h-6 w-8" aria-label="Background colour" [value]="project().background?.colour ?? '#000000'" (change)="setBackground('colour', $any($event.target).value)" />
             }
           </label>
-          <button type="button" class="tool" aria-label="Video editor shortcuts" title="Keyboard shortcuts" (click)="showShortcuts.set(true)">⌨</button>
+          <button type="button" class="tool" aria-label="Video editor shortcuts" title="Keyboard shortcuts" (click)="showShortcuts.set(true)">⌨ Keys</button>
           <span class="flex-1"></span>
           <span class="mr-2 text-xs text-[#9aa0ab]" role="status" aria-label="Save status">
             @switch (saveState()) {
@@ -297,8 +304,8 @@ type Drag =
             <option value="high" selected>High</option>
             <option value="very-high">Very high</option>
           </select>
-          <button type="button" class="tool" [class.!bg-[#343842]]="showExportSettings()" [attr.aria-expanded]="showExportSettings()" aria-label="Export settings" (click)="showExportSettings.set(!showExportSettings())">⚙</button>
-          <span class="text-xs text-[#9aa0ab]" aria-label="Estimated file size" title="A rough guess; the real size depends on the picture">≈ {{ estimate() }}</span>
+          <button type="button" class="tool" [class.!bg-[#343842]]="showExportSettings()" [attr.aria-expanded]="showExportSettings()" aria-label="Export settings" (click)="showExportSettings.set(!showExportSettings())">⚙ Settings</button>
+          <span class="text-xs text-[#9aa0ab]" aria-label="Estimated file size" title="A guess: calm, still scenes come out near the smaller number, busy ones near the larger">≈ {{ estimate() }}</span>
           <button type="button" class="tool !bg-[#6d83f2] !text-white" [disabled]="exporting() || !project().clips.length" (click)="exportVideo()">⬇ Export video</button>
         </div>
         @if (showExportSettings()) {
@@ -370,9 +377,9 @@ type Drag =
           </div>
         }
 
-        <div class="grid gap-1 p-1 lg:grid-cols-[minmax(0,2fr)_minmax(0,3fr)]">
+        <div class="grid gap-1 p-1 max-lg:contents lg:grid-cols-[minmax(0,2fr)_minmax(0,3fr)]">
           <!-- Left: project files / titles / properties -->
-          <div class="panel flex min-h-72 flex-col rounded lg:max-h-[34rem]">
+          <div class="panel flex min-h-72 flex-col rounded max-lg:order-3 max-lg:m-1 lg:h-[calc(40vh+4rem)] lg:min-h-80">
             <div class="flex border-b border-[#343842]" role="tablist" aria-label="Panels">
               <button type="button" role="tab" class="tab" [attr.aria-selected]="tab() === 'files'" (click)="tab.set('files')">Project Files</button>
               <button type="button" role="tab" class="tab" [attr.aria-selected]="tab() === 'transitions'" (click)="tab.set('transitions')">Transitions</button>
@@ -388,18 +395,26 @@ type Drag =
                     <button type="button" class="flex h-full min-h-56 w-full flex-col items-center justify-center gap-2 rounded border-2 border-dashed border-[#3a3f4a] text-sm text-[#9aa0ab]" (click)="fileInput.click()">
                       <span class="text-3xl">🎬</span>
                       Drop videos, audio and images here, or click to import
+                      <ol class="mt-2 list-inside list-decimal text-left text-xs leading-6">
+                        <li>Import your videos, music and photos</li>
+                        <li>Press ＋ on a file to put it on the timeline</li>
+                        <li>Cut with ✂ Split, add titles, then ⬇ Export video</li>
+                      </ol>
                     </button>
                   } @else {
                     <ul class="grid grid-cols-2 gap-2 sm:grid-cols-3" aria-label="Project files">
                       @for (m of media(); track m.id) {
-                        <li draggable="true" class="cursor-grab rounded border border-[#343842] bg-[#1b1d23] p-1 text-xs hover:border-[#6d83f2]" [attr.aria-label]="m.name" (dragstart)="dragMedia($event, m)" (dblclick)="addAtPlayhead(m)" [title]="'Double-click to add at the playhead'">
+                        <li draggable="true" class="cursor-grab rounded border border-[#343842] bg-[#1b1d23] p-1 text-xs hover:border-[#6d83f2]" [attr.aria-label]="m.name" (dragstart)="dragMedia($event, m)" (pointerdown)="lastPointer = $event.pointerType" (click)="tapFile(m, $event)" (dblclick)="lastPointer !== 'touch' && addAtPlayhead(m)" title="Press ＋ (or double-click, or drag) to add it to the timeline">
                           <div class="grid aspect-video place-items-center overflow-hidden rounded bg-black">
                             @if (m.kind === 'video') { <video [src]="m.url + '#t=0.5'" muted preload="metadata" class="h-full w-full object-contain"></video> }
                             @else if (m.kind === 'image') { <img [src]="m.url" alt="" class="h-full w-full object-contain" /> }
                             @else { <span class="text-2xl">🎵</span> }
                           </div>
                           <p class="mt-1 flex items-center justify-between gap-1"><span class="truncate">{{ m.name }}</span>
-                            <button type="button" class="rounded px-1 text-[#9aa0ab] hover:bg-[#343842] hover:text-white" [attr.aria-label]="'Remove ' + m.name + ' from the project'" (click)="removeMedia(m.id)">✕</button>
+                            <span class="flex shrink-0">
+                              <button type="button" class="tap rounded bg-[#6d83f2] px-1.5 font-bold text-white hover:bg-[#5b70e0]" [attr.aria-label]="'Add ' + m.name + ' to the timeline'" title="Add to the timeline" (click)="$event.stopPropagation(); addAtPlayhead(m)" (dblclick)="$event.stopPropagation()">＋</button>
+                              <button type="button" class="tap rounded px-1 text-[#9aa0ab] hover:bg-[#343842] hover:text-white" [attr.aria-label]="'Remove ' + m.name + ' from the project'" (click)="$event.stopPropagation(); removeMedia(m.id)" (dblclick)="$event.stopPropagation()">✕</button>
+                            </span>
                           </p>
                           <p class="text-[#9aa0ab]">{{ m.kind === 'image' ? 'Image' : timecodeShort(m.duration) }}</p>
                         </li>
@@ -516,6 +531,17 @@ type Drag =
                         <label class="flex items-center justify-between gap-2">Volume {{ Math.round(clip.volume * 100) }}%
                           <input type="range" min="0" max="2" step="0.05" class="w-32" aria-label="Clip volume" [value]="clip.volume" (change)="change(clip.id, { volume: $any($event.target).valueAsNumber })" />
                         </label>
+                        <div class="flex items-center justify-between gap-2">
+                          <label class="flex items-center gap-1">Fade in
+                            <input type="number" min="0" max="10" step="0.5" class="input w-14" aria-label="Fade in seconds" [value]="fadeOf(clip, 'in')" (change)="setFade(clip, 'in', $any($event.target).valueAsNumber)" /> s
+                          </label>
+                          <label class="flex items-center gap-1">Fade out
+                            <input type="number" min="0" max="10" step="0.5" class="input w-14" aria-label="Fade out seconds" [value]="fadeOf(clip, 'out')" (change)="setFade(clip, 'out', $any($event.target).valueAsNumber)" /> s
+                          </label>
+                        </div>
+                        @if ((clip.audioOnly || isAudioMedia(clip)) && pictureEnd() > clip.start) {
+                          <button type="button" class="tool self-start !bg-[#2c3a4a]" (click)="fitToVideo(clip)" title="Cuts a long song, or repeats a short one, so it ends with the video, and fades it out">🎵 Fit to video length ({{ timecodeShort(pictureEnd()) }})</button>
+                        }
                       }
                       @if (clip.title; as t) {
                         <label class="flex flex-col gap-1">Text
@@ -656,10 +682,10 @@ type Drag =
           </div>
 
           <!-- Right: preview -->
-          <div class="panel flex flex-col rounded">
+          <div class="panel flex flex-col rounded max-lg:order-1 max-lg:m-1">
             <div #previewBox class="grid flex-1 place-items-center bg-black p-1">
               <div class="relative max-w-full">
-                <canvas #preview class="block max-h-[46vh] max-w-full [:fullscreen_&]:max-h-screen" role="img" aria-label="Video preview" (dblclick)="fullscreen()"></canvas>
+                <canvas #preview class="block max-h-[40vh] max-w-full [:fullscreen_&]:max-h-screen" role="img" aria-label="Video preview" (dblclick)="fullscreen()"></canvas>
                 @if (safeZones()) {
                   <svg class="pointer-events-none absolute inset-0 h-full w-full" viewBox="0 0 100 100" preserveAspectRatio="none" aria-label="Safe zones">
                     @if (project().height / project().width >= 1.6) {
@@ -686,8 +712,8 @@ type Drag =
               <button type="button" class="tool" aria-label="Next frame" title="Next frame (→)" (click)="stepFrame(1)">|▷</button>
               <button type="button" class="tool" aria-label="Forward one second" (click)="seek(time() + 1)">⏩</button>
               <button type="button" class="tool" aria-label="Jump to end" (click)="seek(duration())">⏭</button>
-              <span class="ml-2 font-mono text-xs" aria-label="Current time">{{ timecode(time(), project().fps) }}</span>
-              <span class="font-mono text-xs text-[#9aa0ab]">/ {{ timecode(duration(), project().fps) }}</span>
+              <span class="ml-2 whitespace-nowrap font-mono text-xs"><span aria-label="Current time">{{ timecode(time(), project().fps) }}</span>
+                <span class="text-[#9aa0ab]">/ {{ timecode(duration(), project().fps) }}</span></span>
               <span class="ml-2 flex h-6 w-16 flex-col justify-center gap-0.5" role="meter" aria-label="Sound level" aria-valuemin="0" aria-valuemax="100" [attr.aria-valuenow]="Math.round(Math.max(levels()[0], levels()[1]) * 100)" title="Sound level (left and right)">
                 @for (l of levels(); track $index) {
                   <span class="block h-1.5 overflow-hidden rounded bg-[#15171c]"><span class="block h-full" [style.width.%]="l * 100" [style.background]="l > 0.95 ? '#ef4444' : l > 0.7 ? '#facc15' : '#22c55e'"></span></span>
@@ -700,7 +726,7 @@ type Drag =
         </div>
 
         @if (exporting() || exported()) {
-          <div class="panel mx-1 mb-1 flex flex-wrap items-center gap-3 rounded px-3 py-2 text-sm" role="status">
+          <div class="panel mx-1 mb-1 flex flex-wrap items-center gap-3 rounded px-3 py-2 text-sm max-lg:order-2" role="status">
             @if (exporting()) {
               <span>{{ exportStage() }}</span>
               <div class="h-2 w-48 overflow-hidden rounded bg-[#15171c]" role="progressbar" aria-label="Export progress" [attr.aria-valuenow]="exportPercent()" aria-valuemin="0" aria-valuemax="100">
@@ -716,13 +742,14 @@ type Drag =
         }
 
         <!-- Timeline -->
-        <div class="panel m-1 mt-0 rounded">
+        <div class="panel m-1 mt-0 rounded max-lg:order-2">
           <div class="flex flex-wrap items-center gap-1 border-b border-[#343842] px-2 py-1" role="toolbar" aria-label="Timeline">
             <span class="mr-2 text-xs font-semibold">Timeline</span>
             <button type="button" class="tool" aria-label="Add track" (click)="addTrack()">＋ Track</button>
             <button type="button" class="tool" [class.!bg-[#343842]]="snapping()" [attr.aria-pressed]="snapping()" aria-label="Snapping" (click)="snapping.set(!snapping())">🧲 Snap</button>
             <button type="button" class="tool" aria-label="Split at playhead" (click)="splitAtPlayhead()">✂ Split</button>
             <button type="button" class="tool" [disabled]="!selectedId()" aria-label="Delete clip" (click)="deleteSelected()">🗑 Delete</button>
+            <button type="button" class="tool" [class.!bg-[#343842]]="ripple()" [attr.aria-pressed]="ripple()" aria-label="Close gaps" title="When on, deleting a clip slides the clips after it back, so no gap is left" (click)="ripple.set(!ripple())">⇤ Close gaps</button>
             <button type="button" class="tool" [disabled]="!selectedIds().length" aria-label="Copy clips" (click)="copy()">⧉ Copy</button>
             <button type="button" class="tool" [disabled]="!clipboard().length" aria-label="Paste clips" (click)="paste()">📋 Paste</button>
             <button type="button" class="tool" aria-label="Add marker" (click)="toggleMarker()">⚑ Marker</button>
@@ -749,16 +776,16 @@ type Drag =
               <!-- Tracks, highest on top as in desktop editors -->
               @for (track of tracksTopDown(); track track.id) {
                 <div class="flex border-b border-[#2c3038]" [style.height.px]="ROW">
-                  <div class="sticky left-0 z-10 flex shrink-0 flex-col justify-center gap-0.5 border-r border-[#343842] bg-[#23262e] px-2 text-xs" [style.width.px]="HEADER">
+                  <div class="sticky left-0 z-10 flex shrink-0 flex-col justify-center gap-0.5 border-r border-[#343842] bg-[#23262e] px-2 text-xs [@media(pointer:coarse)]:px-1" [style.width.px]="HEADER">
                     @if (renaming() === track.id) {
                       <input class="input w-full !py-0 text-xs" [attr.aria-label]="'Rename ' + track.name" [value]="track.name" maxlength="30" (keydown.enter)="$any($event.target).blur()" (keydown.escape)="renaming.set(null)" (blur)="finishRename(track.id, $any($event.target).value)" (pointerdown)="$event.stopPropagation()" />
                     } @else {
                       <span class="cursor-text truncate font-semibold" title="Double-click to rename" (dblclick)="startRename(track.id)">{{ track.name }}</span>
                     }
-                    <span class="flex gap-1">
-                      <button type="button" class="rounded px-1" [class.opacity-40]="track.hidden" [attr.aria-label]="(track.hidden ? 'Show ' : 'Hide ') + track.name" (click)="toggleTrack(track.id, 'hidden')">👁</button>
-                      <button type="button" class="rounded px-1" [class.opacity-40]="track.muted" [attr.aria-label]="(track.muted ? 'Unmute ' : 'Mute ') + track.name" (click)="toggleTrack(track.id, 'muted')">🔊</button>
-                      <button type="button" class="rounded px-1" [class.opacity-40]="!track.locked" [attr.aria-label]="(track.locked ? 'Unlock ' : 'Lock ') + track.name" (click)="toggleTrack(track.id, 'locked')">🔒</button>
+                    <span class="flex gap-1 [@media(pointer:coarse)]:gap-0">
+                      <button type="button" class="tap rounded px-1" [class.opacity-40]="track.hidden" [attr.aria-label]="(track.hidden ? 'Show ' : 'Hide ') + track.name" (click)="toggleTrack(track.id, 'hidden')">👁</button>
+                      <button type="button" class="tap rounded px-1" [class.opacity-40]="track.muted" [attr.aria-label]="(track.muted ? 'Unmute ' : 'Mute ') + track.name" (click)="toggleTrack(track.id, 'muted')">🔊</button>
+                      <button type="button" class="tap rounded px-1" [class.opacity-40]="!track.locked" [attr.aria-label]="(track.locked ? 'Unlock ' : 'Lock ') + track.name" (click)="toggleTrack(track.id, 'locked')">🔒</button>
                     </span>
                   </div>
                   <div class="relative flex-1" [class]="track.locked ? 'bg-[repeating-linear-gradient(45deg,#1f2228_0_8px,#262a31_8px_16px)]' : 'bg-[#1f2228]'" [attr.data-track]="track.id" (pointerdown)="emptyDown($event)" (drop)="dropOnTrack($event, track.id)" (dragover)="$event.preventDefault()">
@@ -793,6 +820,9 @@ type Drag =
                     }
                   </div>
                 </div>
+              }
+              @if (!project().clips.length) {
+                <p class="pointer-events-none absolute top-14 z-10 text-xs text-[#9aa0ab]" [style.left.px]="HEADER + 12">Your clips appear here. Press ＋ on a file in Project Files to add it.</p>
               }
               <!-- Playhead -->
               <div class="pointer-events-none absolute top-0 bottom-0 z-30 w-px bg-red-500" [style.left.px]="HEADER + time() * pps()">
@@ -898,7 +928,9 @@ export class VideoEditor {
     if (!project.clips.length) return '0 MB';
     const muted = new Set(project.tracks.filter((t) => t.muted).map((t) => t.id));
     const sound = project.clips.some((c) => !c.muted && !muted.has(c.track) && c.volume > 0 && this.mediaById().get(c.mediaId ?? '')?.hasAudio);
-    return sizeText(estimateSize(project, this.exportOptions(), sound));
+    const bytes = estimateSize(project, this.exportOptions(), sound);
+    // The encoder spends fewer bits on calm pictures, so videos show a range.
+    return ['mp4', 'webm'].includes(this.exportFormat()) ? `${sizeText(bytes * 0.3)}–${sizeText(bytes)}` : sizeText(bytes);
   });
   protected readonly time = signal(0);
   protected readonly playing = signal(false);
@@ -912,6 +944,14 @@ export class VideoEditor {
   protected readonly exported = signal<{ blob: Blob; name: string } | null>(null);
   protected readonly saveState = signal<'idle' | 'saving' | 'saved' | 'failed'>('idle');
   protected readonly otherTab = signal(false);
+  /** Deleting a clip closes the gap it leaves (on by default, as phone editors do). */
+  protected readonly ripple = signal(true);
+  protected lastPointer = '';
+  /** Where the pictures (videos, photos, titles) end: music is fitted to this. */
+  protected readonly pictureEnd = computed(() => {
+    const media = this.mediaById();
+    return Math.max(0, ...this.project().clips.filter((c) => !c.audioOnly && (c.title || media.get(c.mediaId ?? '')?.kind !== 'audio')).map(clipEnd));
+  });
   /** A short message shown under the toolbar (for example why something could not be done). */
   protected readonly notice = signal('');
   private noticeTimer?: ReturnType<typeof setTimeout>;
@@ -940,6 +980,7 @@ export class VideoEditor {
   private readonly previewCanvas = viewChild.required<ElementRef<HTMLCanvasElement>>('preview');
   private readonly previewBox = viewChild.required<ElementRef<HTMLElement>>('previewBox');
   private readonly scroller = viewChild.required<ElementRef<HTMLElement>>('scroller');
+  private readonly editorRoot = viewChild.required<ElementRef<HTMLElement>>('editorRoot');
   private previewer: Previewer | null = null;
   private drag: Drag | null = null;
   private dragStartProject: Project | null = null;
@@ -959,6 +1000,8 @@ export class VideoEditor {
         },
       );
       this.previewer.setProject(this.project(), this.media());
+      // Phones show more of the timeline at a time.
+      if (innerWidth < 640) this.pps.set(30);
       addEventListener('pointermove', this.onMove);
       addEventListener('pointerup', this.onUp);
       void this.checkSaved();
@@ -972,6 +1015,16 @@ export class VideoEditor {
       const project = this.project();
       const media = this.media();
       untracked(() => this.previewer?.setProject(project, media));
+    });
+    // The timeline scrolls to keep the playhead in view (after jumps, adding clips and while playing).
+    afterRenderEffect(() => {
+      const x = this.time() * this.pps();
+      const playing = this.playing();
+      if (this.drag) return;
+      const el = this.scroller().nativeElement;
+      const view = el.clientWidth - HEADER;
+      if (view <= 0) return;
+      if (x < el.scrollLeft || x > el.scrollLeft + view - 24) el.scrollLeft = Math.max(0, x - (playing ? 24 : view / 3));
     });
     inject(DestroyRef).onDestroy(() => {
       if (typeof window === 'undefined') return;
@@ -1239,8 +1292,11 @@ export class VideoEditor {
       this.error.set(message);
       this.tell(message);
     }
+    const first = !this.media().length && added.length > 0;
     this.media.update((list) => [...list, ...added]);
     for (const m of added) void this.enrich(m);
+    // Bring the whole editor into view, so the timeline is on screen too.
+    if (first) this.editorRoot().nativeElement.scrollIntoView?.({ block: 'start', behavior: 'smooth' });
     // The first video sets the project's shape, as desktop editors suggest.
     const firstVideo = added.find((m) => m.kind === 'video');
     if (firstVideo && !this.project().clips.length && firstVideo.height > firstVideo.width) this.setProfile(2);
@@ -1265,11 +1321,29 @@ export class VideoEditor {
   }
 
   /** Double-click: audio goes on the lowest track, pictures on the lowest track that is free at the playhead. */
+  /**
+   * ＋ or double-click: videos and photos line up one after another on the lowest track;
+   * sounds go on a track of their own under the pictures, starting at the playhead.
+   */
   protected addAtPlayhead(media: MediaItem): void {
     const open = this.openTracks();
     if (!open.length) return this.tell(this.allLocked);
-    const track = media.kind === 'audio' ? open[0] : this.freeTrackAt(this.time(), media.kind === 'image' ? 5 : media.duration);
-    this.place(media, track, this.time());
+    const kinds = this.mediaById();
+    const hasPictures = (track: number) => this.project().clips.some((c) => c.track === track && !c.audioOnly && (c.title || kinds.get(c.mediaId ?? '')?.kind !== 'audio'));
+    if (media.kind !== 'audio') {
+      const track = open.find((t) => hasPictures(t)) ?? open[0];
+      this.place(media, track, this.time());
+      return;
+    }
+    const time = this.time();
+    const free = (t: number) => !this.project().clips.some((c) => c.track === t && time < clipEnd(c) && time + media.duration > c.start);
+    const track = open.find((t) => !hasPictures(t) && free(t)) ?? open.find((t) => !hasPictures(t)) ?? this.freeTrackAt(time, media.duration);
+    this.place(media, track, time);
+  }
+
+  /** On a phone, one tap on a file adds it (phones have no double-click). */
+  protected tapFile(media: MediaItem, event: MouseEvent): void {
+    if (this.lastPointer === 'touch' && event.detail <= 1) this.addAtPlayhead(media);
   }
 
   /** The lowest unlocked track free at `time` for `length` seconds (or the lowest unlocked one). */
@@ -1286,6 +1360,8 @@ export class VideoEditor {
     const { project, clip } = addMediaClip(this.project(), media, track, time);
     this.commit(project, this.project(), `Add ${media.name}`);
     this.selectedIds.set([clip.id]);
+    // Show where it went when it landed after other clips.
+    if (Math.abs(clip.start - time) > 0.01) void this.seek(clip.start);
   }
 
   protected addTitle(style: TitleStyle): void {
@@ -1296,6 +1372,8 @@ export class VideoEditor {
     this.commit(project, this.project(), 'Add title');
     this.selectedIds.set([clip.id]);
     this.tab.set('properties');
+    // Titles animate in from nothing: show the moment they have settled, so the new title is visible.
+    void this.seek(clip.start + Math.min(1.1, clipLength(clip) / 2));
   }
 
   protected setTitle(clip: Clip, change: Partial<TitleStyle>, save: boolean): void {
@@ -1435,7 +1513,8 @@ export class VideoEditor {
   protected deleteSelected(): void {
     const ids = this.selectedIds().filter((id) => !this.isLocked(this.project().clips.find((c) => c.id === id)?.track ?? -1));
     if (!ids.length) return;
-    this.commit(ids.reduce((p, id) => removeClip(p, id), this.project()), this.project(), ids.length > 1 ? `Delete ${ids.length} clips` : 'Delete clip');
+    const next = this.ripple() ? rippleDelete(this.project(), ids) : ids.reduce((p, id) => removeClip(p, id), this.project());
+    this.commit(next, this.project(), ids.length > 1 ? `Delete ${ids.length} clips` : 'Delete clip');
     this.selectedIds.set([]);
   }
 
@@ -1807,6 +1886,27 @@ export class VideoEditor {
     const target = event.target as HTMLElement;
     if (document.documentElement.dataset['input'] !== 'pointer') return;
     if (target instanceof HTMLSelectElement || (target instanceof HTMLInputElement && ['checkbox', 'range', 'color'].includes(target.type))) target.blur();
+  }
+
+  protected fadeOf(clip: Clip, side: 'in' | 'out'): number {
+    const t = side === 'in' ? clip.transitionIn : clip.transitionOut;
+    return t?.type === 'fade' ? Math.round(t.duration * 10) / 10 : 0;
+  }
+
+  /** Fade in / out in seconds (0 removes it): a fade transition, which fades the sound and the picture. */
+  protected setFade(clip: Clip, side: 'in' | 'out', seconds: number): void {
+    if (!Number.isFinite(seconds) || seconds < 0) return;
+    const key = side === 'in' ? 'transitionIn' : 'transitionOut';
+    const value = seconds > 0 ? { type: 'fade' as const, duration: Math.min(seconds, clipLength(clip)) } : undefined;
+    this.change(clip.id, { [key]: value }, side === 'in' ? 'Fade in' : 'Fade out');
+  }
+
+  protected fitToVideo(clip: Clip): void {
+    if (this.isLocked(clip.track)) return this.tell('This clip is on a locked track. Unlock the track (🔒) to change it.');
+    const length = this.sourceLength(clip) ?? clipLength(clip);
+    const { project, ids } = fitAudio(this.project(), clip.id, this.pictureEnd(), length);
+    this.commit(project, this.project(), 'Fit music to video');
+    this.selectedIds.set(ids.slice(-1));
   }
 
   protected setMirror(clip: Clip, on: boolean): void {

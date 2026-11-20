@@ -19,6 +19,8 @@ import {
   slideshow,
   sourceTime,
   shiftKeyframes,
+  rippleDelete,
+  fitAudio,
   speedChange,
   splitAll,
   splitClip,
@@ -298,5 +300,40 @@ describe('second round of fixes', () => {
     const fake = { measureText: (t: string) => ({ width: t.length * 10 }) } as unknown as CanvasRenderingContext2D;
     expect(wrapLines(fake, 'one two three four', 100)).toEqual(['one two', 'three four']);
     expect(wrapLines(fake, 'short\nsupercalifragilistic word', 90)).toEqual(['short', 'supercalifragilistic', 'word']);
+  });
+});
+
+describe('fixes from using the editor as a user', () => {
+  it('closes the gap a deleted clip leaves, but keeps gaps that were there', () => {
+    const project: Project = {
+      ...newProject(),
+      clips: [clip({ id: 'a', start: 0, out: 4 }), clip({ id: 'b', start: 4, out: 3 }), clip({ id: 'c', start: 9, out: 2 }), clip({ id: 'm', track: 2, start: 8, out: 5 })],
+    };
+    const after = rippleDelete(project, ['b']);
+    const at = (id: string) => after.clips.find((c) => c.id === id)!.start;
+    // b was 3 s long: c slides from 9 to 6 (the 2 s gap before c stays); the other track does not move.
+    expect(at('c')).toBe(6);
+    expect(at('m')).toBe(8);
+    expect(rippleDelete(project, ['c']).clips.length).toBe(3);
+  });
+
+  it('fits music to the video: repeats a short sound, cuts a long one, fades the end', () => {
+    const short: Project = { ...newProject(), clips: [clip({ id: 's', track: 2, start: 0, out: 3 })] };
+    const fitted = fitAudio(short, 's', 7.5, 3);
+    expect(fitted.ids.length).toBe(3);
+    const parts = fitted.project.clips.map((c) => [c.start, clipLength(c)]);
+    expect(parts).toEqual([
+      [0, 3],
+      [3, 3],
+      [6, 1.5],
+    ]);
+    expect(fitted.project.clips.at(-1)!.transitionOut).toEqual({ type: 'fade', duration: 1.5 });
+    const long: Project = { ...newProject(), clips: [clip({ id: 'l', track: 2, start: 1, out: 60 })] };
+    const cut = fitAudio(long, 'l', 10, 60).project.clips[0];
+    expect(clipLength(cut)).toBeCloseTo(9);
+  });
+
+  it('starts with three tracks', () => {
+    expect(newProject().tracks.map((t) => t.name)).toEqual(['Track 1', 'Track 2', 'Track 3']);
   });
 });
