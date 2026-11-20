@@ -25,6 +25,7 @@ import { Turnstile } from '../../shared/turnstile/turnstile';
           </div>
         } @else {
           <form class="card mt-6 flex flex-col gap-4 p-5" method="post" novalidate (submit)="$event.preventDefault(); submit()">
+            <fieldset class="contents" [disabled]="!ready()">
             @if (error()) { <p class="rounded-xl border border-danger bg-danger/10 px-4 py-3 text-sm" role="alert">{{ error() }}</p> }
             <label class="flex flex-col gap-1 text-sm font-semibold">Email
               <input class="field font-normal" type="email" name="email" autocomplete="email" inputmode="email" [value]="email()" (input)="email.set($any($event.target).value)" />
@@ -32,6 +33,7 @@ import { Turnstile } from '../../shared/turnstile/turnstile';
             <app-turnstile (token)="captcha.set($event)" />
             <button type="submit" class="btn-primary" [disabled]="busy() || !ready()">{{ busy() ? 'Sending…' : 'Send reset link' }}</button>
             <p class="text-center text-sm text-muted"><a routerLink="/login" class="font-semibold text-brand hover:underline">Back to log in</a></p>
+          </fieldset>
           </form>
         }
       </div>
@@ -85,6 +87,7 @@ export class ForgotPage {
           </div>
         } @else {
           <form class="card mt-6 flex flex-col gap-4 p-5" method="post" novalidate (submit)="$event.preventDefault(); submit()">
+            <fieldset class="contents" [disabled]="!ready()">
             @if (error()) {
               <p class="rounded-xl border border-danger bg-danger/10 px-4 py-3 text-sm" role="alert">{{ error() }}
                 @if (expired()) { <a routerLink="/forgot-password" class="ml-1 font-semibold text-brand hover:underline">Send a new link</a> }
@@ -99,6 +102,7 @@ export class ForgotPage {
             </label>
             <label class="flex items-center gap-2 text-sm"><input type="checkbox" [checked]="show()" (change)="show.set($any($event.target).checked)" /> Show passwords</label>
             <button type="submit" class="btn-primary" [disabled]="busy() || !ready()">{{ busy() ? 'Saving…' : 'Save new password' }}</button>
+          </fieldset>
           </form>
         }
       </div>

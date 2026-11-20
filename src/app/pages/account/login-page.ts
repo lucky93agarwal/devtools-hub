@@ -24,6 +24,7 @@ import { Turnstile } from '../../shared/turnstile/turnstile';
           </div>
         } @else {
           <form class="card mt-6 flex flex-col gap-4 p-5" method="post" novalidate (submit)="$event.preventDefault(); submit()">
+            <fieldset class="contents" [disabled]="!ready()">
             @if (error()) { <p class="rounded-xl border border-danger bg-danger/10 px-4 py-3 text-sm" role="alert">{{ error() }}</p> }
             <label class="flex flex-col gap-1 text-sm font-semibold">Email
               <input class="field font-normal" type="email" name="email" autocomplete="email" inputmode="email" [value]="email()" (input)="email.set($any($event.target).value)" [attr.aria-invalid]="!!emailProblem()" />
@@ -40,6 +41,7 @@ import { Turnstile } from '../../shared/turnstile/turnstile';
             <app-turnstile (token)="captcha.set($event)" />
             <button type="submit" class="btn-primary" [disabled]="busy() || !ready()">{{ busy() ? 'Logging in…' : 'Log in' }}</button>
             <p class="text-center text-sm text-muted">New here? <a routerLink="/signup" class="font-semibold text-brand hover:underline">Create an account</a></p>
+          </fieldset>
           </form>
         }
       </div>

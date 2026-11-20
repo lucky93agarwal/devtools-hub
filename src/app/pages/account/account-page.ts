@@ -42,6 +42,7 @@ import { passwordError } from '../../core/accounts/validation';
         <section class="card mt-6 p-5" aria-labelledby="password-heading">
           <h2 id="password-heading" class="text-xl leading-7">Change password</h2>
           <form class="mt-4 flex max-w-md flex-col gap-3" method="post" novalidate (submit)="$event.preventDefault(); changePassword()">
+            <fieldset class="contents" [disabled]="!ready()">
             @if (pwMessage()) { <p class="rounded-xl border px-4 py-3 text-sm" [class]="pwOk() ? 'border-success bg-success/10' : 'border-danger bg-danger/10'" role="status">{{ pwMessage() }}</p> }
             <label class="flex flex-col gap-1 text-sm font-semibold">Current password
               <input class="field font-normal" type="password" aria-label="Current password" autocomplete="current-password" [value]="current()" (input)="current.set($any($event.target).value)" />
@@ -51,6 +52,7 @@ import { passwordError } from '../../core/accounts/validation';
               <span class="text-xs font-normal text-muted">At least 8 characters, with letters and numbers. Other devices will be logged out.</span>
             </label>
             <button type="submit" class="btn-secondary self-start" [disabled]="pwBusy() || !ready()">{{ pwBusy() ? 'Saving…' : 'Change password' }}</button>
+          </fieldset>
           </form>
         </section>
 

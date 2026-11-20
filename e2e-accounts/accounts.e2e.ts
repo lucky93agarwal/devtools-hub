@@ -191,6 +191,7 @@ test('forms are never sent before the page is ready, and never with the password
     await page.goto(path);
     await expect(page.locator('form').first()).toHaveAttribute('method', 'post');
     await expect(page.getByRole('button', { name: button })).toBeDisabled();
+    await expect(page.locator('form input').first()).toBeDisabled();
   }
   await context.close();
 });
