@@ -24,6 +24,7 @@ const ROUTES: [method: string, pattern: RegExp, handler: Handler][] = [
   ['GET', /^\/api\/admin\/users\/([\w-]+)$/, admin.user],
   ['POST', /^\/api\/admin\/users\/([\w-]+)\/block$/, admin.block],
   ['POST', /^\/api\/admin\/users\/([\w-]+)\/logout$/, admin.logoutEverywhere],
+  ['POST', /^\/api\/admin\/users\/([\w-]+)\/delete$/, admin.deleteUser],
   ['GET', /^\/api\/admin\/outbox$/, admin.outbox],
   ['GET', /^\/api\/admin\/log$/, admin.adminLog],
 ];

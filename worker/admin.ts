@@ -24,8 +24,10 @@ function listUser(u: UserRow & { sessions?: number }) {
   };
 }
 
-async function log(env: Env, adminId: string, action: string, targetId: string | null): Promise<void> {
-  await env.DB.prepare('INSERT INTO admin_log (admin_id, action, target_id, created_at) VALUES (?, ?, ?, ?)').bind(adminId, action, targetId, Date.now()).run();
+async function log(env: Env, adminId: string, action: string, targetId: string | null, targetEmail: string | null = null): Promise<void> {
+  await env.DB.prepare('INSERT INTO admin_log (admin_id, action, target_id, target_email, created_at) VALUES (?, ?, ?, ?, ?)')
+    .bind(adminId, action, targetId, targetEmail, Date.now())
+    .run();
 }
 
 export async function stats(env: Env, request: Request): Promise<Response> {
@@ -45,6 +47,7 @@ export async function stats(env: Env, request: Request): Promise<Response> {
     .bind(now - DAY, now - 7 * DAY, now - DAY)
     .first<Record<string, number | null>>();
   const sessions = await env.DB.prepare('SELECT COUNT(*) AS n FROM sessions WHERE expires_at > ?').bind(now).first<{ n: number }>();
+  const deleted = await env.DB.prepare('SELECT COUNT(*) AS n FROM deleted_users').first<{ n: number }>();
   const daily = await env.DB.prepare(
     `SELECT CAST((created_at - ?) / ? AS INTEGER) AS day, COUNT(*) AS n FROM users WHERE created_at >= ? GROUP BY day ORDER BY day`,
   )
@@ -60,6 +63,7 @@ export async function stats(env: Env, request: Request): Promise<Response> {
     admins: row?.admins ?? 0,
     activeToday: row?.activeToday ?? 0,
     activeSessions: sessions?.n ?? 0,
+    deleted: deleted?.n ?? 0,
     signupsByDay,
   });
 }
@@ -78,10 +82,55 @@ const SORTS: Record<string, string> = {
   name: 'first_name COLLATE NOCASE, last_name COLLATE NOCASE',
 };
 
+const DELETED_SORTS: Record<string, string> = {
+  newest: 'deleted_at DESC',
+  oldest: 'deleted_at ASC',
+  'last-login': 'last_login_at IS NULL, last_login_at DESC',
+  name: 'first_name COLLATE NOCASE, last_name COLLATE NOCASE',
+};
+
+/** The record of deleted users: who, when they had signed up, when they were deleted and by whom. */
+async function deletedUsers(env: Env, q: string, sortKey: string, page: number, size: number): Promise<Response> {
+  const like = `%${q.replace(/[%_]/g, '')}%`;
+  const where = `(? = '' OR LOWER(first_name || ' ' || last_name) LIKE ? OR email LIKE ? OR mobile LIKE ?)`;
+  const total = await env.DB.prepare(`SELECT COUNT(*) AS n FROM deleted_users WHERE ${where}`).bind(q, like, like, like).first<{ n: number }>();
+  const rows = await env.DB.prepare(
+    `SELECT deleted_users.*, EXISTS (SELECT 1 FROM users WHERE users.email = deleted_users.email) AS rejoined
+     FROM deleted_users WHERE ${where} ORDER BY ${DELETED_SORTS[sortKey] ?? DELETED_SORTS['newest']} LIMIT ? OFFSET ?`,
+  )
+    .bind(q, like, like, like, size, (page - 1) * size)
+    .all<Record<string, string | number | null>>();
+  return json({
+    deleted: true,
+    users: rows.results.map((r) => ({
+      id: r['id'],
+      firstName: r['first_name'],
+      lastName: r['last_name'],
+      email: r['email'],
+      mobile: r['mobile'],
+      role: r['role'],
+      createdAt: r['created_at'],
+      lastLoginAt: r['last_login_at'],
+      loginCount: r['login_count'],
+      deletedAt: r['deleted_at'],
+      deletedBy: r['deleted_by'],
+      rejoined: !!r['rejoined'],
+    })),
+    total: total?.n ?? 0,
+    page,
+    size,
+  });
+}
+
 export async function users(env: Env, request: Request): Promise<Response> {
   await requireAdmin(env, request);
   const url = new URL(request.url);
   const q = (url.searchParams.get('q') ?? '').trim().toLowerCase().slice(0, 100);
+  if (url.searchParams.get('filter') === 'deleted') {
+    const size = Math.min(100, Math.max(5, Number(url.searchParams.get('size')) || 20));
+    const page = Math.max(1, Number(url.searchParams.get('page')) || 1);
+    return deletedUsers(env, q, url.searchParams.get('sort') ?? 'newest', page, size);
+  }
   const filter = FILTERS[url.searchParams.get('filter') ?? 'all'] ?? FILTERS['all'];
   const sort = SORTS[url.searchParams.get('sort') ?? 'newest'] ?? SORTS['newest'];
   const size = Math.min(100, Math.max(5, Number(url.searchParams.get('size')) || 20));
@@ -117,7 +166,7 @@ export async function block(env: Env, request: Request, id: string): Promise<Res
   const admin = await requireAdmin(env, request);
   const body = await readJson<{ blocked?: boolean }>(request);
   if (id === admin.id) throw new ApiError(400, 'You cannot block your own account.');
-  const target = await env.DB.prepare('SELECT id FROM users WHERE id = ?').bind(id).first();
+  const target = await env.DB.prepare('SELECT id, email FROM users WHERE id = ?').bind(id).first<{ id: string; email: string }>();
   if (!target) throw new ApiError(404, 'This user does not exist.');
   const blocked = body.blocked === true;
   await env.DB.batch([
@@ -125,7 +174,7 @@ export async function block(env: Env, request: Request, id: string): Promise<Res
     // A blocked user is logged out everywhere at once.
     ...(blocked ? [env.DB.prepare('DELETE FROM sessions WHERE user_id = ?').bind(id)] : []),
   ]);
-  await log(env, admin.id, blocked ? 'block user' : 'unblock user', id);
+  await log(env, admin.id, blocked ? 'block user' : 'unblock user', id, target.email);
   return json({ ok: true });
 }
 
@@ -133,7 +182,33 @@ export async function logoutEverywhere(env: Env, request: Request, id: string): 
   const admin = await requireAdmin(env, request);
   await readJson(request);
   await env.DB.prepare('DELETE FROM sessions WHERE user_id = ?').bind(id).run();
-  await log(env, admin.id, 'log out everywhere', id);
+  const target = await env.DB.prepare('SELECT email FROM users WHERE id = ?').bind(id).first<{ email: string }>();
+  await log(env, admin.id, 'log out everywhere', id, target?.email ?? null);
+  return json({ ok: true });
+}
+
+/**
+ * Deletes a user's account: they are logged out, cannot log in, and their email is free to
+ * sign up again. A copy of their details, with the date and the admin, stays in deleted_users.
+ */
+export async function deleteUser(env: Env, request: Request, id: string): Promise<Response> {
+  const admin = await requireAdmin(env, request);
+  await readJson(request);
+  if (id === admin.id) throw new ApiError(400, 'You cannot delete your own account.');
+  const user = await env.DB.prepare('SELECT * FROM users WHERE id = ?').bind(id).first<UserRow>();
+  if (!user) throw new ApiError(404, 'This user does not exist (maybe already deleted).');
+  const now = Date.now();
+  await env.DB.batch([
+    env.DB.prepare(
+      `INSERT OR REPLACE INTO deleted_users (id, first_name, last_name, email, mobile, role, email_verified_at, created_at, last_login_at, login_count, deleted_at, deleted_by)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    ).bind(user.id, user.first_name, user.last_name, user.email, user.mobile, user.role, user.email_verified_at, user.created_at, user.last_login_at, user.login_count, now, admin.email),
+    env.DB.prepare('DELETE FROM sessions WHERE user_id = ?').bind(id),
+    env.DB.prepare('DELETE FROM tokens WHERE user_id = ?').bind(id),
+    env.DB.prepare('DELETE FROM attempts WHERE key = ?').bind(`login:${user.email}`),
+    env.DB.prepare('DELETE FROM users WHERE id = ?').bind(id),
+  ]);
+  await log(env, admin.id, 'delete user', id, user.email);
   return json({ ok: true });
 }
 
@@ -146,7 +221,7 @@ export async function outbox(env: Env, request: Request): Promise<Response> {
 export async function adminLog(env: Env, request: Request): Promise<Response> {
   await requireAdmin(env, request);
   const rows = await env.DB.prepare(
-    `SELECT admin_log.id, admin_log.action, admin_log.created_at, a.email AS admin_email, t.email AS target_email
+    `SELECT admin_log.id, admin_log.action, admin_log.created_at, a.email AS admin_email, COALESCE(t.email, admin_log.target_email) AS target_email
      FROM admin_log LEFT JOIN users a ON a.id = admin_log.admin_id LEFT JOIN users t ON t.id = admin_log.target_id
      ORDER BY admin_log.id DESC LIMIT 100`,
   ).all();

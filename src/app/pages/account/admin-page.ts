@@ -19,6 +19,18 @@ interface AdminUser {
   activeSessions: number;
 }
 
+interface DeletedUser {
+  id: string;
+  firstName: string;
+  lastName: string;
+  email: string;
+  mobile: string;
+  createdAt: number;
+  deletedAt: number;
+  deletedBy: string;
+  rejoined: boolean;
+}
+
 interface Stats {
   total: number;
   today: number;
@@ -28,6 +40,7 @@ interface Stats {
   admins: number;
   activeToday: number;
   activeSessions: number;
+  deleted: number;
   signupsByDay: number[];
 }
 
@@ -125,39 +138,82 @@ export function deviceName(userAgent: string): string {
                 </select>
               </label>
             </div>
-            <p class="mt-3 text-sm text-muted" role="status">{{ total() }} user{{ total() === 1 ? '' : 's' }}</p>
+            @if (notice()) { <p class="mt-3 rounded-xl border border-success bg-success/10 px-4 py-2 text-sm" role="status">{{ notice() }}</p> }
+            <p class="mt-3 text-sm text-muted" role="status">{{ total() }} {{ deletedView() ? 'deleted ' : '' }}user{{ total() === 1 ? '' : 's' }}</p>
             <div class="mt-2 overflow-x-auto rounded-xl border border-line">
-              <table class="w-full min-w-[820px] text-left text-sm" aria-label="Users">
-                <thead class="bg-surface text-xs text-muted uppercase">
-                  <tr><th class="px-3 py-2">Name</th><th class="px-3 py-2">Email</th><th class="px-3 py-2">Mobile</th><th class="px-3 py-2">Status</th><th class="px-3 py-2">Signed up</th><th class="px-3 py-2">Last login</th><th class="px-3 py-2">Logins</th></tr>
-                </thead>
-                <tbody>
-                  @for (u of users(); track u.id) {
-                    <tr class="cursor-pointer border-t border-line hover:bg-surface" [class.bg-surface]="selected()?.user?.id === u.id" (click)="select(u.id)" tabindex="0" (keydown.enter)="select(u.id)" [attr.aria-label]="'User ' + u.email">
-                      <td class="px-3 py-2 font-semibold">{{ u.firstName }} {{ u.lastName }}@if (u.role === 'admin') { <span class="chip ml-1 !px-1.5 !py-0 !text-xs">Admin</span> }</td>
-                      <td class="px-3 py-2">{{ u.email }}</td>
-                      <td class="px-3 py-2">{{ u.mobile }}</td>
-                      <td class="px-3 py-2">
-                        @if (u.blocked) { <span class="font-semibold text-danger">Blocked</span> }
-                        @else if (u.emailVerified) { <span class="text-success">✓ Confirmed</span> }
-                        @else { <span class="text-warning">Not confirmed</span> }
-                      </td>
-                      <td class="px-3 py-2 whitespace-nowrap">{{ when(u.createdAt) }}</td>
-                      <td class="px-3 py-2 whitespace-nowrap">{{ u.lastLoginAt ? when(u.lastLoginAt) : '—' }}</td>
-                      <td class="px-3 py-2">{{ u.loginCount }}</td>
-                    </tr>
-                  } @empty {
-                    <tr><td colspan="7" class="px-3 py-6 text-center text-muted">No users match.</td></tr>
-                  }
-                </tbody>
-              </table>
+              @if (!deletedView()) {
+                <table class="w-full min-w-[900px] text-left text-sm" aria-label="Users">
+                  <thead class="bg-surface text-xs text-muted uppercase">
+                    <tr><th class="w-12 px-3 py-2">#</th><th class="px-3 py-2">Name</th><th class="px-3 py-2">Email</th><th class="px-3 py-2">Mobile</th><th class="px-3 py-2">Status</th><th class="px-3 py-2">Signed up</th><th class="px-3 py-2">Last login</th><th class="px-3 py-2">Logins</th><th class="px-3 py-2 text-right">Actions</th></tr>
+                  </thead>
+                  <tbody>
+                    @for (u of users(); track u.id; let i = $index) {
+                      <tr class="cursor-pointer border-t border-line hover:bg-surface" [class.bg-surface]="selected()?.user?.id === u.id" (click)="select(u.id)" tabindex="0" (keydown.enter)="select(u.id)" [attr.aria-label]="'User ' + u.email">
+                        <td class="px-3 py-2 text-muted">{{ firstRow() + i }}</td>
+                        <td class="px-3 py-2 font-semibold">{{ u.firstName }} {{ u.lastName }}@if (u.role === 'admin') { <span class="chip ml-1 !px-1.5 !py-0 !text-xs">Admin</span> }</td>
+                        <td class="px-3 py-2">{{ u.email }}</td>
+                        <td class="px-3 py-2">{{ u.mobile }}</td>
+                        <td class="px-3 py-2 whitespace-nowrap">
+                          @if (u.blocked) { <span class="font-semibold text-danger">Blocked</span> }
+                          @else if (u.emailVerified) { <span class="text-success">✓ Confirmed</span> }
+                          @else { <span class="text-warning">Not confirmed</span> }
+                        </td>
+                        <td class="px-3 py-2 whitespace-nowrap">{{ when(u.createdAt) }}</td>
+                        <td class="px-3 py-2 whitespace-nowrap">{{ u.lastLoginAt ? when(u.lastLoginAt) : '—' }}</td>
+                        <td class="px-3 py-2">{{ u.loginCount }}</td>
+                        <td class="px-3 py-2 text-right">
+                          @if (u.id !== auth.user()!.id) {
+                            <button type="button" class="rounded-lg px-2 py-1 whitespace-nowrap text-danger hover:bg-danger/10" [attr.aria-label]="'Delete ' + u.email" title="Delete user" (click)="$event.stopPropagation(); askDelete(u)">🗑 Delete</button>
+                          } @else { <span class="text-xs text-muted">You</span> }
+                        </td>
+                      </tr>
+                    } @empty {
+                      <tr><td colspan="9" class="px-3 py-6 text-center text-muted">No users match.</td></tr>
+                    }
+                  </tbody>
+                </table>
+              } @else {
+                <table class="w-full min-w-[900px] text-left text-sm" aria-label="Deleted users">
+                  <thead class="bg-surface text-xs text-muted uppercase">
+                    <tr><th class="w-12 px-3 py-2">#</th><th class="px-3 py-2">Name</th><th class="px-3 py-2">Email</th><th class="px-3 py-2">Mobile</th><th class="px-3 py-2">Signed up</th><th class="px-3 py-2">Deleted on</th><th class="px-3 py-2">Deleted by</th><th class="px-3 py-2">Now</th></tr>
+                  </thead>
+                  <tbody>
+                    @for (u of deletedUsers(); track u.id; let i = $index) {
+                      <tr class="border-t border-line" [attr.aria-label]="'Deleted user ' + u.email">
+                        <td class="px-3 py-2 text-muted">{{ firstRow() + i }}</td>
+                        <td class="px-3 py-2 font-semibold">{{ u.firstName }} {{ u.lastName }}</td>
+                        <td class="px-3 py-2">{{ u.email }}</td>
+                        <td class="px-3 py-2">{{ u.mobile }}</td>
+                        <td class="px-3 py-2 whitespace-nowrap">{{ when(u.createdAt) }}</td>
+                        <td class="px-3 py-2 whitespace-nowrap font-semibold text-danger">{{ when(u.deletedAt) }}</td>
+                        <td class="px-3 py-2">{{ u.deletedBy }}</td>
+                        <td class="px-3 py-2">{{ u.rejoined ? 'Signed up again' : 'Deleted' }}</td>
+                      </tr>
+                    } @empty {
+                      <tr><td colspan="8" class="px-3 py-6 text-center text-muted">No deleted users.</td></tr>
+                    }
+                  </tbody>
+                </table>
+              }
             </div>
-            @if (pages() > 1) {
-              <div class="mt-3 flex items-center gap-2 text-sm">
-                <button type="button" class="btn-small" [disabled]="page() <= 1" (click)="page.set(page() - 1)">← Previous</button>
-                <span>Page {{ page() }} of {{ pages() }}</span>
-                <button type="button" class="btn-small" [disabled]="page() >= pages()" (click)="page.set(page() + 1)">Next →</button>
-              </div>
+            @if (total() > 0) {
+              <nav class="mt-3 flex flex-wrap items-center justify-between gap-3 text-sm" aria-label="Pages">
+                <span class="text-muted">Showing {{ firstRow() }}–{{ lastRow() }} of {{ total() }}</span>
+                <span class="flex flex-wrap items-center gap-1">
+                  <label class="mr-2 flex items-center gap-1 text-muted">Rows
+                    <select class="field !py-1" aria-label="Rows per page" (change)="pageSize.set(+$any($event.target).value); page.set(1)">
+                      @for (n of pageSizes; track n) { <option [value]="n" [selected]="pageSize() === n">{{ n }}</option> }
+                    </select>
+                  </label>
+                  <button type="button" class="btn-small !px-2.5" aria-label="First page" [disabled]="page() <= 1" (click)="page.set(1)">«</button>
+                  <button type="button" class="btn-small !px-2.5" aria-label="Previous page" [disabled]="page() <= 1" (click)="page.set(page() - 1)">‹</button>
+                  @for (n of pageNumbers(); track n) {
+                    <button type="button" class="btn-small !px-3" [class.!bg-brand]="n === page()" [class.!text-on-brand]="n === page()" [attr.aria-current]="n === page() ? 'page' : null" [attr.aria-label]="'Page ' + n" (click)="page.set(n)">{{ n }}</button>
+                  }
+                  <button type="button" class="btn-small !px-2.5" aria-label="Next page" [disabled]="page() >= pages()" (click)="page.set(page() + 1)">›</button>
+                  <button type="button" class="btn-small !px-2.5" aria-label="Last page" [disabled]="page() >= pages()" (click)="page.set(pages())">»</button>
+                </span>
+              </nav>
             }
 
             @if (selected(); as d) {
@@ -172,6 +228,9 @@ export function deviceName(userAgent: string): string {
                       <button type="button" class="btn-small" [class.!border-danger]="!d.user.blocked" [class.!text-danger]="!d.user.blocked" (click)="block(d.user, !d.user.blocked)">{{ d.user.blocked ? 'Unblock' : 'Block user' }}</button>
                     }
                     <button type="button" class="btn-small" [disabled]="!d.sessions.length" (click)="logoutUser(d.user)">Log out everywhere</button>
+                    @if (d.user.id !== auth.user()!.id) {
+                      <button type="button" class="btn-small !border-danger !text-danger" (click)="askDelete(d.user)">🗑 Delete user</button>
+                    }
                     <button type="button" class="btn-small" aria-label="Close details" (click)="selected.set(null)">✕</button>
                   </div>
                 </div>
@@ -223,6 +282,18 @@ export function deviceName(userAgent: string): string {
           }
         }
       }
+      @if (confirmBox(); as c) {
+        <div class="fixed inset-0 z-50 grid place-items-center bg-black/50 p-4" (click)="confirmBox.set(null)">
+          <div class="card w-full max-w-md bg-page p-6 shadow-xl" role="alertdialog" aria-modal="true" [attr.aria-label]="c.title" (click)="$event.stopPropagation()">
+            <h2 class="text-xl leading-7">{{ c.title }}</h2>
+            <p class="mt-3 text-sm whitespace-pre-line">{{ c.message }}</p>
+            <div class="mt-6 flex justify-end gap-2">
+              <button type="button" class="btn-secondary !px-5 !py-2 !text-base" (click)="confirmBox.set(null)">Cancel</button>
+              <button type="button" class="btn !px-5 !py-2 !text-base text-white" [class]="c.danger ? 'bg-danger hover:opacity-90' : 'bg-brand'" [disabled]="confirmBusy()" (click)="runConfirm()">{{ confirmBusy() ? 'Please wait…' : c.confirmLabel }}</button>
+            </div>
+          </div>
+        </div>
+      }
     </div>
   `,
 })
@@ -240,6 +311,7 @@ export class AdminPage {
     { id: 'unverified', label: 'Email not confirmed' },
     { id: 'blocked', label: 'Blocked' },
     { id: 'admins', label: 'Admins' },
+    { id: 'deleted', label: 'Deleted users' },
   ];
   protected readonly tab = signal<Tab>('overview');
   protected readonly stats = signal<Stats | null>(null);
@@ -250,7 +322,23 @@ export class AdminPage {
   protected readonly filter = signal('all');
   protected readonly sort = signal('newest');
   protected readonly page = signal(1);
-  protected readonly pages = computed(() => Math.max(1, Math.ceil(this.total() / 20)));
+  protected readonly pageSizes = [10, 20, 50];
+  protected readonly pageSize = signal(10);
+  protected readonly pages = computed(() => Math.max(1, Math.ceil(this.total() / this.pageSize())));
+  /** Serial number of the first row on this page. */
+  protected readonly firstRow = computed(() => (this.total() ? (this.page() - 1) * this.pageSize() + 1 : 0));
+  protected readonly lastRow = computed(() => Math.min(this.total(), this.page() * this.pageSize()));
+  /** Up to 5 page buttons around the current page. */
+  protected readonly pageNumbers = computed(() => {
+    const last = this.pages();
+    const from = Math.max(1, Math.min(this.page() - 2, last - 4));
+    return Array.from({ length: Math.min(5, last) }, (_, i) => from + i);
+  });
+  protected readonly deletedView = computed(() => this.filter() === 'deleted');
+  protected readonly deletedUsers = signal<DeletedUser[]>([]);
+  protected readonly notice = signal('');
+  protected readonly confirmBox = signal<{ title: string; message: string; confirmLabel: string; danger: boolean; run: () => Promise<void> } | null>(null);
+  protected readonly confirmBusy = signal(false);
   protected readonly selected = signal<Detail | null>(null);
   protected readonly emails = signal<Email[]>([]);
   protected readonly emailServiceOn = signal(false);
@@ -271,6 +359,7 @@ export class AdminPage {
       { label: 'Email confirmed', value: s.verified, filter: 'verified' },
       { label: 'Not confirmed', value: s.total - s.verified, filter: 'unverified' },
       { label: 'Blocked', value: s.blocked, filter: 'blocked' },
+      { label: 'Deleted', value: s.deleted, filter: 'deleted' },
       { label: 'Logged-in devices', value: s.activeSessions, filter: '' },
     ];
   });
@@ -286,6 +375,7 @@ export class AdminPage {
         this.filter();
         this.sort();
         this.page();
+        this.pageSize();
       }
       untracked(() => void this.load(tab));
     });
@@ -293,6 +383,7 @@ export class AdminPage {
 
   protected open(tab: Tab): void {
     this.error.set('');
+    this.notice.set('');
     this.tab.set(tab);
   }
 
@@ -315,10 +406,13 @@ export class AdminPage {
     try {
       if (tab === 'overview') this.stats.set(await this.auth.call<Stats>('GET', '/api/admin/stats'));
       if (tab === 'users') {
-        const params = new URLSearchParams({ q: this.search(), filter: this.filter(), sort: this.sort(), page: String(this.page()), size: '20' });
-        const data = await this.auth.call<{ users: AdminUser[]; total: number }>('GET', `/api/admin/users?${params}`);
-        this.users.set(data.users);
+        const params = new URLSearchParams({ q: this.search(), filter: this.filter(), sort: this.sort(), page: String(this.page()), size: String(this.pageSize()) });
+        const data = await this.auth.call<{ users: (AdminUser & DeletedUser)[]; total: number; deleted?: boolean }>('GET', `/api/admin/users?${params}`);
+        if (data.deleted) this.deletedUsers.set(data.users);
+        else this.users.set(data.users);
         this.total.set(data.total);
+        // After deleting the last row of the last page, step back a page.
+        if (!data.users.length && this.page() > 1 && data.total > 0) this.page.set(Math.ceil(data.total / this.pageSize()));
       }
       if (tab === 'emails') {
         const data = await this.auth.call<{ emails: Email[]; emailServiceOn: boolean }>('GET', '/api/admin/outbox');
@@ -340,8 +434,49 @@ export class AdminPage {
   }
 
   protected async block(user: AdminUser, blocked: boolean): Promise<void> {
-    if (blocked && !confirm(`Block ${user.email}? They will be logged out and cannot log in until unblocked.`)) return;
-    await this.act(user, `/api/admin/users/${user.id}/block`, { blocked });
+    if (!blocked) return this.act(user, `/api/admin/users/${user.id}/block`, { blocked });
+    this.confirmBox.set({
+      title: 'Block this user?',
+      message: `${user.firstName} ${user.lastName} (${user.email}) will be logged out and cannot log in until you unblock them.`,
+      confirmLabel: 'Block user',
+      danger: true,
+      run: () => this.act(user, `/api/admin/users/${user.id}/block`, { blocked }),
+    });
+  }
+
+  protected askDelete(user: AdminUser): void {
+    this.confirmBox.set({
+      title: 'Delete this user?',
+      message:
+        `${user.firstName} ${user.lastName}\n${user.email} · ${user.mobile}\n\n` +
+        'Their account is removed and they are logged out everywhere. A record (name, email, mobile, sign-up and delete dates) stays under "Deleted users". ' +
+        'They can create a new account with the same email later.',
+      confirmLabel: 'Delete user',
+      danger: true,
+      run: async () => {
+        try {
+          await this.auth.call('POST', `/api/admin/users/${user.id}/delete`, {});
+          this.notice.set(`${user.email} was deleted. The record is kept under "Deleted users".`);
+          if (this.selected()?.user.id === user.id) this.selected.set(null);
+          await this.load('users');
+          void this.load('overview');
+        } catch (e) {
+          this.error.set(e instanceof AccountError ? e.message : 'The user could not be deleted.');
+        }
+      },
+    });
+  }
+
+  protected async runConfirm(): Promise<void> {
+    const box = this.confirmBox();
+    if (!box) return;
+    this.confirmBusy.set(true);
+    try {
+      await box.run();
+    } finally {
+      this.confirmBusy.set(false);
+      this.confirmBox.set(null);
+    }
   }
 
   protected async logoutUser(user: AdminUser): Promise<void> {

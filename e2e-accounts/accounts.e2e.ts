@@ -1,4 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
+import { execFileSync } from 'node:child_process';
 
 // Sign up, confirm email, log out / in, wrong passwords, forgot and reset password, and the
 // admin panel, against the real Worker API and a fresh local database.
@@ -152,8 +153,8 @@ test('admin panel: numbers, search, user details, block and unblock', async ({ p
   await expect(details).toContainText('Ravi Kumar');
   await expect(details).toContainText('+919123456780');
 
-  page.once('dialog', (d) => d.accept());
   await details.getByRole('button', { name: 'Block user' }).click();
+  await page.getByRole('alertdialog', { name: 'Block this user?' }).getByRole('button', { name: 'Block user' }).click();
   await expect(details).toContainText('Blocked since');
   await page.getByRole('tab', { name: 'Activity' }).click();
   await expect(page.getByRole('list', { name: 'Admin activity' })).toContainText('block user');
@@ -194,4 +195,61 @@ test('forms are never sent before the page is ready, and never with the password
     await expect(page.locator('form input').first()).toBeDisabled();
   }
   await context.close();
+});
+
+test('admin users table: serial numbers, pages, delete with a popup, and the deleted record', async ({ page }) => {
+  // 12 extra users straight into the local test database, so there is more than one page.
+  const now = Date.now();
+  const rows = Array.from({ length: 12 }, (_, i) => `('bulk-${i}', 'Bulk', 'User${i}', 'bulk${i}@example.test', '+91900000${String(i).padStart(4, '0')}', 'x', 'user', ${now - i * 1000})`).join(',');
+  execFileSync('npx', ['--yes', 'wrangler@4', 'd1', 'execute', 'devtools24-accounts', '--local', '--persist-to', '.wrangler/e2e-state', '--command', `INSERT INTO users (id, first_name, last_name, email, mobile, password_hash, role, created_at) VALUES ${rows}`]);
+
+  await logIn(page, ADMIN.email, ADMIN.password);
+  await page.goto('/admin');
+  await page.getByRole('tab', { name: 'Users' }).click();
+  const table = page.getByRole('table', { name: 'Users' });
+  // 2 + 12 = 14 users, 10 a page.
+  await expect(page.getByText('Showing 1–10 of 14')).toBeVisible();
+  await expect(table.getByRole('row')).toHaveCount(11);
+  await expect(table.getByRole('row').nth(1).getByRole('cell').first()).toHaveText('1');
+  await page.getByRole('button', { name: 'Page 2' }).click();
+  await expect(page.getByText('Showing 11–14 of 14')).toBeVisible();
+  await expect(table.getByRole('row').nth(1).getByRole('cell').first()).toHaveText('11');
+  await page.getByLabel('Rows per page').selectOption('20');
+  await expect(page.getByText('Showing 1–14 of 14')).toBeVisible();
+  // Admins cannot delete themselves.
+  await expect(table.getByRole('row', { name: `User ${ADMIN.email}` })).toContainText('You');
+
+  // Delete: a popup asks first; Cancel keeps the user.
+  await table.getByRole('button', { name: `Delete ${USER.email}` }).click();
+  const popup = page.getByRole('alertdialog', { name: 'Delete this user?' });
+  await expect(popup).toContainText(USER.email);
+  await popup.getByRole('button', { name: 'Cancel' }).click();
+  await expect(popup).toHaveCount(0);
+  await expect(table.getByRole('row', { name: `User ${USER.email}` })).toHaveCount(1);
+  await table.getByRole('button', { name: `Delete ${USER.email}` }).click();
+  await popup.getByRole('button', { name: 'Delete user' }).click();
+  await expect(page.getByText(`${USER.email} was deleted.`)).toBeVisible();
+  await expect(table.getByRole('row', { name: `User ${USER.email}` })).toHaveCount(0);
+
+  // The record stays, with the date and the admin.
+  await page.getByLabel('Filter users').selectOption('deleted');
+  const deleted = page.getByRole('table', { name: 'Deleted users' });
+  const row = deleted.getByRole('row', { name: `Deleted user ${USER.email}` });
+  await expect(row).toContainText('Ravi Kumar');
+  await expect(row).toContainText(ADMIN.email);
+  await expect(row).toContainText('Deleted');
+  await page.getByRole('tab', { name: 'Activity' }).click();
+  await expect(page.getByRole('list', { name: 'Admin activity' })).toContainText(`delete user · ${USER.email}`);
+
+  // The deleted user cannot log in, but can sign up again with the same email.
+  await page.request.post('/api/auth/logout', { headers: { 'content-type': 'application/json' }, data: {} });
+  await logIn(page, USER.email, 'New-ravi-2026');
+  await expect(page.getByRole('alert')).toContainText('Email or password is wrong');
+  await signUp(page, USER);
+  await page.request.post('/api/auth/logout', { headers: { 'content-type': 'application/json' }, data: {} });
+  await logIn(page, ADMIN.email, ADMIN.password);
+  await page.goto('/admin');
+  await page.getByRole('tab', { name: 'Users' }).click();
+  await page.getByLabel('Filter users').selectOption('deleted');
+  await expect(page.getByRole('table', { name: 'Deleted users' }).getByRole('row', { name: `Deleted user ${USER.email}` })).toContainText('Signed up again');
 });
