@@ -67,6 +67,28 @@ export const GIF_MAX_WIDTH = 480;
 export const GIF_FPS = 12;
 /** Picture sequences take at most this many frames a second. */
 export const SEQUENCE_MAX_FPS = 10;
+/** Long GIFs and picture sequences are held in memory: these limits keep the tab from running out. */
+export const MAX_GIF_FRAMES = 1800;
+export const MAX_SEQUENCE_BYTES = 600 * 1024 * 1024;
+
+/** Why a GIF or picture sequence of this part would be too big, or null when it is fine. */
+export function tooLong(project: Project, options: ExportOptions): string | null {
+  const { start, end } = exportRange(project, options.range);
+  const seconds = end - start;
+  const fps = options.fps ?? project.fps;
+  if (options.format === 'gif') {
+    const max = MAX_GIF_FRAMES / Math.min(GIF_FPS, fps);
+    if (seconds > max) return `A GIF can be at most ${Math.floor(max)} seconds. Export a shorter part (Only a part), or choose MP4.`;
+  }
+  if (options.format === 'png-sequence') {
+    const { width, height } = outputSize(project, options.resolution);
+    const perSecond = width * height * 1.2 * Math.min(SEQUENCE_MAX_FPS, fps);
+    if (seconds * perSecond > MAX_SEQUENCE_BYTES) {
+      return `PNG frames of this part would be too large. Export at most ${Math.floor(MAX_SEQUENCE_BYTES / perSecond)} seconds at this resolution, or choose a lower resolution.`;
+    }
+  }
+  return null;
+}
 
 /** The output size for a resolution: the shorter side becomes `resolution`, sizes stay even (encoders need that). */
 export function outputSize(project: Pick<Project, 'width' | 'height'>, resolution: ExportResolution | undefined): { width: number; height: number } {
@@ -262,6 +284,8 @@ export async function exportProject(
   if (projectDuration(original) <= 0) throw new Error('Add something to the timeline first.');
   const { start, end } = exportRange(original, options.range);
   if (end - start <= 0) throw new Error('The part to export is empty. Check the From and To times.');
+  const limit = tooLong(original, options);
+  if (limit) throw new Error(limit);
   const project = resized(original, outputSize(original, options.resolution));
   const byId = new Map(media.map((m) => [m.id, m]));
   const quality = { low: mb.QUALITY_LOW, medium: mb.QUALITY_MEDIUM, high: mb.QUALITY_HIGH, 'very-high': mb.QUALITY_VERY_HIGH }[options.quality];

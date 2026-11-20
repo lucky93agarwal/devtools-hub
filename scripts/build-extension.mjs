@@ -47,5 +47,5 @@ await browser.close();
 mkdirSync(resolve(root, 'dist'), { recursive: true });
 const zip = resolve(root, 'dist/devtools24-extension.zip');
 rmSync(zip, { force: true });
-execFileSync('zip', ['-qr', zip, '.', '-x', 'README.md', '*.DS_Store'], { cwd: ext });
+execFileSync('zip', ['-qr', zip, '.', '-x', 'README.md', 'store/*', '*.DS_Store'], { cwd: ext });
 console.log(`${tools.length} tools, icons and ${zip}`);

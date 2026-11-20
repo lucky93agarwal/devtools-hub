@@ -1,5 +1,6 @@
 import { addCues, captionY, parseSrt, projectCues, toSrt } from './captions';
-import { estimateSize, exportRange, frameTimes, outputSize } from './export';
+import { estimateSize, exportRange, frameTimes, outputSize, tooLong } from './export';
+import { wrapLines } from './render';
 import { toEdl, toFcpXml } from './interchange';
 import {
   Clip,
@@ -17,7 +18,11 @@ import {
   setKeyframe,
   slideshow,
   sourceTime,
+  shiftKeyframes,
+  speedChange,
+  splitAll,
   splitClip,
+  trimClip,
   timelineTime,
   valueAt,
 } from './project';
@@ -233,5 +238,65 @@ describe('bug fixes after testing', () => {
     const project: Project = { ...newProject(), clips: [clip(), { ...clip({ id: 't', mediaId: undefined }), title: { text: 'x', size: 5, colour: '#fff', x: 0.5, y: 0.5, background: false } }] };
     expect(toEdl(project, [media()])).toContain('* NOTE: 1 title or caption clip is not included');
     expect(toFcpXml(project, [media()])).toContain('Titles and captions are not included');
+  });
+});
+
+describe('second round of fixes', () => {
+  it('stretches keyframes with a speed change', () => {
+    const c = clip({ keyframes: { scale: [{ t: 0, v: 1 }, { t: 1.5, v: 2, ease: 'ease' }] } });
+    expect(speedChange(c, 2).keyframes!.scale).toEqual([{ t: 0, v: 1 }, { t: 0.75, v: 2, ease: 'ease' }]);
+    expect(speedChange({ ...c, speed: 2 }, 1)).toEqual({ speed: undefined, keyframes: { scale: [{ t: 0, v: 1 }, { t: 3, v: 2, ease: 'ease' }] } });
+  });
+
+  it('keeps keyframes on the same picture when the start is trimmed', () => {
+    const c = clip({ keyframes: { scale: [{ t: 0, v: 1 }, { t: 4, v: 3 }] } });
+    const p = trimClip({ ...newProject(), clips: [c] }, 'a', 'start', 2, 10);
+    const trimmed = p.clips[0];
+    expect(trimmed.start).toBe(2);
+    expect(trimmed.keyframes!.scale).toEqual([{ t: 0, v: 2 }, { t: 2, v: 3 }]);
+    expect(shiftKeyframes(undefined, 1)).toBeUndefined();
+  });
+
+  it('does not split clips on locked tracks', () => {
+    const project: Project = { ...newProject(), clips: [clip(), clip({ id: 'b', track: 2 })] };
+    const locked = { ...project, tracks: project.tracks.map((t) => (t.id === 2 ? { ...t, locked: true } : t)) };
+    expect(splitAll(locked, 5).clips.length).toBe(3);
+  });
+
+  it('puts overlapping subtitle lines on a second lane, skips empty lines, and survives a renamed track', () => {
+    const { project } = addCues(newProject(), [
+      { start: 5, end: 8, text: 'First' },
+      { start: 6, end: 7, text: 'Second' },
+      { start: 9, end: 10, text: 'Third' },
+    ]);
+    const lanes = project.tracks.filter((t) => t.captions);
+    expect(lanes.map((t) => [t.name, t.captions])).toEqual([
+      ['Captions', 1],
+      ['Captions 2', 2],
+    ]);
+    const second = project.clips.find((c) => c.title?.text === 'Second')!;
+    expect(second.track).toBe(lanes[1].id);
+    expect(second.title!.y).toBeLessThan(project.clips[0].title!.y);
+    expect(project.clips.find((c) => c.title?.text === 'Third')!.track).toBe(lanes[0].id);
+
+    const renamed = renameTrack(project, lanes[0].id, 'Subs');
+    expect(addCues(renamed, [{ start: 20, end: 21, text: 'x' }]).project.tracks.length).toBe(renamed.tracks.length);
+    const empty = addCues(newProject(), [{ start: 0, end: 1, text: 'a' }]).project;
+    empty.clips[0] = { ...empty.clips[0], title: { ...empty.clips[0].title!, text: '  ' } };
+    expect(projectCues(empty)).toEqual([]);
+  });
+
+  it('refuses GIFs and picture sequences that would not fit in memory', () => {
+    const long: Project = { ...newProject(), clips: [clip({ out: 600 })] };
+    expect(tooLong(long, { format: 'gif', quality: 'high' })).toContain('at most 150 seconds');
+    expect(tooLong(long, { format: 'gif', quality: 'high', range: { start: 0, end: 60 } })).toBeNull();
+    expect(tooLong(long, { format: 'png-sequence', quality: 'high' })).toContain('too large');
+    expect(tooLong(long, { format: 'mp4', quality: 'high' })).toBeNull();
+  });
+
+  it('wraps long title lines', () => {
+    const fake = { measureText: (t: string) => ({ width: t.length * 10 }) } as unknown as CanvasRenderingContext2D;
+    expect(wrapLines(fake, 'one two three four', 100)).toEqual(['one two', 'three four']);
+    expect(wrapLines(fake, 'short\nsupercalifragilistic word', 90)).toEqual(['short', 'supercalifragilistic', 'word']);
   });
 });

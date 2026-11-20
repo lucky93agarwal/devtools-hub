@@ -40,6 +40,24 @@ export function shade(colour: string, amount: number): string {
   return `rgb(${c(16)}, ${c(8)}, ${c(0)})`;
 }
 
+/** Splits text into lines no wider than `maxWidth` (breaking at spaces; a single long word stays whole). */
+export function wrapLines(context: CanvasRenderingContext2D, text: string, maxWidth: number): string[] {
+  const out: string[] = [];
+  for (const paragraph of text.split('\n')) {
+    const words = paragraph.split(' ');
+    let line = '';
+    for (const word of words) {
+      const next = line ? `${line} ${word}` : word;
+      if (line && context.measureText(next).width > maxWidth) {
+        out.push(line);
+        line = word;
+      } else line = next;
+    }
+    out.push(line);
+  }
+  return out;
+}
+
 /**
  * Draws a title at clip-local time `local` (seconds) of a clip `length` seconds long,
  * with its entrance animation. Without a time, the settled title is drawn.
@@ -50,12 +68,21 @@ export function drawTitle(context: CanvasRenderingContext2D, title: TitleStyle, 
   const e = easeOut(p);
   const size = (title.size / 100) * height;
   const fontCss = (TITLE_FONTS.find((f) => f.id === title.font) ?? TITLE_FONTS[0]).css;
-  let text = title.text;
-  if (animation === 'typewriter' && p < 1) text = text.slice(0, Math.floor(text.length * p));
-  const lines = text.split('\n');
-  const allLines = title.text.split('\n');
   context.save();
   context.font = `700 ${size}px ${fontCss}`;
+  // Long lines wrap so the title stays inside the frame.
+  const allLines = wrapLines(context, title.text, width * 0.9);
+  let lines = allLines;
+  if (animation === 'typewriter' && p < 1) {
+    let left = Math.floor(allLines.join('').length * p);
+    lines = [];
+    for (const line of allLines) {
+      if (left <= 0) break;
+      lines.push(line.slice(0, left));
+      left -= line.length;
+    }
+    if (!lines.length) lines = [''];
+  }
   context.textAlign = 'center';
   context.textBaseline = 'middle';
   const lineHeight = size * 1.2;

@@ -12,7 +12,7 @@
  {
   "path": "image-converter",
   "name": "Image Converter",
-  "description": "Convert up to 15 images at once between JPG, PNG, WebP, AVIF, HEIC, GIF, TIFF, ICO and more."
+  "description": "Convert up to 50 images at once between JPG, PNG, WebP, AVIF, HEIC, GIF, TIFF, ICO and more."
  },
  {
   "path": "jwt",
@@ -63,6 +63,96 @@
   "path": "app-icon-generator",
   "name": "App Icon Generator",
   "description": "Create every Android and iOS app icon size from one image, ready for your project."
+ },
+ {
+  "path": "favicon-generator",
+  "name": "Favicon Generator",
+  "description": "Make favicon.ico, apple-touch-icon, Android icons and the HTML tags from one logo."
+ },
+ {
+  "path": "image-compressor",
+  "name": "Image Compressor",
+  "description": "Shrink PNG, JPG and WebP files by up to 80% without a visible change, like TinyPNG but private."
+ },
+ {
+  "path": "image-base64",
+  "name": "Image to Base64 Converter",
+  "description": "Turn an image into a Base64 data URI with HTML and CSS snippets, or paste Base64 to see the image."
+ },
+ {
+  "path": "watermark",
+  "name": "Watermark Images",
+  "description": "Add a text or logo watermark to many images at once, in a corner or repeated across them."
+ },
+ {
+  "path": "color-palette",
+  "name": "Colour Palette from Image",
+  "description": "Pull the main colours out of an image as HEX, RGB and HSL, and copy them as CSS or Tailwind."
+ },
+ {
+  "path": "image-inspector",
+  "name": "Image Viewer and EXIF Inspector",
+  "description": "Open HEIC, AVIF, WebP and TIFF images and see their size, format, colour profile and EXIF data."
+ },
+ {
+  "path": "photo-3d",
+  "name": "3D Photo Maker",
+  "description": "Turn a flat photo into a moving 3D photo with AI depth, and download it as a video."
+ },
+ {
+  "path": "image-upscaler",
+  "name": "AI Image Upscaler",
+  "description": "Make small images 2x or 4x bigger and sharper with AI that runs in your browser."
+ },
+ {
+  "path": "object-remover",
+  "name": "Object Remover",
+  "description": "Paint over an unwanted object, stain or watermark and fill the gap from its surroundings."
+ },
+ {
+  "path": "smart-crop",
+  "name": "Smart Image Cropper",
+  "description": "Crop one photo for YouTube, Instagram, LinkedIn and more, centred on the faces and main subject."
+ },
+ {
+  "path": "ascii-art",
+  "name": "Image to ASCII Art",
+  "description": "Turn a logo or picture into ASCII art for terminals, code comments and README files."
+ },
+ {
+  "path": "color-blindness-simulator",
+  "name": "Colour Blindness Simulator",
+  "description": "See how a design or screenshot looks with protanopia, deuteranopia, tritanopia and achromatopsia."
+ },
+ {
+  "path": "exif-remover",
+  "name": "EXIF Remover",
+  "description": "See and remove hidden photo metadata such as GPS location, camera and time, without losing quality."
+ },
+ {
+  "path": "image-redactor",
+  "name": "Blur and Pixelate Image",
+  "description": "Hide passwords, emails, faces and other private parts of a screenshot with blur, pixels or a black bar."
+ },
+ {
+  "path": "image-annotator",
+  "name": "Image Annotator and Meme Maker",
+  "description": "Add arrows, boxes, circles, highlights, text and numbered steps to screenshots, or make a meme."
+ },
+ {
+  "path": "sprite-sheet-generator",
+  "name": "Sprite Sheet Generator",
+  "description": "Combine icons or game frames into one sprite sheet with CSS classes and a JSON atlas."
+ },
+ {
+  "path": "pdf-to-image",
+  "name": "PDF to Image Converter",
+  "description": "Turn every page of a PDF into a JPG or PNG image at the resolution you need."
+ },
+ {
+  "path": "image-to-pdf",
+  "name": "Image to PDF Converter",
+  "description": "Combine photos, scans and screenshots into one PDF, with A4, Letter or image-sized pages."
  },
  {
   "path": "base64",
@@ -308,5 +398,25 @@
   "path": "dartpad",
   "name": "Dart and Flutter Playground (DartPad)",
   "description": "Run Dart and Flutter code online with DartPad, or open a GitHub gist."
+ },
+ {
+  "path": "video-editor",
+  "name": "Online Video Editor",
+  "description": "Edit videos in your browser: multi-track timeline, trim, split, layers, titles and MP4 export."
+ },
+ {
+  "path": "video-to-audio",
+  "name": "Extract Audio from Video",
+  "description": "Take the sound out of a video and save it as MP3, WAV, M4A or in its original format."
+ },
+ {
+  "path": "add-audio-to-video",
+  "name": "Add Audio to Video",
+  "description": "Add music, voice-overs and sound effects to a video, mute or keep its own sound, and save it."
+ },
+ {
+  "path": "video-compressor",
+  "name": "Video Compressor & Converter",
+  "description": "Make videos smaller or convert them to MP4, WebM, MOV or MKV: pick a quality or a target size."
  }
 ]

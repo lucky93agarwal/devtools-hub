@@ -18,7 +18,7 @@ import {
   formatBytes as sizeText,
   outputSize,
 } from './export';
-import { addCues, parseSrt, projectCues, toSrt } from './captions';
+import { addCues, captionsLocked, parseSrt, projectCues, toSrt } from './captions';
 import { toEdl, toFcpXml } from './interchange';
 import { openProjectFile, saveProjectFile } from './project-file';
 import {
@@ -33,6 +33,7 @@ import {
   keyframeEase,
   renameTrack,
   timelineTime,
+  speedChange,
   slideshow,
   TITLE_ANIMATIONS,
   TITLE_FONTS,
@@ -149,6 +150,66 @@ const PROFILES = [
   { label: 'Portrait 4:5 1080×1350 (Instagram)', width: 1080, height: 1350 },
 ];
 
+/** A reason a file could not be imported, worded for people. */
+class ImportProblem extends Error {}
+
+const PICTURE_EXTENSIONS = /\.(png|jpe?g|webp|gif|bmp|avif|heic|heif|tiff?|svg|ico)$/i;
+const MEDIA_EXTENSIONS = /\.(mp4|m4v|mov|webm|mkv|avi|ts|mts|mp3|wav|m4a|aac|ogg|oga|opus|flac|weba)$/i;
+const isPicture = (file: File) => file.type.startsWith('image/') || PICTURE_EXTENSIONS.test(file.name);
+const isMedia = (file: File) => file.type.startsWith('video/') || file.type.startsWith('audio/') || MEDIA_EXTENSIONS.test(file.name);
+
+/** Reads any picture into a file the canvas can draw: PNG/JPG/WebP as they are, HEIC, TIFF and SVG converted to PNG. */
+async function readPicture(file: File): Promise<File> {
+  const name = file.name.toLowerCase();
+  const toPng = async (draw: (canvas: HTMLCanvasElement) => void | Promise<void>) => {
+    const canvas = document.createElement('canvas');
+    await draw(canvas);
+    const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, 'image/png'));
+    if (!blob) throw new Error('no picture');
+    return new File([blob], `${baseName(file.name)}.png`, { type: 'image/png' });
+  };
+  const fromPixels = (image: ImageData) =>
+    toPng((canvas) => {
+      canvas.width = image.width;
+      canvas.height = image.height;
+      canvas.getContext('2d')!.putImageData(image, 0, 0);
+    });
+  if (/\.(heic|heif)$/.test(name) || /hei[cf]/.test(file.type)) {
+    try {
+      // Safari opens HEIC itself; other browsers use the decoder.
+      (await createImageBitmap(file)).close();
+      return file;
+    } catch {
+      const { readHeic } = await import('../image-converter/image-formats');
+      return fromPixels(await readHeic(await file.arrayBuffer()));
+    }
+  }
+  if (/\.tiff?$/.test(name) || file.type === 'image/tiff') {
+    const { readTiff } = await import('../image-converter/image-formats');
+    return fromPixels(await readTiff(await file.arrayBuffer()));
+  }
+  if (/\.svg$/.test(name) || file.type === 'image/svg+xml') {
+    // SVGs are drawn at a sharp size: the long side at least 1920 px.
+    const url = URL.createObjectURL(file);
+    try {
+      const image = new Image();
+      image.src = url;
+      await image.decode();
+      const w = image.naturalWidth || 1920;
+      const h = image.naturalHeight || 1080;
+      const scale = Math.max(1, 1920 / Math.max(w, h));
+      return await toPng((canvas) => {
+        canvas.width = Math.round(w * scale);
+        canvas.height = Math.round(h * scale);
+        canvas.getContext('2d')!.drawImage(image, 0, 0, canvas.width, canvas.height);
+      });
+    } finally {
+      URL.revokeObjectURL(url);
+    }
+  }
+  return file;
+}
+
 const TITLE_EFFECTS = new Set<keyof Effects>(['brightness', 'contrast', 'saturation', 'grayscale', 'sepia', 'invert', 'hue', 'blur', 'opacity']);
 
 const SHORTCUTS: [string, string][] = [
@@ -198,7 +259,7 @@ type Drag =
           <button type="button" class="tool" (click)="saveProjectZip()">💾 Save project</button>
           <button type="button" class="tool" (click)="projectInput.click()">📁 Open project</button>
           <input #projectInput type="file" class="sr-only" tabindex="-1" aria-hidden="true" accept=".zip,application/zip" (change)="openProjectZip(projectInput)" />
-          <input #fileInput type="file" class="sr-only" tabindex="-1" aria-hidden="true" multiple accept="video/*,audio/*,image/*,.mkv,.mov" (change)="importFiles(fileInput)" />
+          <input #fileInput type="file" class="sr-only" tabindex="-1" aria-hidden="true" multiple accept="video/*,audio/*,image/*,.mkv,.mov,.heic,.heif,.tif,.tiff,.svg" (change)="importFiles(fileInput)" />
           <span class="mx-1 h-5 w-px bg-[#343842]"></span>
           <button type="button" class="tool" [disabled]="!history().length" aria-label="Undo" (click)="undo()">↶ Undo</button>
           <button type="button" class="tool" [disabled]="!future().length" aria-label="Redo" (click)="redo()">↷ Redo</button>
@@ -287,6 +348,18 @@ type Drag =
                 }
               </dl>
             </div>
+          </div>
+        }
+        @if (otherTab()) {
+          <div class="flex flex-wrap items-center gap-2 border-b border-[#343842] bg-[#4a3a1c] px-3 py-2 text-sm" role="alert">
+            <span>The video editor is open in another tab. To keep that tab's work safe, changes here are not saved.</span>
+            <button type="button" class="tool !bg-[#6d83f2] !text-white" (click)="useThisTab()">Save in this tab instead</button>
+          </div>
+        }
+        @if (notice()) {
+          <div class="flex items-center gap-2 border-b border-[#343842] bg-[#2a2f3c] px-3 py-2 text-sm" role="alert">
+            <span class="flex-1">{{ notice() }}</span>
+            <button type="button" class="tool" aria-label="Close message" (click)="notice.set('')">✕</button>
           </div>
         }
         @if (restoreOffer(); as offer) {
@@ -411,7 +484,8 @@ type Drag =
                 }
                 @case ('properties') {
                   @if (selected(); as clip) {
-                    <div class="flex flex-col gap-2 text-xs">
+                    @if (isLocked(clip.track)) { <p class="mb-2 rounded bg-[#4a3a1c] px-2 py-1 text-xs">🔒 This clip is on a locked track. Unlock the track to change it.</p> }
+                    <fieldset class="flex flex-col gap-2 text-xs" [disabled]="isLocked(clip.track)">
                       <p class="font-semibold text-white">{{ clipName(clip) }}</p>
                       <label class="flex items-center justify-between gap-2">Start (s)
                         <input type="number" min="0" step="0.1" class="input w-24" aria-label="Clip start" [value]="round(clip.start)" (change)="setStart(clip, $any($event.target).valueAsNumber)" />
@@ -572,7 +646,7 @@ type Drag =
                         @if (isVideo(clip)) { <button type="button" class="tool !bg-[#2c3a4a]" (click)="freezeFrame(clip)">❄ Freeze frame</button> }
                         <button type="button" class="tool !bg-[#4a2a2a]" (click)="deleteSelected()">🗑 Remove clip</button>
                       </span>
-                    </div>
+                    </fieldset>
                   } @else {
                     <p class="text-xs text-[#9aa0ab]">Select a clip on the timeline to see its properties.</p>
                   }
@@ -663,7 +737,7 @@ type Drag =
               <!-- Ruler -->
               <div class="sticky top-0 z-20 flex h-6 bg-[#1b1d23]">
                 <div class="sticky left-0 z-10 shrink-0 border-r border-[#343842] bg-[#1b1d23]" [style.width.px]="HEADER"></div>
-                <div class="relative flex-1 cursor-pointer" (pointerdown)="scrubStart($event)">
+                <div class="relative flex-1 cursor-pointer touch-none" (pointerdown)="scrubStart($event)">
                   @for (tick of ticks(); track tick) {
                     <span class="absolute top-0 h-full border-l border-[#4a4f5a] pl-1 font-mono text-[10px] text-[#9aa0ab]" [style.left.px]="tick * pps()">{{ timecodeShort(tick) }}</span>
                   }
@@ -690,7 +764,7 @@ type Drag =
                   <div class="relative flex-1" [class]="track.locked ? 'bg-[repeating-linear-gradient(45deg,#1f2228_0_8px,#262a31_8px_16px)]' : 'bg-[#1f2228]'" [attr.data-track]="track.id" (pointerdown)="emptyDown($event)" (drop)="dropOnTrack($event, track.id)" (dragover)="$event.preventDefault()">
                     @for (clip of clipsOn(track.id); track clip.id) {
                       <div
-                        class="absolute top-1 bottom-1 overflow-hidden rounded border text-[11px] leading-tight"
+                        class="absolute top-1 bottom-1 touch-none overflow-hidden rounded border text-[11px] leading-tight"
                         [class]="clipClass(clip)"
                         [class.ring-2]="selectedIds().includes(clip.id)"
                         [style.left.px]="clip.start * pps()"
@@ -713,8 +787,8 @@ type Drag =
                         @if (clip.transitionOut) {
                           <span class="pointer-events-none absolute top-0 right-0 bottom-0 bg-gradient-to-l from-black/60 to-transparent" [style.width.px]="Math.min(length(clip), clip.transitionOut.duration) * pps()"></span>
                         }
-                        <span class="absolute inset-y-0 left-0 w-2 cursor-ew-resize bg-white/20" [attr.aria-label]="'Trim start of ' + clipName(clip)" (pointerdown)="trimDown($event, clip, 'start')"></span>
-                        <span class="absolute inset-y-0 right-0 w-2 cursor-ew-resize bg-white/20" [attr.aria-label]="'Trim end of ' + clipName(clip)" (pointerdown)="trimDown($event, clip, 'end')"></span>
+                        <span class="absolute inset-y-0 left-0 w-2 touch-none cursor-ew-resize bg-white/20 [@media(pointer:coarse)]:w-4" [attr.aria-label]="'Trim start of ' + clipName(clip)" (pointerdown)="trimDown($event, clip, 'start')"></span>
+                        <span class="absolute inset-y-0 right-0 w-2 touch-none cursor-ew-resize bg-white/20 [@media(pointer:coarse)]:w-4" [attr.aria-label]="'Trim end of ' + clipName(clip)" (pointerdown)="trimDown($event, clip, 'end')"></span>
                       </div>
                     }
                   </div>
@@ -837,6 +911,15 @@ export class VideoEditor {
   protected readonly exportPercent = signal(0);
   protected readonly exported = signal<{ blob: Blob; name: string } | null>(null);
   protected readonly saveState = signal<'idle' | 'saving' | 'saved' | 'failed'>('idle');
+  protected readonly otherTab = signal(false);
+  /** A short message shown under the toolbar (for example why something could not be done). */
+  protected readonly notice = signal('');
+  private noticeTimer?: ReturnType<typeof setTimeout>;
+  private tell(message: string): void {
+    this.notice.set(message);
+    clearTimeout(this.noticeTimer);
+    this.noticeTimer = setTimeout(() => this.notice.set(''), 6000);
+  }
   protected readonly restoreOffer = signal<{ saved: { project: Project; savedAt: number }; media: MediaItem[] } | null>(null);
   protected readonly ago = ago;
   /** Auto-save waits until any saved project has been restored or discarded. */
@@ -895,6 +978,7 @@ export class VideoEditor {
       removeEventListener('pointermove', this.onMove);
       removeEventListener('pointerup', this.onUp);
       clearTimeout(this.saveTimer);
+      this.releaseLock?.();
       this.previewer?.dispose();
       for (const m of this.media()) URL.revokeObjectURL(m.url);
     });
@@ -939,7 +1023,47 @@ export class VideoEditor {
   }
 
   // ---------- auto-save ----------
+  /**
+   * Only one tab saves the project: the first to hold the lock. Another tab shows a warning
+   * and can take over, which makes the first tab stop saving.
+   */
+  private async claimSaving(steal: boolean): Promise<boolean> {
+    const locks = typeof navigator !== 'undefined' ? navigator.locks : undefined;
+    if (!locks) return true;
+    return new Promise<boolean>((resolve) => {
+      locks
+        .request('devtools24-video-editor', steal ? { steal: true } : { ifAvailable: true }, (lock) => {
+          if (!lock) {
+            resolve(false);
+            return undefined;
+          }
+          resolve(true);
+          // Held until the page closes, or until another tab takes it over.
+          return new Promise<void>((release) => (this.releaseLock = release));
+        })
+        .catch(() => {
+          // Another tab took the lock over: stop saving here.
+          this.canSave = false;
+          clearTimeout(this.saveTimer);
+          this.otherTab.set(true);
+        });
+    });
+  }
+  private releaseLock: (() => void) | null = null;
+
+  protected async useThisTab(): Promise<void> {
+    if (!(await this.claimSaving(true))) return;
+    this.otherTab.set(false);
+    this.canSave = true;
+    this.savedMedia.clear();
+    this.scheduleSave(this.project(), this.media());
+  }
+
   private async checkSaved(): Promise<void> {
+    if (!(await this.claimSaving(false))) {
+      this.otherTab.set(true);
+      return;
+    }
     try {
       const found = await loadProject();
       if (found && !this.media().length && !this.project().clips.length) {
@@ -1041,8 +1165,23 @@ export class VideoEditor {
   }
 
   protected change(id: string, change: Partial<Clip>, label = 'Change clip'): void {
+    const clip = this.project().clips.find((c) => c.id === id);
+    if (clip && this.isLocked(clip.track)) {
+      this.tell('This clip is on a locked track. Unlock the track (🔒) to change it.');
+      return;
+    }
     this.commit(updateClip(this.project(), id, change), this.project(), label);
   }
+
+  /** Tracks that can take new clips, lowest first. */
+  private openTracks(): number[] {
+    return this.project()
+      .tracks.filter((t) => !t.locked && !t.captions)
+      .map((t) => t.id)
+      .sort((a, b) => a - b);
+  }
+
+  private readonly allLocked = 'All tracks are locked. Unlock a track (🔒) or add one with ＋ Track.';
 
   // ---------- files ----------
   protected importFiles(element: HTMLInputElement): void {
@@ -1060,15 +1199,23 @@ export class VideoEditor {
     this.importing.set(true);
     this.error.set('');
     const added: MediaItem[] = [];
-    for (const file of files) {
+    const failed: string[] = [];
+    for (const original of files) {
+      let url = '';
       try {
-        if (file.size > MAX_VIDEO_BYTES) throw new Error(`${file.name} is over ${formatBytes(MAX_VIDEO_BYTES)}.`);
-        const url = URL.createObjectURL(file);
-        if (file.type.startsWith('image/')) {
+        if (original.size > MAX_VIDEO_BYTES) throw new ImportProblem(`over ${formatBytes(MAX_VIDEO_BYTES)}`);
+        if (!original.size) throw new ImportProblem('the file is empty');
+        if (isPicture(original)) {
+          // iPhone (HEIC), TIFF and SVG pictures are turned into PNG so every browser can draw them.
+          const file = await readPicture(original);
           const bitmap = await createImageBitmap(file);
-          added.push({ id: makeId('media'), name: file.name, kind: 'image', duration: 0, width: bitmap.width, height: bitmap.height, hasAudio: false, url, file });
+          url = URL.createObjectURL(file);
+          added.push({ id: makeId('media'), name: original.name, kind: 'image', duration: 0, width: bitmap.width, height: bitmap.height, hasAudio: false, url, file });
           bitmap.close();
         } else {
+          if (!isMedia(original)) throw new ImportProblem('not a video, sound or picture');
+          const file = original;
+          url = URL.createObjectURL(file);
           const info = await describe(file);
           added.push({
             id: makeId('media'),
@@ -1083,8 +1230,14 @@ export class VideoEditor {
           });
         }
       } catch (e) {
-        this.error.set(e instanceof Error && e.message ? e.message : `${file.name} could not be read.`);
+        if (url) URL.revokeObjectURL(url);
+        failed.push(`${original.name} (${e instanceof ImportProblem ? e.message : 'damaged, or a format this browser cannot open'})`);
       }
+    }
+    if (failed.length) {
+      const message = `Could not import ${failed.length === 1 ? failed[0] : `${failed.length} files: ${failed.join(', ')}`}.`;
+      this.error.set(message);
+      this.tell(message);
     }
     this.media.update((list) => [...list, ...added]);
     for (const m of added) void this.enrich(m);
@@ -1113,17 +1266,20 @@ export class VideoEditor {
 
   /** Double-click: audio goes on the lowest track, pictures on the lowest track that is free at the playhead. */
   protected addAtPlayhead(media: MediaItem): void {
-    const track = media.kind === 'audio' ? 1 : this.freeTrackAt(this.time(), media.kind === 'image' ? 5 : media.duration);
+    const open = this.openTracks();
+    if (!open.length) return this.tell(this.allLocked);
+    const track = media.kind === 'audio' ? open[0] : this.freeTrackAt(this.time(), media.kind === 'image' ? 5 : media.duration);
     this.place(media, track, this.time());
   }
 
+  /** The lowest unlocked track free at `time` for `length` seconds (or the lowest unlocked one). */
   private freeTrackAt(time: number, length: number): number {
-    const tracks = [...this.project().tracks].sort((a, b) => a.id - b.id);
-    for (const track of tracks) {
-      const busy = this.project().clips.some((c) => c.track === track.id && time < clipEnd(c) && time + length > c.start);
-      if (!busy) return track.id;
+    const open = this.openTracks();
+    for (const track of open) {
+      const busy = this.project().clips.some((c) => c.track === track && time < clipEnd(c) && time + length > c.start);
+      if (!busy) return track;
     }
-    return tracks[0].id;
+    return open[0] ?? this.project().tracks[0].id;
   }
 
   private place(media: MediaItem, track: number, time: number): void {
@@ -1133,7 +1289,9 @@ export class VideoEditor {
   }
 
   protected addTitle(style: TitleStyle): void {
-    const top = Math.max(...this.project().tracks.map((t) => t.id));
+    const open = this.openTracks();
+    if (!open.length) return this.tell(this.allLocked);
+    const top = open[open.length - 1];
     const { project, clip } = addTitleClip(this.project(), { ...style }, top, this.time());
     this.commit(project, this.project(), 'Add title');
     this.selectedIds.set([clip.id]);
@@ -1240,7 +1398,7 @@ export class VideoEditor {
     this.commit({ ...this.project(), tracks: this.project().tracks.map((t) => (t.id === id ? { ...t, [field]: !t[field] } : t)) }, this.project(), `Track ${field === 'locked' ? 'lock' : field === 'muted' ? 'mute' : 'hide'}`);
   }
 
-  private isLocked(track: number): boolean {
+  protected isLocked(track: number): boolean {
     return !!this.project().tracks.find((t) => t.id === track)?.locked;
   }
 
@@ -1268,7 +1426,8 @@ export class VideoEditor {
   }
 
   protected splitAtPlayhead(): void {
-    const id = this.selectedId();
+    const chosen = this.selected();
+    const id = chosen && !this.isLocked(chosen.track) ? chosen.id : null;
     const next = id ? splitClip(this.project(), id, this.time()) : splitAll(this.project(), this.time());
     this.commit(next === this.project() && id ? splitAll(this.project(), this.time()) : next, this.project(), 'Split');
   }
@@ -1285,7 +1444,16 @@ export class VideoEditor {
   }
 
   protected paste(at = this.time()): void {
-    const { project, ids } = pasteClips(this.project(), this.clipboard(), at);
+    const open = this.openTracks();
+    const captionTracks = new Set(this.project().tracks.filter((t) => t.captions && !t.locked).map((t) => t.id));
+    // Clips from a locked track go to the nearest unlocked one.
+    const clips = this.clipboard().map((c) => {
+      if (!this.isLocked(c.track) && this.project().tracks.some((t) => t.id === c.track)) return c;
+      const near = c.caption && captionTracks.size ? [...captionTracks][0] : open.reduce((best, t) => (Math.abs(t - c.track) < Math.abs(best - c.track) ? t : best), open[0]);
+      return near === undefined ? null : { ...c, track: near };
+    });
+    if (clips.some((c) => !c)) return this.tell(this.allLocked);
+    const { project, ids } = pasteClips(this.project(), clips as Clip[], at);
     this.commit(project, this.project(), ids.length > 1 ? `Paste ${ids.length} clips` : 'Paste clip');
     this.selectedIds.set(ids);
   }
@@ -1424,7 +1592,8 @@ export class VideoEditor {
         const snappedEnd = snap(base, start + clipLength(clip), tolerance, clip.id, [this.time()]) - clipLength(clip);
         start = snappedStart !== start ? snappedStart : snappedEnd !== start ? snappedEnd : start;
       }
-      const others = this.selectedIds().filter((id) => id !== clip.id);
+      // Clips on locked tracks stay where they are.
+      const others = this.selectedIds().filter((id) => id !== clip.id && !this.isLocked(base.clips.find((c) => c.id === id)?.track ?? -1));
       if (others.length) {
         // Several clips move together, keeping their tracks.
         this.project.set(moveClips(base, [clip.id, ...others], start - clip.start));
@@ -1549,6 +1718,7 @@ export class VideoEditor {
 
   // ---------- captions ----------
   protected addCaption(): void {
+    if (captionsLocked(this.project())) return this.tell('The Captions track is locked. Unlock it (🔒) to add captions.');
     const { project, ids } = addCues(this.project(), [{ start: this.time(), end: this.time() + 3, text: 'Caption text' }], 0, true);
     this.commit(project, this.project(), 'Add caption');
     this.selectedIds.set(ids);
@@ -1565,6 +1735,7 @@ export class VideoEditor {
       this.tab.set('files');
       return;
     }
+    if (captionsLocked(this.project())) return this.tell('The Captions track is locked. Unlock it (🔒) to add captions.');
     const { project, ids } = addCues(this.project(), cues);
     this.commit(project, this.project(), `Import ${cues.length} captions`);
     this.selectedIds.set(ids.slice(0, 1));
@@ -1574,7 +1745,8 @@ export class VideoEditor {
   protected makeSlideshow(): void {
     const images = this.media().filter((m) => m.kind === 'image');
     if (!images.length) return;
-    const track = Math.min(...this.project().tracks.map((t) => t.id));
+    const track = this.openTracks()[0];
+    if (track === undefined) return this.tell(this.allLocked);
     const { project, ids } = slideshow(this.project(), images, track, this.time(), this.slideSeconds(), this.slideFade());
     this.commit(project, this.project(), 'Slideshow');
     this.selectedIds.set(ids);
@@ -1716,7 +1888,7 @@ export class VideoEditor {
 
   // ---------- speed, sound, transform ----------
   protected setSpeed(clip: Clip, speed: number): void {
-    this.change(clip.id, { speed: speed === 1 ? undefined : speed }, `Speed ${speed}×`);
+    this.change(clip.id, speedChange(clip, speed), `Speed ${speed}×`);
   }
 
   protected audioFx(clip: Clip): AudioFx {
@@ -1781,8 +1953,9 @@ export class VideoEditor {
 
   // ---------- separate audio, freeze frame ----------
   protected separate(clip: Clip): void {
-    const track = this.freeTrackAt(clip.start, clipLength(clip));
-    const target = track === clip.track ? Math.min(...this.project().tracks.map((t) => t.id)) : track;
+    if (this.isLocked(clip.track)) return this.tell('This clip is on a locked track. Unlock the track (🔒) to change it.');
+    const target = this.openTracks().find((t) => t !== clip.track && !this.project().clips.some((c) => c.track === t && clip.start < clipEnd(c) && clipEnd(clip) > c.start));
+    if (target === undefined) return this.tell('There is no free unlocked track for the sound. Add one with ＋ Track.');
     this.commit(separateAudio(this.project(), clip.id, target), this.project(), 'Separate audio');
   }
 
@@ -1808,8 +1981,9 @@ export class VideoEditor {
         const file = new File([blob], `${baseName(item.name)}-frame-${at.toFixed(1)}s.png`, { type: 'image/png' });
         const still: MediaItem = { id: makeId('media'), name: file.name, kind: 'image', duration: 0, width: canvas.width, height: canvas.height, hasAudio: false, url: URL.createObjectURL(file), file };
         this.media.update((list) => [...list, still]);
-        const above = this.project().tracks.map((t) => t.id).filter((id) => id > clip.track).sort((a, b) => a - b);
-        const stillTrack = above.find((id) => !this.project().clips.some((c) => c.track === id && at < clipEnd(c) && at + 3 > c.start)) ?? above[0] ?? clip.track;
+        const above = this.openTracks().filter((id) => id > clip.track);
+        const stillTrack = above.find((id) => !this.project().clips.some((c) => c.track === id && at < clipEnd(c) && at + 3 > c.start)) ?? above[0];
+        if (stillTrack === undefined) throw new Error('There is no unlocked track above this clip for the still. Add one with ＋ Track.');
         const placed = addMediaClip(this.project(), still, stillTrack, at);
         const added = placed.clip;
         this.commit(updateClip(placed.project, added.id, { out: 3 }), this.project(), 'Freeze frame');
@@ -1817,9 +1991,8 @@ export class VideoEditor {
       } finally {
         input.dispose();
       }
-    } catch {
-      this.error.set('The frame could not be captured.');
-      this.tab.set('files');
+    } catch (e) {
+      this.tell(e instanceof Error && e.message.startsWith('There is') ? e.message : 'The frame could not be captured.');
     }
   }
 

@@ -24,7 +24,8 @@ Open `chrome://extensions`, turn on Developer mode, choose **Load unpacked** and
 
 ## Publish
 
-Upload `dist/devtools24-extension.zip` in the Chrome Web Store Developer Dashboard (a one-time US$5 developer
+Every field of the Store form, ready to paste, is in [store/listing.md](store/listing.md); the images are in `store/`
+(`node scripts/extension-store-images.mjs` makes them again). Upload `dist/devtools24-extension.zip` in the Chrome Web Store Developer Dashboard (a one-time US$5 developer
 account is needed). Edge Add-ons accepts the same zip. The listing needs: a 128 px icon (`icons/icon-128.png`), at
 least one 1280×800 screenshot, a short description, and a privacy note: "No data is collected. Selected text is put in
 a devtools24.in link and is processed in the browser."

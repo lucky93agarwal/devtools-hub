@@ -256,6 +256,8 @@ export interface Track {
   hidden: boolean;
   /** Locked tracks cannot be edited. */
   locked?: boolean;
+  /** A captions track, and its lane (1 is the main one; 2 and 3 hold lines that overlap in time). */
+  captions?: number;
 }
 
 export interface Project {
@@ -389,9 +391,41 @@ export function splitClip(project: Project, id: string, time: number): Project {
   return { ...project, clips: project.clips.flatMap((c) => (c.id === id ? [left, right] : [c])) };
 }
 
-/** Splits every clip under the playhead (like a razor across all tracks). */
+/** Splits every clip under the playhead (like a razor across all tracks), except on locked tracks. */
 export function splitAll(project: Project, time: number): Project {
-  return project.clips.filter((c) => time > c.start && time < clipEnd(c)).reduce((p, c) => splitClip(p, c.id, time), project);
+  const locked = new Set(project.tracks.filter((t) => t.locked).map((t) => t.id));
+  return project.clips.filter((c) => time > c.start && time < clipEnd(c) && !locked.has(c.track)).reduce((p, c) => splitClip(p, c.id, time), project);
+}
+
+/**
+ * Keyframes moved by `by` seconds (the clip's start moved later by `by`). Keyframes that
+ * fall before the new start are dropped, and the value there is kept as a keyframe at 0.
+ */
+export function shiftKeyframes(keyframes: Keyframes | undefined, by: number): Keyframes | undefined {
+  if (!keyframes || Math.abs(by) < 1e-9) return keyframes;
+  const out: Keyframes = {};
+  for (const [key, list] of Object.entries(keyframes) as [KeyProp, Keyframe[] | undefined][]) {
+    if (!list?.length) continue;
+    const moved = list.map((f) => ({ ...f, t: f.t - by }));
+    const kept = moved.filter((f) => f.t >= -1e-9);
+    if (kept.length < moved.length) {
+      const first: Keyframe = { t: 0, v: valueAt(list, by, list[0].v) };
+      const curve = list.find((f) => f.ease)?.ease;
+      if (curve) first.ease = curve;
+      if (!kept.some((f) => Math.abs(f.t) < 1 / 60)) kept.unshift(first);
+    }
+    out[key] = kept;
+  }
+  return out;
+}
+
+/** A clip's change for a new speed: keyframes stretch with the clip, so animations still line up with the picture. */
+export function speedChange(clip: Clip, speed: number): Partial<Clip> {
+  const ratio = (clip.speed ?? 1) / speed;
+  const keyframes = clip.keyframes
+    ? (Object.fromEntries(Object.entries(clip.keyframes).map(([k, list]) => [k, (list ?? []).map((f) => ({ ...f, t: f.t * ratio }))])) as Keyframes)
+    : undefined;
+  return { speed: speed === 1 ? undefined : speed, keyframes };
 }
 
 /**
@@ -399,6 +433,15 @@ export function splitAll(project: Project, time: number): Project {
  * their source; images and titles can be any length. Speed and reverse are honoured.
  */
 export function trimClip(project: Project, id: string, edge: 'start' | 'end', time: number, sourceLength: number | null): Project {
+  const next = trimRaw(project, id, edge, time, sourceLength);
+  const before = project.clips.find((c) => c.id === id);
+  const after = next.clips.find((c) => c.id === id);
+  if (!before?.keyframes || !after || edge !== 'start' || after.start === before.start) return next;
+  // Keyframes are timed from the clip's start: keep them on the same moment of the picture.
+  return updateClip(next, id, { keyframes: shiftKeyframes(before.keyframes, after.start - before.start) });
+}
+
+function trimRaw(project: Project, id: string, edge: 'start' | 'end', time: number, sourceLength: number | null): Project {
   const clip = project.clips.find((c) => c.id === id);
   if (!clip) return project;
   const speed = clip.speed ?? 1;

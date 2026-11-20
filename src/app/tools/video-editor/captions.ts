@@ -52,17 +52,28 @@ export function toSrt(cues: readonly Cue[]): string {
 /** The caption clips of a project as lines, in time order. */
 export function projectCues(project: Project): Cue[] {
   return project.clips
-    .filter((c) => c.caption && c.title)
+    // Empty lines are left out: players and YouTube reject them.
+    .filter((c) => c.caption && c.title?.text.trim())
     .map((c) => ({ start: c.start, end: clipEnd(c), text: c.title!.text }))
     .sort((a, b) => a.start - b.start);
 }
 
-/** The track captions go on: one named "Captions", made on top when there is none. */
-export function captionTrack(project: Project): { project: Project; track: number } {
-  const existing = project.tracks.find((t) => t.name === 'Captions');
+/**
+ * The captions track for a lane (1 is the main one; lines that overlap in time go on lane 2
+ * or 3), made on top when there is none. Found by its flag, so renaming it is fine; older
+ * projects are recognised by the name "Captions".
+ */
+export function captionTrack(project: Project, lane = 1): { project: Project; track: number } {
+  const existing = project.tracks.find((t) => (t.captions ?? (t.name === 'Captions' ? 1 : 0)) === lane);
   if (existing) return { project, track: existing.id };
   const id = Math.max(0, ...project.tracks.map((t) => t.id)) + 1;
-  return { project: { ...project, tracks: [...project.tracks, { id, name: 'Captions', muted: false, hidden: false }] }, track: id };
+  const name = lane === 1 ? 'Captions' : `Captions ${lane}`;
+  return { project: { ...project, tracks: [...project.tracks, { id, name, muted: false, hidden: false, captions: lane }] }, track: id };
+}
+
+/** True when a caption track (any lane) is locked. */
+export function captionsLocked(project: Project): boolean {
+  return project.tracks.some((t) => (t.captions ?? (t.name === 'Captions' ? 1 : 0)) === 1 && t.locked);
 }
 
 /**
@@ -78,14 +89,34 @@ export function captionY(project: Pick<Project, 'width' | 'height'>): number {
  * With `avoidOverlap`, a line that would cover another caption moves to the next free time.
  */
 export function addCues(project: Project, cues: readonly Cue[], offset = 0, avoidOverlap = false): { project: Project; ids: string[] } {
-  const made = captionTrack(project);
-  let next = made.project;
+  let next = project;
   const ids: string[] = [];
   const y = captionY(project);
   for (const cue of cues) {
     const length = cue.end - cue.start;
-    const start = avoidOverlap ? freeStart(next, made.track, cue.start + offset, length) : cue.start + offset;
-    const clip: Clip = { id: makeId('caption'), track: made.track, start, in: 0, out: length, title: { ...CAPTION_STYLE, y, text: cue.text }, caption: true, volume: 1 };
+    let start = cue.start + offset;
+    let lane = 1;
+    let made = captionTrack(next, 1);
+    if (avoidOverlap) start = freeStart(made.project, made.track, start, length);
+    else {
+      // A line that overlaps another (two speakers) goes on the next lane, shown one line higher.
+      const busy = (track: number, p: Project) => p.clips.some((c) => c.track === track && start < clipEnd(c) - 1e-6 && start + length > c.start + 1e-6);
+      while (lane < 3 && busy(made.track, made.project)) {
+        lane++;
+        made = captionTrack(made.project, lane);
+      }
+    }
+    next = made.project;
+    const clip: Clip = {
+      id: makeId('caption'),
+      track: made.track,
+      start,
+      in: 0,
+      out: length,
+      title: { ...CAPTION_STYLE, y: y - (lane - 1) * 0.08, text: cue.text },
+      caption: true,
+      volume: 1,
+    };
     next = { ...next, clips: [...next.clips, clip] };
     ids.push(clip.id);
   }
