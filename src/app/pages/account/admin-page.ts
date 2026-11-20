@@ -1,7 +1,7 @@
 import { Component, computed, effect, inject, signal, untracked } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { AccountError, Auth } from '../../core/accounts/auth';
-import { AdminTraffic, REASONS, gpsText, placeName, type TrafficRow } from './admin-traffic';
+import { AdminTraffic } from './admin-traffic';
 
 interface AdminUser {
   id: string;
@@ -18,6 +18,10 @@ interface AdminUser {
   lastLoginAt: number | null;
   loginCount: number;
   activeSessions: number;
+  signupMethod?: string;
+  lastLoginMethod?: string | null;
+  providers?: string[];
+  hasPassword?: boolean;
 }
 
 interface DeletedUser {
@@ -30,6 +34,7 @@ interface DeletedUser {
   deletedAt: number;
   deletedBy: string;
   rejoined: boolean;
+  signupMethod?: string;
 }
 
 interface Stats {
@@ -49,7 +54,6 @@ interface Detail {
   user: AdminUser;
   sessions: { createdAt: number; lastSeenAt: number; expiresAt: number; userAgent: string; ip: string }[];
   emails: { id: number; subject: string; sent: number; created_at: number }[];
-  logins?: TrafficRow[];
 }
 
 interface Email {
@@ -146,7 +150,7 @@ export function deviceName(userAgent: string): string {
               @if (!deletedView()) {
                 <table class="w-full min-w-[900px] text-left text-sm" aria-label="Users">
                   <thead class="bg-surface text-xs text-muted uppercase">
-                    <tr><th class="w-12 px-3 py-2">#</th><th class="px-3 py-2">Name</th><th class="px-3 py-2">Email</th><th class="px-3 py-2">Mobile</th><th class="px-3 py-2">Status</th><th class="px-3 py-2">Signed up</th><th class="px-3 py-2">Last login</th><th class="px-3 py-2">Logins</th><th class="px-3 py-2 text-right">Actions</th></tr>
+                    <tr><th class="w-12 px-3 py-2">#</th><th class="px-3 py-2">Name</th><th class="px-3 py-2">Email</th><th class="px-3 py-2">Mobile</th><th class="px-3 py-2">Login via</th><th class="px-3 py-2">Status</th><th class="px-3 py-2">Signed up</th><th class="px-3 py-2">Last login</th><th class="px-3 py-2">Logins</th><th class="px-3 py-2 text-right">Actions</th></tr>
                   </thead>
                   <tbody>
                     @for (u of users(); track u.id; let i = $index) {
@@ -154,7 +158,13 @@ export function deviceName(userAgent: string): string {
                         <td class="px-3 py-2 text-muted">{{ firstRow() + i }}</td>
                         <td class="px-3 py-2 font-semibold">{{ u.firstName }} {{ u.lastName }}@if (u.role === 'admin') { <span class="chip ml-1 !px-1.5 !py-0 !text-xs">Admin</span> }</td>
                         <td class="px-3 py-2">{{ u.email }}</td>
-                        <td class="px-3 py-2">{{ u.mobile }}</td>
+                        <td class="px-3 py-2">{{ u.mobile || '—' }}</td>
+                        <td class="px-3 py-2">
+                          <span class="flex flex-wrap gap-1">
+                            @for (m of loginMethods(u); track m) { <span class="chip !px-1.5 !py-0 !text-xs" [class]="methodClass(m)">{{ methodLabel(m) }}</span> }
+                          </span>
+                          @if (u.lastLoginMethod) { <span class="mt-0.5 block text-xs text-muted">last: {{ methodLabel(u.lastLoginMethod) }}</span> }
+                        </td>
                         <td class="px-3 py-2 whitespace-nowrap">
                           @if (u.blocked) { <span class="font-semibold text-danger">Blocked</span> }
                           @else if (u.emailVerified) { <span class="text-success">✓ Confirmed</span> }
@@ -170,14 +180,14 @@ export function deviceName(userAgent: string): string {
                         </td>
                       </tr>
                     } @empty {
-                      <tr><td colspan="9" class="px-3 py-6 text-center text-muted">No users match.</td></tr>
+                      <tr><td colspan="10" class="px-3 py-6 text-center text-muted">No users match.</td></tr>
                     }
                   </tbody>
                 </table>
               } @else {
                 <table class="w-full min-w-[900px] text-left text-sm" aria-label="Deleted users">
                   <thead class="bg-surface text-xs text-muted uppercase">
-                    <tr><th class="w-12 px-3 py-2">#</th><th class="px-3 py-2">Name</th><th class="px-3 py-2">Email</th><th class="px-3 py-2">Mobile</th><th class="px-3 py-2">Signed up</th><th class="px-3 py-2">Deleted on</th><th class="px-3 py-2">Deleted by</th><th class="px-3 py-2">Now</th></tr>
+                    <tr><th class="w-12 px-3 py-2">#</th><th class="px-3 py-2">Name</th><th class="px-3 py-2">Email</th><th class="px-3 py-2">Mobile</th><th class="px-3 py-2">Login via</th><th class="px-3 py-2">Signed up</th><th class="px-3 py-2">Deleted on</th><th class="px-3 py-2">Deleted by</th><th class="px-3 py-2">Now</th></tr>
                   </thead>
                   <tbody>
                     @for (u of deletedUsers(); track u.id; let i = $index) {
@@ -185,14 +195,15 @@ export function deviceName(userAgent: string): string {
                         <td class="px-3 py-2 text-muted">{{ firstRow() + i }}</td>
                         <td class="px-3 py-2 font-semibold">{{ u.firstName }} {{ u.lastName }}</td>
                         <td class="px-3 py-2">{{ u.email }}</td>
-                        <td class="px-3 py-2">{{ u.mobile }}</td>
+                        <td class="px-3 py-2">{{ u.mobile || '—' }}</td>
+                        <td class="px-3 py-2">{{ methodLabel(u.signupMethod ?? 'password') }}</td>
                         <td class="px-3 py-2 whitespace-nowrap">{{ when(u.createdAt) }}</td>
                         <td class="px-3 py-2 whitespace-nowrap font-semibold text-danger">{{ when(u.deletedAt) }}</td>
                         <td class="px-3 py-2">{{ u.deletedBy }}</td>
                         <td class="px-3 py-2">{{ u.rejoined ? 'Signed up again' : 'Deleted' }}</td>
                       </tr>
                     } @empty {
-                      <tr><td colspan="8" class="px-3 py-6 text-center text-muted">No deleted users.</td></tr>
+                      <tr><td colspan="9" class="px-3 py-6 text-center text-muted">No deleted users.</td></tr>
                     }
                   </tbody>
                 </table>
@@ -237,6 +248,8 @@ export function deviceName(userAgent: string): string {
                   </div>
                 </div>
                 <dl class="mt-4 grid gap-x-6 gap-y-2 text-sm sm:grid-cols-[11rem_1fr]">
+                  <dt class="text-muted">Signed up with</dt><dd>{{ methodLabel(d.user.signupMethod ?? 'password') }}</dd>
+                  <dt class="text-muted">Can log in with</dt><dd>{{ loginMethods(d.user).map(methodLabel).join(', ') }}</dd>
                   <dt class="text-muted">Account type</dt><dd>{{ d.user.role === 'admin' ? 'Admin' : 'User' }}</dd>
                   <dt class="text-muted">Email confirmed</dt><dd>{{ d.user.emailVerifiedAt ? when(d.user.emailVerifiedAt) : 'Not yet' }}</dd>
                   <dt class="text-muted">Signed up</dt><dd>{{ when(d.user.createdAt) }}</dd>
@@ -252,18 +265,10 @@ export function deviceName(userAgent: string): string {
                     }
                   </ul>
                 } @else { <p class="mt-2 text-sm text-muted">Not logged in anywhere.</p> }
-                <h3 class="mt-5 text-base font-semibold">Recent logins</h3>
-                <ul class="mt-2 divide-y divide-line rounded-xl border border-line text-sm">
-                  @for (l of d.logins ?? []; track l.id) {
-                    <li class="flex flex-wrap justify-between gap-2 px-3 py-2">
-                      <span>
-                        @if (l.success) { <span class="text-success">✓</span> } @else { <span class="text-danger">✗ {{ reasonName(l.reason) }}</span> }
-                        {{ l.browser }} on {{ l.os }} ({{ l.device_type }})@if (l.new_device) { · <strong>new device</strong> }
-                      </span>
-                      <span class="text-muted">{{ when(l.created_at) }} · {{ place(l) }} · {{ l.ip }}@if (l.gps_lat !== null) { · GPS {{ gps(l) }} }</span>
-                    </li>
-                  } @empty { <li class="px-3 py-2 text-muted">None recorded yet</li> }
-                </ul>
+                <h3 class="mt-6 text-base font-semibold">Visits by this user</h3>
+                <app-admin-traffic kind="visits" [userId]="d.user.id" />
+                <h3 class="mt-6 text-base font-semibold">Logins by this user</h3>
+                <app-admin-traffic kind="logins" [userId]="d.user.id" />
                 <h3 class="mt-5 text-base font-semibold">Emails sent</h3>
                 <ul class="mt-2 text-sm">
                   @for (e of d.emails; track e.id) { <li class="py-0.5">{{ when(e.created_at) }} · {{ e.subject }}</li> } @empty { <li class="text-muted">None</li> }
@@ -329,6 +334,9 @@ export class AdminPage {
     { id: 'unverified', label: 'Email not confirmed' },
     { id: 'blocked', label: 'Blocked' },
     { id: 'admins', label: 'Admins' },
+    { id: 'password', label: 'Manual (email + password)' },
+    { id: 'google', label: 'Google' },
+    { id: 'facebook', label: 'Facebook' },
     { id: 'deleted', label: 'Deleted users' },
   ];
   protected readonly tab = signal<Tab>('overview');
@@ -363,10 +371,20 @@ export class AdminPage {
   protected readonly log = signal<{ id: number; action: string; created_at: number; admin_email: string; target_email: string }[]>([]);
   protected readonly error = signal('');
   protected readonly device = deviceName;
-  protected readonly place = placeName;
-  protected readonly gps = gpsText;
-  protected reasonName(reason: string | null | undefined): string {
-    return reason ? (REASONS[reason] ?? reason) : 'Failed';
+
+  /** Every way this user can log in: Manual (a password), Google, Facebook. */
+  protected loginMethods(u: AdminUser): string[] {
+    const list = u.hasPassword !== false ? ['password'] : [];
+    for (const p of u.providers ?? []) if (!list.includes(p)) list.push(p);
+    return list.length ? list : [u.signupMethod ?? 'password'];
+  }
+
+  protected methodLabel(method: string): string {
+    return method === 'google' ? 'Google' : method === 'facebook' ? 'Facebook' : 'Manual';
+  }
+
+  protected methodClass(method: string): string {
+    return method === 'google' ? '!border-[#4285F4] !text-[#4285F4]' : method === 'facebook' ? '!border-[#1877F2] !text-[#1877F2]' : '';
   }
   private searchTimer?: ReturnType<typeof setTimeout>;
 

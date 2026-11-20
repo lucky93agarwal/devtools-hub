@@ -28,6 +28,14 @@ export interface Env {
   MAIL_FROM?: string;
   /** The site's address for links in emails, for example http://localhost:8788 when testing locally. Defaults to the request's own address. */
   APP_URL?: string;
+  /** "Continue with Google": OAuth client from Google Cloud Console. Without both, the button is hidden. */
+  GOOGLE_CLIENT_ID?: string;
+  GOOGLE_CLIENT_SECRET?: string;
+  /** "Continue with Facebook": app from developers.facebook.com. Without both, the button is hidden. */
+  FACEBOOK_APP_ID?: string;
+  FACEBOOK_APP_SECRET?: string;
+  /** Local tests only: a fake Google / Facebook server. Never set on the live site. */
+  OAUTH_TEST_SERVER?: string;
   /** Comma-separated emails that become admins when they sign up or log in. */
   ADMIN_EMAILS?: string;
 }

@@ -32,7 +32,8 @@ import { passwordError } from '../../core/accounts/validation';
                 <button type="button" class="btn-small" [disabled]="resending()" (click)="resend()">{{ resent() ? 'Sent again ✓' : 'Send the link again' }}</button>
               }
             </dd>
-            <dt class="text-muted">Mobile</dt><dd class="font-semibold">{{ u.mobile }}</dd>
+            <dt class="text-muted">Mobile</dt><dd class="font-semibold">{{ u.mobile || 'Not added' }}</dd>
+            <dt class="text-muted">Signed up with</dt><dd class="font-semibold">{{ methodLabel(u.signupMethod) }}</dd>
             <dt class="text-muted">Account type</dt><dd class="font-semibold">{{ u.role === 'admin' ? 'Admin' : 'Free' }}</dd>
             <dt class="text-muted">Member since</dt><dd class="font-semibold">{{ date(u.createdAt) }}</dd>
           </dl>
@@ -40,7 +41,10 @@ import { passwordError } from '../../core/accounts/validation';
         </section>
 
         <section class="card mt-6 p-5" aria-labelledby="password-heading">
-          <h2 id="password-heading" class="text-xl leading-7">Change password</h2>
+          <h2 id="password-heading" class="text-xl leading-7">{{ u.hasPassword === false ? 'Password' : 'Change password' }}</h2>
+          @if (u.hasPassword === false) {
+            <p class="mt-3 text-sm text-muted">You log in with {{ methodLabel(u.signupMethod) }}, so this account has no password yet. To also log in with your email and a password, <a routerLink="/forgot-password" class="font-semibold text-brand hover:underline">set a password</a> (we email you a link).</p>
+          } @else {
           <form class="mt-4 flex max-w-md flex-col gap-3" method="post" novalidate (submit)="$event.preventDefault(); changePassword()">
             <fieldset class="contents" [disabled]="!ready()">
             @if (pwMessage()) { <p class="rounded-xl border px-4 py-3 text-sm" [class]="pwOk() ? 'border-success bg-success/10' : 'border-danger bg-danger/10'" role="status">{{ pwMessage() }}</p> }
@@ -54,6 +58,7 @@ import { passwordError } from '../../core/accounts/validation';
             <button type="submit" class="btn-secondary self-start" [disabled]="pwBusy() || !ready()">{{ pwBusy() ? 'Saving…' : 'Change password' }}</button>
           </fieldset>
           </form>
+          }
         </section>
 
         <section class="card mt-6 p-5" aria-labelledby="activity-heading">
@@ -172,11 +177,15 @@ export class AccountPage {
   }
 
   protected methodName(method: string): string {
-    return method === 'signup' ? 'Signed up' : method === 'reset' ? 'Password reset' : 'Logged in';
+    return method === 'signup' ? 'Signed up' : method === 'reset' ? 'Password reset' : method === 'google' ? 'Google login' : method === 'facebook' ? 'Facebook login' : 'Logged in';
+  }
+
+  protected methodLabel(method: string | undefined): string {
+    return method === 'google' ? 'Google' : method === 'facebook' ? 'Facebook' : 'Email and password';
   }
 
   protected reasonName(reason: string): string {
-    return ({ 'wrong-password': 'wrong password', 'no-account': 'no account', blocked: 'account blocked', paused: 'paused after wrong passwords', captcha: 'CAPTCHA' } as Record<string, string>)[reason] ?? reason;
+    return ({ 'wrong-password': 'wrong password', 'no-account': 'no account', blocked: 'account blocked', 'no-password': 'no password set', paused: 'paused after wrong passwords', captcha: 'CAPTCHA' } as Record<string, string>)[reason] ?? reason;
   }
 
   protected date(ms: number): string {

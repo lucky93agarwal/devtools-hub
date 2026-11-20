@@ -13,6 +13,9 @@ export interface AccountUser {
   role: 'user' | 'admin';
   emailVerified: boolean;
   createdAt: number;
+  /** False for accounts made with Google / Facebook that have not set a password. */
+  hasPassword?: boolean;
+  signupMethod?: string;
 }
 
 export interface LoginRecord {

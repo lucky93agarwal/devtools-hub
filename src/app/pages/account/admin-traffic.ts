@@ -58,13 +58,14 @@ export const REASONS: Record<string, string> = {
   blocked: 'Account blocked',
   paused: 'Paused (too many tries)',
   captcha: 'CAPTCHA failed',
+  'no-password': 'No password (uses Google / Facebook)',
 };
 
 /** The admin's Visitors and Logins tabs: a searchable, paged table with every field. */
 @Component({
   selector: 'app-admin-traffic',
   template: `
-    @if (kind() === 'visits' && today(); as t) {
+    @if (kind() === 'visits' && !userId() && today(); as t) {
       <div class="mt-6 grid grid-cols-2 gap-3 md:grid-cols-4" aria-label="Last 24 hours">
         <div class="card p-4"><span class="block text-sm text-muted">Visits (24 h)</span><span class="mt-1 block text-3xl font-semibold">{{ t.visits }}</span></div>
         <div class="card p-4"><span class="block text-sm text-muted">Different visitors (24 h)</span><span class="mt-1 block text-3xl font-semibold">{{ t.visitors }}</span></div>
@@ -72,7 +73,7 @@ export const REASONS: Record<string, string> = {
         <div class="card p-4"><span class="block text-sm text-muted">Allowed GPS (24 h)</span><span class="mt-1 block text-3xl font-semibold">{{ t.gps }}</span></div>
       </div>
     }
-    <div class="mt-6 flex flex-wrap items-end gap-3">
+    <div class="flex flex-wrap items-end gap-3" [class.mt-6]="!userId()" [class.mt-2]="!!userId()">
       <label class="flex min-w-60 flex-1 flex-col gap-1 text-sm font-semibold">Search
         <input class="field font-normal" type="search" [placeholder]="kind() === 'visits' ? 'User, email, IP or city' : 'Email, IP or city'" [value]="query()" (input)="setQuery($any($event.target).value)" />
       </label>
@@ -119,7 +120,7 @@ export const REASONS: Record<string, string> = {
               } @else {
                 <td class="px-3 py-2">{{ r.email }}</td>
                 <td class="px-3 py-2">
-                  @if (r.success) { <span class="text-success">✓ {{ methodName(r.method) }}</span> }
+                  @if (r.success) { <span class="text-success">✓ {{ methodName(r.method) }}{{ r.reason === 'new-account' ? ' (new account)' : '' }}</span> }
                   @else { <span class="text-danger">✗ {{ reason(r.reason) }}</span> }
                   @if (r.new_device) { <br /><span class="chip !py-0 text-xs">New device</span> }
                 </td>
@@ -165,6 +166,8 @@ export const REASONS: Record<string, string> = {
 })
 export class AdminTraffic {
   readonly kind = input.required<'visits' | 'logins'>();
+  /** Only this user's rows (in the user details), without the 24-hour numbers. */
+  readonly userId = input('');
   private readonly auth = inject(Auth);
   protected readonly rows = signal<TrafficRow[]>([]);
   protected readonly total = signal(0);
@@ -206,6 +209,7 @@ export class AdminTraffic {
       const kind = this.kind();
       const params = new URLSearchParams({ q: this.search(), page: String(this.page()), size: String(this.size()) });
       params.set(kind === 'visits' ? 'who' : 'result', this.filter());
+      if (this.userId()) params.set('user', this.userId());
       this.tick();
       untracked(() => void this.load(kind, params));
     });
@@ -247,7 +251,7 @@ export class AdminTraffic {
   }
 
   protected methodName(method: string | undefined): string {
-    return method === 'signup' ? 'Signed up' : method === 'reset' ? 'Password reset' : 'Logged in';
+    return method === 'signup' ? 'Signed up' : method === 'reset' ? 'Password reset' : method === 'google' ? 'Google' : method === 'facebook' ? 'Facebook' : 'Logged in';
   }
 
   protected reason(reason: string | null | undefined): string {

@@ -4,6 +4,7 @@ import { AccountError, Auth } from '../../core/accounts/auth';
 import { pageReady } from '../../core/accounts/ready';
 import { SignupInput, passwordStrength, signupErrors } from '../../core/accounts/validation';
 import { Turnstile } from '../../shared/turnstile/turnstile';
+import { SocialLogin } from '../../shared/social-login/social-login';
 
 export const COUNTRY_CODES: readonly { code: string; label: string }[] = [
   { code: '+91', label: 'India +91' },
@@ -32,7 +33,7 @@ const STRENGTH = ['', 'Weak', 'Okay', 'Good', 'Strong'];
 /** Create an account: first and last name, email, mobile number and password. */
 @Component({
   selector: 'app-signup-page',
-  imports: [RouterLink, Turnstile],
+  imports: [RouterLink, Turnstile, SocialLogin],
   template: `
     <div class="container-tool flex justify-center pt-10 pb-16 sm:pt-16">
       <div class="w-full max-w-lg">
@@ -41,6 +42,7 @@ const STRENGTH = ['', 'Weak', 'Okay', 'Good', 'Strong'];
         <form class="card mt-6 flex flex-col gap-4 p-5" method="post" novalidate (submit)="$event.preventDefault(); submit()">
             <fieldset class="contents" [disabled]="!ready()">
           @if (error()) { <p class="rounded-xl border border-danger bg-danger/10 px-4 py-3 text-sm" role="alert">{{ error() }}</p> }
+          <app-social-login verb="Sign up" />
           <div class="grid gap-4 sm:grid-cols-2">
             <label class="flex flex-col gap-1 text-sm font-semibold">First name
               <input class="field font-normal" name="firstName" autocomplete="given-name" [value]="form().firstName" (input)="set('firstName', $any($event.target).value)" (blur)="touch('firstName')" [attr.aria-invalid]="!!shown('firstName')" />

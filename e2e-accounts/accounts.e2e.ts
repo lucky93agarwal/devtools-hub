@@ -330,3 +330,75 @@ test('visits and logins are recorded with place, GPS and device; new-device emai
   await visitor.close();
   await blocker.close();
 });
+
+test('Google and Facebook login: new account, linking, errors, and the admin "Login via" column', async ({ page, request }) => {
+  const as = (profile: object) => request.post('http://localhost:8791/profile', { data: profile });
+  const logOut = () => page.request.post('/api/auth/logout', { headers: { 'content-type': 'application/json' }, data: {} });
+  await logOut();
+
+  // A new person with Google: an account is made, email already confirmed, no password.
+  await as({ id: 'g-1', email: 'gita.google@example.test', verified: true, first: 'Gita', last: 'Google' });
+  await page.goto('/login');
+  await page.getByRole('link', { name: 'Continue with Google' }).click();
+  await expect(page).toHaveURL(/\/account\?welcome=1$/);
+  await expect(page.getByText('gita.google@example.test').first()).toBeVisible();
+  await expect(page.getByText('✓ Confirmed')).toBeVisible();
+  await expect(page.getByText('Signed up with')).toBeVisible();
+  await expect(page.getByRole('link', { name: 'set a password' })).toBeVisible();
+  await logOut();
+  // The password form explains instead of "wrong password".
+  await logIn(page, 'gita.google@example.test', 'Anything-2026');
+  await expect(page.getByRole('alert')).toContainText('logs in with Google or Facebook');
+  // Google again: the same account (no second one).
+  await page.goto('/signup');
+  await page.getByRole('link', { name: 'Sign up with Google' }).click();
+  await expect(page).toHaveURL(/\/account$/);
+  await logOut();
+
+  // Facebook with the email of an existing password account: linked to it.
+  await as({ id: 'f-1', email: USER.email, first: 'Ravi', last: 'K' });
+  await page.goto('/login');
+  await page.getByRole('link', { name: 'Continue with Facebook' }).click();
+  await expect(page).toHaveURL(/\/account$/);
+  await expect(page.getByText(USER.email).first()).toBeVisible();
+  await logOut();
+
+  // Errors come back to the login page with a message.
+  await as({ id: 'f-2', first: 'No', last: 'Email' });
+  await page.goto('/login');
+  await page.getByRole('link', { name: 'Continue with Facebook' }).click();
+  await expect(page).toHaveURL(/social=no-email/);
+  await expect(page.getByRole('alert')).toContainText('does not share an email');
+  await as({ cancel: true });
+  await page.getByRole('link', { name: 'Continue with Google' }).click();
+  await expect(page.getByRole('alert')).toContainText('Login was cancelled');
+  await page.goto('/api/auth/oauth/google/callback?code=x&state=forged');
+  await expect(page).toHaveURL(/social=expired/);
+  // Only pages on this site after login.
+  await as({ id: 'g-1', email: 'gita.google@example.test', verified: true, first: 'Gita', last: 'Google' });
+  await page.goto('/api/auth/oauth/google/start?next=//evil.example');
+  await expect(page).toHaveURL(/localhost:8790\/account$/);
+  await logOut();
+
+  // The admin sees how each user logs in, and one user's visits and logins.
+  await logIn(page, ADMIN.email, ADMIN.password);
+  await page.goto('/admin');
+  await page.getByRole('tab', { name: 'Users' }).click();
+  const table = page.getByRole('table', { name: 'Users' });
+  await expect(table.getByRole('row', { name: 'User gita.google@example.test' })).toContainText('Google');
+  await expect(table.getByRole('row', { name: 'User gita.google@example.test' })).not.toContainText('Manual');
+  const ravi = table.getByRole('row', { name: `User ${USER.email}` });
+  await expect(ravi).toContainText('Manual');
+  await expect(ravi).toContainText('Facebook');
+  await expect(ravi).toContainText('last: Facebook');
+  await page.getByLabel('Filter users').selectOption('google');
+  await expect(page.getByText('Showing 1–1 of 1')).toBeVisible();
+  await page.getByLabel('Filter users').selectOption('all');
+  await ravi.click();
+  const details = page.getByRole('region', { name: 'User details' });
+  await expect(details).toContainText('Can log in with');
+  await expect(details.getByRole('table', { name: 'Visits' })).toContainText(USER.email);
+  await expect(details.getByRole('table', { name: 'Visits' })).not.toContainText('Unknown user');
+  await expect(details.getByRole('table', { name: 'Logins' })).toContainText('Facebook');
+  await expect(details.getByRole('table', { name: 'Logins' })).not.toContainText('gita.google');
+});

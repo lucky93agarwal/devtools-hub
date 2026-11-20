@@ -103,6 +103,8 @@ export interface UserRow {
   created_at: number;
   last_login_at: number | null;
   login_count: number;
+  signup_method?: string;
+  last_login_method?: string | null;
 }
 
 /** What the website may know about the signed-in user. */
@@ -116,6 +118,8 @@ export function publicUser(user: UserRow) {
     role: user.role,
     emailVerified: !!user.email_verified_at,
     createdAt: user.created_at,
+    hasPassword: !!user.password_hash,
+    signupMethod: user.signup_method ?? 'password',
   };
 }
 

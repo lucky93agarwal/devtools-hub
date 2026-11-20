@@ -5,7 +5,7 @@ import { requireAdmin, type UserRow } from './services';
 
 const DAY = 86_400_000;
 
-function listUser(u: UserRow & { sessions?: number }) {
+function listUser(u: UserRow & { sessions?: number; providers?: string | null }) {
   return {
     id: u.id,
     firstName: u.first_name,
@@ -21,6 +21,10 @@ function listUser(u: UserRow & { sessions?: number }) {
     lastLoginAt: u.last_login_at,
     loginCount: u.login_count,
     activeSessions: u.sessions ?? 0,
+    signupMethod: u.signup_method ?? 'password',
+    lastLoginMethod: u.last_login_method ?? null,
+    providers: u.providers ? u.providers.split(',') : [],
+    hasPassword: !!u.password_hash,
   };
 }
 
@@ -74,6 +78,9 @@ const FILTERS: Record<string, string> = {
   unverified: 'email_verified_at IS NULL',
   blocked: 'blocked_at IS NOT NULL',
   admins: "role = 'admin'",
+  password: "password_hash != ''",
+  google: "EXISTS (SELECT 1 FROM oauth_accounts o WHERE o.user_id = users.id AND o.provider = 'google')",
+  facebook: "EXISTS (SELECT 1 FROM oauth_accounts o WHERE o.user_id = users.id AND o.provider = 'facebook')",
 };
 const SORTS: Record<string, string> = {
   newest: 'created_at DESC',
@@ -114,6 +121,7 @@ async function deletedUsers(env: Env, q: string, sortKey: string, page: number, 
       loginCount: r['login_count'],
       deletedAt: r['deleted_at'],
       deletedBy: r['deleted_by'],
+      signupMethod: r['signup_method'] ?? 'password',
       rejoined: !!r['rejoined'],
     })),
     total: total?.n ?? 0,
@@ -139,25 +147,26 @@ export async function users(env: Env, request: Request): Promise<Response> {
   const where = `${filter} AND (? = '' OR LOWER(first_name || ' ' || last_name) LIKE ? OR email LIKE ? OR mobile LIKE ?)`;
   const total = await env.DB.prepare(`SELECT COUNT(*) AS n FROM users WHERE ${where}`).bind(q, like, like, like).first<{ n: number }>();
   const rows = await env.DB.prepare(
-    `SELECT users.*, (SELECT COUNT(*) FROM sessions WHERE sessions.user_id = users.id AND sessions.expires_at > ?) AS sessions
+    `SELECT users.*, (SELECT COUNT(*) FROM sessions WHERE sessions.user_id = users.id AND sessions.expires_at > ?) AS sessions,
+       (SELECT GROUP_CONCAT(provider) FROM oauth_accounts o WHERE o.user_id = users.id) AS providers
      FROM users WHERE ${where} ORDER BY ${sort} LIMIT ? OFFSET ?`,
   )
     .bind(Date.now(), q, like, like, like, size, (page - 1) * size)
-    .all<UserRow & { sessions: number }>();
+    .all<UserRow & { sessions: number; providers: string | null }>();
   return json({ users: rows.results.map(listUser), total: total?.n ?? 0, page, size });
 }
 
 export async function user(env: Env, request: Request, id: string): Promise<Response> {
   await requireAdmin(env, request);
-  const row = await env.DB.prepare('SELECT * FROM users WHERE id = ?').bind(id).first<UserRow>();
+  const row = await env.DB.prepare('SELECT users.*, (SELECT GROUP_CONCAT(provider) FROM oauth_accounts o WHERE o.user_id = users.id) AS providers FROM users WHERE id = ?')
+    .bind(id)
+    .first<UserRow & { providers: string | null }>();
   if (!row) throw new ApiError(404, 'This user does not exist.');
   const sessions = await env.DB.prepare('SELECT created_at, last_seen_at, expires_at, user_agent, ip FROM sessions WHERE user_id = ? AND expires_at > ? ORDER BY last_seen_at DESC')
     .bind(id, Date.now())
     .all<{ created_at: number; last_seen_at: number; expires_at: number; user_agent: string; ip: string }>();
   const emails = await env.DB.prepare('SELECT id, subject, sent, created_at FROM outbox WHERE to_email = ? ORDER BY id DESC LIMIT 20').bind(row.email).all();
-  const logins = await env.DB.prepare(`SELECT ${LOGIN_COLUMNS} FROM login_events WHERE user_id = ? ORDER BY id DESC LIMIT 20`).bind(id).all();
   return json({
-    logins: logins.results,
     user: { ...listUser({ ...row, sessions: sessions.results.length }) },
     sessions: sessions.results.map((s) => ({ createdAt: s.created_at, lastSeenAt: s.last_seen_at, expiresAt: s.expires_at, userAgent: s.user_agent, ip: s.ip })),
     emails: emails.results,
@@ -202,9 +211,10 @@ export async function deleteUser(env: Env, request: Request, id: string): Promis
   const now = Date.now();
   await env.DB.batch([
     env.DB.prepare(
-      `INSERT OR REPLACE INTO deleted_users (id, first_name, last_name, email, mobile, role, email_verified_at, created_at, last_login_at, login_count, deleted_at, deleted_by)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    ).bind(user.id, user.first_name, user.last_name, user.email, user.mobile, user.role, user.email_verified_at, user.created_at, user.last_login_at, user.login_count, now, admin.email),
+      `INSERT OR REPLACE INTO deleted_users (id, first_name, last_name, email, mobile, role, email_verified_at, created_at, last_login_at, login_count, deleted_at, deleted_by, signup_method)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    ).bind(user.id, user.first_name, user.last_name, user.email, user.mobile, user.role, user.email_verified_at, user.created_at, user.last_login_at, user.login_count, now, admin.email, user.signup_method ?? 'password'),
+    env.DB.prepare('DELETE FROM oauth_accounts WHERE user_id = ?').bind(id),
     env.DB.prepare('DELETE FROM sessions WHERE user_id = ?').bind(id),
     env.DB.prepare('DELETE FROM tokens WHERE user_id = ?').bind(id),
     env.DB.prepare('DELETE FROM known_devices WHERE user_id = ?').bind(id),
@@ -251,7 +261,8 @@ export async function visits(env: Env, request: Request): Promise<Response> {
   const url = new URL(request.url);
   const { size, page, q, like } = paging(url);
   const who = url.searchParams.get('who');
-  const filter = who === 'users' ? 'visits.user_id IS NOT NULL' : who === 'unknown' ? 'visits.user_id IS NULL' : '1 = 1';
+  const userId = (url.searchParams.get('user') ?? '').replace(/[^\w-]/g, '');
+  const filter = (who === 'users' ? 'visits.user_id IS NOT NULL' : who === 'unknown' ? 'visits.user_id IS NULL' : '1 = 1') + (userId ? ` AND visits.user_id = '${userId}'` : '');
   const where = `${filter} AND (? = '' OR LOWER(COALESCE(u.email, '') || ' ' || COALESCE(u.first_name, '') || ' ' || COALESCE(u.last_name, '')) LIKE ? OR visits.ip LIKE ? OR LOWER(COALESCE(visits.city, '')) LIKE ? OR visits.visitor_id LIKE ?)`;
   const from = 'FROM visits LEFT JOIN users u ON u.id = visits.user_id';
   const since = Date.now() - DAY;
@@ -279,7 +290,9 @@ export async function logins(env: Env, request: Request): Promise<Response> {
   const url = new URL(request.url);
   const { size, page, q, like } = paging(url);
   const result = url.searchParams.get('result');
-  const filter = result === 'success' ? 'success = 1' : result === 'failed' ? 'success = 0' : result === 'new-device' ? 'new_device = 1' : '1 = 1';
+  const userId = (url.searchParams.get('user') ?? '').replace(/[^\w-]/g, '');
+  const filter =
+    (result === 'success' ? 'success = 1' : result === 'failed' ? 'success = 0' : result === 'new-device' ? 'new_device = 1' : '1 = 1') + (userId ? ` AND user_id = '${userId}'` : '');
   const where = `${filter} AND (? = '' OR email LIKE ? OR ip LIKE ? OR LOWER(COALESCE(city, '')) LIKE ?)`;
   const total = await env.DB.prepare(`SELECT COUNT(*) AS n FROM login_events WHERE ${where}`).bind(q, like, like, like).first<{ n: number }>();
   const rows = await env.DB.prepare(`SELECT ${LOGIN_COLUMNS} FROM login_events WHERE ${where} ORDER BY id DESC LIMIT ? OFFSET ?`)

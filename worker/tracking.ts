@@ -141,7 +141,7 @@ export interface LoginNote {
   email: string;
   userId?: string | null;
   success: boolean;
-  method: 'password' | 'signup' | 'reset';
+  method: 'password' | 'signup' | 'reset' | 'google' | 'facebook';
   reason?: string;
   visitorId?: string | null;
 }
@@ -168,7 +168,7 @@ export async function recordLogin(env: Env, request: Request, note: LoginNote, u
       .bind(note.userId, key, now, now)
       .run();
     // Tell the user about a login from a device they have not used before (not for their very first one).
-    if (newDevice && (known?.n ?? 0) > 0 && user && note.method === 'password') {
+    if (newDevice && (known?.n ?? 0) > 0 && user && note.method !== 'signup' && note.method !== 'reset') {
       const where = [place.city, place.region, place.country].filter(Boolean).join(', ') || 'an unknown place';
       await sendMail(env, {
         to: user.email,

@@ -5,6 +5,7 @@
 import * as admin from './admin';
 import * as auth from './auth';
 import type { Env } from './env';
+import * as oauth from './oauth';
 import * as tracking from './tracking';
 import { ApiError, errorResponse, json } from './http';
 
@@ -20,6 +21,9 @@ const ROUTES: [method: string, pattern: RegExp, handler: Handler][] = [
   ['POST', /^\/api\/auth\/forgot-password$/, auth.forgotPassword],
   ['POST', /^\/api\/auth\/reset-password$/, auth.resetPassword],
   ['POST', /^\/api\/auth\/change-password$/, auth.changePassword],
+  ['GET', /^\/api\/auth\/providers$/, oauth.providers],
+  ['GET', /^\/api\/auth\/oauth\/(\w+)\/start$/, oauth.start],
+  ['GET', /^\/api\/auth\/oauth\/(\w+)\/callback$/, oauth.callback],
   ['GET', /^\/api\/auth\/activity$/, tracking.activity],
   ['POST', /^\/api\/auth\/sessions\/([\w-]+)\/logout$/, tracking.endSession],
   ['POST', /^\/api\/visit$/, tracking.recordVisit],

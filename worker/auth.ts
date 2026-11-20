@@ -72,7 +72,7 @@ export async function signup(env: Env, request: Request): Promise<Response> {
     role: isAdminEmail(env, email) ? 'admin' : 'user',
   };
   await env.DB.prepare(
-    'INSERT INTO users (id, first_name, last_name, email, mobile, password_hash, role, created_at, last_login_at, login_count) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1)',
+    'INSERT INTO users (id, first_name, last_name, email, mobile, password_hash, role, created_at, last_login_at, login_count, last_login_method) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1, \'password\')',
   )
     .bind(user.id, user.first_name, user.last_name, user.email, user.mobile, await hashPassword(input.password), user.role, now, now)
     .run();
@@ -107,6 +107,11 @@ export async function login(env: Env, request: Request): Promise<Response> {
   }
   const user = await env.DB.prepare('SELECT * FROM users WHERE email = ?').bind(email).first<UserRow>();
   const ok = await verifyPassword(password, user?.password_hash ?? DUMMY_HASH);
+  if (user && !user.password_hash) {
+    // Created with Google / Facebook and no password set yet.
+    await failed('no-password', user.id);
+    throw new ApiError(401, 'This account logs in with Google or Facebook. Use the button below, or set a password with "Forgot password?".');
+  }
   if (!user || !ok) {
     await failed(user ? 'wrong-password' : 'no-account', user?.id);
     const left = await limit(env, key, MAX_LOGIN_FAILURES, LOGIN_LOCK_MS, 'Too many wrong passwords.');
@@ -119,7 +124,7 @@ export async function login(env: Env, request: Request): Promise<Response> {
   await clearLimit(env, key);
   const now = Date.now();
   const role = user.role === 'admin' || isAdminEmail(env, email) ? 'admin' : 'user';
-  await env.DB.prepare('UPDATE users SET last_login_at = ?, login_count = login_count + 1, role = ? WHERE id = ?').bind(now, role, user.id).run();
+  await env.DB.prepare('UPDATE users SET last_login_at = ?, login_count = login_count + 1, role = ?, last_login_method = ? WHERE id = ?').bind(now, role, 'password', user.id).run();
   const remember = body.remember === true;
   const token = await createSession(env, request, user.id, remember, visitorId);
   await recordLogin(env, request, { email, userId: user.id, success: true, method: 'password', visitorId }, user);

@@ -4,11 +4,12 @@ import { AccountError, Auth } from '../../core/accounts/auth';
 import { pageReady } from '../../core/accounts/ready';
 import { emailError } from '../../core/accounts/validation';
 import { Turnstile } from '../../shared/turnstile/turnstile';
+import { SOCIAL_ERRORS, SocialLogin } from '../../shared/social-login/social-login';
 
 /** Log in with email and password. */
 @Component({
   selector: 'app-login-page',
-  imports: [RouterLink, Turnstile],
+  imports: [RouterLink, Turnstile, SocialLogin],
   template: `
     <div class="container-tool flex justify-center pt-10 pb-16 sm:pt-16">
       <div class="w-full max-w-md">
@@ -26,6 +27,7 @@ import { Turnstile } from '../../shared/turnstile/turnstile';
           <form class="card mt-6 flex flex-col gap-4 p-5" method="post" novalidate (submit)="$event.preventDefault(); submit()">
             <fieldset class="contents" [disabled]="!ready()">
             @if (error()) { <p class="rounded-xl border border-danger bg-danger/10 px-4 py-3 text-sm" role="alert">{{ error() }}</p> }
+            <app-social-login [next]="nextPage()" [remember]="remember()" />
             <label class="flex flex-col gap-1 text-sm font-semibold">Email
               <input class="field font-normal" type="email" name="email" autocomplete="email" inputmode="email" [value]="email()" (input)="email.set($any($event.target).value)" [attr.aria-invalid]="!!emailProblem()" />
               @if (emailProblem()) { <span class="text-xs font-normal text-danger">{{ emailProblem() }}</span> }
@@ -60,8 +62,14 @@ export class LoginPage {
   protected readonly show = signal(false);
   protected readonly captcha = signal('');
   protected readonly busy = signal(false);
-  protected readonly error = signal('');
+  protected readonly error = signal(SOCIAL_ERRORS[this.route.snapshot.queryParamMap.get('social') ?? ''] ?? '');
   protected readonly emailProblem = signal('');
+
+  /** Only a page on this site. */
+  protected nextPage(): string {
+    const back = this.route.snapshot.queryParamMap.get('next');
+    return back && back.startsWith('/') && !back.startsWith('//') ? back : '/account';
+  }
 
   protected async submit(): Promise<void> {
     this.error.set('');
@@ -71,9 +79,7 @@ export class LoginPage {
     this.busy.set(true);
     try {
       await this.auth.login(this.email(), this.password(), this.remember(), this.captcha());
-      const back = this.route.snapshot.queryParamMap.get('next');
-      // Only go back to a page on this site.
-      await this.router.navigateByUrl(back && back.startsWith('/') && !back.startsWith('//') ? back : '/account');
+      await this.router.navigateByUrl(this.nextPage());
     } catch (e) {
       this.error.set(e instanceof AccountError ? e.message : 'Could not log in. Please try again.');
       this.turnstile()?.reset();

@@ -59,6 +59,11 @@ export async function startServer(dir, port = 0) {
       res.end('{"user":null}');
       return;
     }
+    if (pathname === '/api/auth/providers') {
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end('{"google":false,"facebook":false}');
+      return;
+    }
     // The visit log: accepted and forgotten.
     if (pathname === '/api/visit' || /^\/api\/visit\/\d+\/location$/.test(pathname)) {
       req.resume();
