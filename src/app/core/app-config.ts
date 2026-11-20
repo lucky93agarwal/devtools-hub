@@ -83,6 +83,10 @@ export const LIMITS = {
  */
 export const ACCOUNTS = {
   enabled: true,
-  /** Cloudflare Turnstile site key. This is Cloudflare's public test key (the check always passes); the real key replaces it before going live. */
-  turnstileSiteKey: '1x00000000000000000000AA',
+  /**
+   * Cloudflare Turnstile (CAPTCHA) site key. Empty: no CAPTCHA, and the server must not have
+   * TURNSTILE_SECRET set either. For a quick local check, Cloudflare's test key
+   * '1x00000000000000000000AA' always passes.
+   */
+  turnstileSiteKey: '',
 } as const;

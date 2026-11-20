@@ -20,7 +20,7 @@ import { InfoPage } from './info-page';
         Many online tools ask you to upload your files or paste your data into a form that goes to someone else's server.
         That is a poor fit for API responses, config files, private photos or security tokens. Every tool here runs inside
         your browser instead, so your data never leaves your device. You do not need an account{{
-          adsOn ? '. The site is free because it shows ads, which never see what you put into the tools.' : ', and the site does not use cookies.'
+          adsOn ? '. The site is free because it shows ads, which never see what you put into the tools.' : ', and the only cookie is the login cookie, set only if you log in to an optional account.'
         }}
       </p>
 

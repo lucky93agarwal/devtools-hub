@@ -129,8 +129,8 @@ const infoRoutes: Routes = [
     loadComponent: () => import('./pages/info/privacy-page').then((m) => m.PrivacyPage),
     data: {
       description: adsEnabled()
-        ? 'How DevTools24 handles your data: tools run in your browser, with no accounts. Ads are served by Google AdSense.'
-        : 'How DevTools24 handles your data: tools run in your browser, with no accounts and no cookies.',
+        ? 'How DevTools24 handles your data: tools run in your browser, accounts are optional, and ads are served by Google AdSense.'
+        : 'How DevTools24 handles your data: tools run in your browser, and accounts are optional.',
     },
   },
   {

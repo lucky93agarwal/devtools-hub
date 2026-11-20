@@ -30,7 +30,7 @@ Then open http://localhost:8788.
   in `.dev.vars` become admins.
 - **Emails:** no email service is connected yet, so emails are not sent. Open
   **Admin panel → Emails** to read them and click their links (confirm email, reset password).
-- **CAPTCHA:** the pink "testing only" box is Cloudflare's test key, which always passes.
+- **CAPTCHA:** off for now (no Turnstile keys yet). See `.dev.vars.example` to test it with Cloudflare's test keys.
 - **Start over:** `npx wrangler d1 execute devtools24-accounts --local --command "DELETE FROM users"`
 
 ## Automatic tests
@@ -40,10 +40,9 @@ npm run build
 npx playwright test -c playwright.accounts.config.ts
 ```
 
-## Before going live (not done yet)
+## Live
 
-1. Create the real D1 database in Cloudflare and put its id in `wrangler.jsonc`.
-2. Run the migrations with `--remote`.
-3. Add the secrets in Cloudflare: `TURNSTILE_SECRET`, `ADMIN_EMAILS`, `RESEND_API_KEY`, `MAIL_FROM`.
-4. Put the real Turnstile site key in `src/app/core/app-config.ts` (`ACCOUNTS.turnstileSiteKey`).
-5. Update the Privacy policy and Terms for accounts.
+- Live database: D1 `devtools24-accounts` (APAC). New tables: add a file in `migrations/`, then
+  `npx wrangler d1 migrations apply devtools24-accounts --remote`.
+- Live secrets (set with `npx wrangler secret put NAME`, never in the code): `ADMIN_EMAILS`,
+  `RESEND_API_KEY`; later `TURNSTILE_SECRET` together with the site key in `src/app/core/app-config.ts`.

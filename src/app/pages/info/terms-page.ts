@@ -7,7 +7,7 @@ import { InfoPage } from './info-page';
   selector: 'app-terms-page',
   imports: [InfoPage, RouterLink],
   template: `
-    <app-info-page heading="Terms of use" updated="16 October 2026">
+    <app-info-page heading="Terms of use" updated="20 November 2026">
       <p>
         By using {{ siteName }} you agree to these terms. They are short because the site is simple: free tools that run
         in your browser.
@@ -19,6 +19,17 @@ import { InfoPage } from './info-page';
         <li>You are responsible for the data you put into them and for how you use the results.</li>
         <li>
           Do not use the site to break the law, to attack other systems, or to overload or interfere with the site itself.
+        </li>
+      </ul>
+
+      <h2>Accounts</h2>
+      <ul>
+        <li>An account is optional. If you create one, give your real name, email and mobile number.</li>
+        <li>Keep your password secret. You are responsible for what is done with your account.</li>
+        <li>One account is for one person. Do not create accounts for others without their permission.</li>
+        <li>
+          We may block an account that breaks these terms or is used to attack the site. You can ask us to delete your
+          account through the <a routerLink="/contact">contact page</a>.
         </li>
       </ul>
 

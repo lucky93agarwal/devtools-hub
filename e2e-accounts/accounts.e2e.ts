@@ -6,8 +6,9 @@ import { expect, test, type Page } from '@playwright/test';
 const ADMIN = { first: 'Asha', last: 'Admin', email: 'admin@devtools24.test', mobile: '9876543210', password: 'Admin-test-2026' };
 const USER = { first: 'Ravi', last: 'Kumar', email: 'ravi.kumar@example.test', mobile: '9123456780', password: 'Ravi-test-2026' };
 
-/** Waits until Cloudflare's test CAPTCHA has passed (it fills a hidden field). */
+/** Waits until Cloudflare's test CAPTCHA has passed (it fills a hidden field), when the CAPTCHA is on. */
 async function captcha(page: Page): Promise<void> {
+  if (!(await page.locator('app-turnstile div').count())) return;
   await expect.poll(() => page.locator('input[name="cf-turnstile-response"]').inputValue().catch(() => ''), { timeout: 20_000 }).not.toBe('');
 }
 

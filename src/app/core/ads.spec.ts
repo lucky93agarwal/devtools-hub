@@ -131,20 +131,21 @@ describe('policy text', () => {
     return (fixture.nativeElement as HTMLElement).textContent!.replace(/\s+/g, ' ');
   };
 
-  it('says there are no ads or cookies while ads are off', async () => {
+  it('says there are no ads, and only the optional login cookie, while ads are off', async () => {
     const privacy = await page(PrivacyPage, OFF);
-    expect(privacy).toContain('the site does not use cookies.');
+    expect(privacy).toContain('the only cookies are the login cookie (only if you log in), as described below.');
     expect(privacy).toContain('The site does not currently show ads.');
-    expect(await page(AboutPage, OFF)).toContain('the site does not use cookies.');
+    expect(privacy).toContain('Accounts are optional');
+    expect(await page(AboutPage, OFF)).toContain('the only cookie is the login cookie');
   });
 
   it('explains Google ads, consent and opting out when ads are on', async () => {
     const privacy = await page(PrivacyPage, ON);
-    expect(privacy).toContain('the only cookies are those Google uses to show ads');
+    expect(privacy).toContain('the only cookies are the login cookie (only if you log in) and those Google uses to show ads');
     expect(privacy).toContain('ads from Google AdSense');
     expect(privacy).toContain('a consent message from Google asks for your choice');
     expect(privacy).toContain("Google's ad settings");
-    expect(privacy).not.toContain('the site does not use cookies');
+    expect(privacy).toContain('the advertising cookies described below, which come from Google');
     const about = await page(AboutPage, ON);
     expect(about).toContain('The site is free because it shows ads');
     expect(about).not.toContain('the site does not use cookies');

@@ -31,19 +31,23 @@ function loadTurnstile(): Promise<TurnstileApi> {
  */
 @Component({
   selector: 'app-turnstile',
-  template: `<div #box class="min-h-[65px]"></div>`,
+  // Without a site key the check is switched off and nothing is shown.
+  template: `@if (on) { <div #box class="min-h-[65px]"></div> }`,
 })
 export class Turnstile {
   readonly token = output<string>();
-  private readonly box = viewChild.required<ElementRef<HTMLElement>>('box');
+  protected readonly on = !!ACCOUNTS.turnstileSiteKey;
+  private readonly box = viewChild<ElementRef<HTMLElement>>('box');
   private widget: string | null = null;
   private api: TurnstileApi | null = null;
 
   constructor() {
     afterNextRender(async () => {
+      const box = this.box()?.nativeElement;
+      if (!box) return;
       try {
         this.api = await loadTurnstile();
-        this.widget = this.api.render(this.box().nativeElement, {
+        this.widget = this.api.render(box, {
           sitekey: ACCOUNTS.turnstileSiteKey,
           theme: document.documentElement.classList.contains('dark') ? 'dark' : 'light',
           callback: (t: string) => this.token.emit(t),

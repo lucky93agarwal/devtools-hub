@@ -9,15 +9,12 @@ import { InfoPage } from './info-page';
   selector: 'app-privacy-page',
   imports: [InfoPage, RouterLink],
   template: `
-    <app-info-page heading="Privacy policy" updated="19 October 2026">
+    <app-info-page heading="Privacy policy" updated="20 November 2026">
       <p>
         {{ siteName }} is a set of developer tools that run in your web browser. This page explains what happens to your
-        data when you use the site. In short: the tools do not send your input anywhere, there are no accounts,
-        @if (adsOn) {
-          and the only cookies are those Google uses to show ads, as described below.
-        } @else {
-          and the site does not use cookies.
-        }
+        data when you use the site. In short: the tools do not send your input anywhere, an account is optional, and
+        the only cookies are the login cookie (only if you log in)@if (adsOn) { and those Google uses to show ads}, as
+        described below.
       </p>
 
       <h2>Your files and text stay on your device</h2>
@@ -27,11 +24,40 @@ import { InfoPage } from './info-page';
         the page, they are gone.
       </p>
 
-      <h2>No accounts{{ adsOn ? '' : ' and no cookies' }}</h2>
+      <h2>Accounts are optional</h2>
       <p>
-        You do not need an account to use any tool. The site itself does not set cookies{{
-          adsOn ? '; the advertising cookies described below come from Google' : ''
-        }}. It may save small preferences, such as the light or dark theme, in your browser's local storage, and the API
+        You do not need an account to use any tool. If you create one, we keep what you give us and what is needed to
+        keep the account safe:
+      </p>
+      <ul>
+        <li><strong>What you enter:</strong> your first and last name, email address and mobile number.</li>
+        <li>
+          <strong>Your password</strong>, stored only as a one-way hash (PBKDF2), so nobody, including us, can read it.
+        </li>
+        <li>
+          <strong>Account activity:</strong> when you signed up and confirmed your email, when you last logged in and how
+          many times, and for each device you are logged in on, when it logged in and was last used, its IP address and
+          the browser and system it reports (for example "Chrome on Windows").
+        </li>
+        <li><strong>Emails we sent you</strong>, such as the email confirmation and password reset links.</li>
+      </ul>
+      <p>
+        We use this only to let you log in, keep your account secure (for example to pause logins after several wrong
+        passwords, and to let you see and end your sessions), send you account emails and run the site. We do not sell it
+        or share it for advertising. It is stored with Cloudflare (our host), and account emails are sent through Resend.
+        Only the site's administrators can see account details. You can ask us to correct or delete your account and
+        its data through the <a routerLink="/contact">contact page</a>; we keep the data until you ask, or until the
+        account is no longer needed.
+      </p>
+      <p>
+        When you log in, the site sets one cookie, <code>dt_session</code>. It is needed for the login to work, cannot be
+        read by scripts, and ends when you log out (or after 1 day, or 30 days if you chose to stay logged in).
+      </p>
+
+      <h2>Saved in your browser</h2>
+      <p>
+        Apart from the login cookie{{ adsOn ? ' and the advertising cookies described below, which come from Google' : '' }},
+        the site does not set cookies. It may save small preferences, such as the light or dark theme, in your browser's local storage, and the API
         Client keeps the requests, collections, environments and history you create there too, as do the tools you star
         or used recently and, for tools with a Share link, your last inputs and the inputs you save by name. JWT, cURL
         and .env inputs are never kept. All of this stays on your device; you can back it up, restore it or clear it on
