@@ -178,3 +178,19 @@ test('tools still work without logging in, and other sites cannot call the API',
   expect(response.status()).toBe(403);
   expect((await request.get('/api/admin/users')).status()).toBe(401);
 });
+
+test('forms are never sent before the page is ready, and never with the password in the address', async ({ browser }) => {
+  // Without scripts the page is exactly what the server sends: buttons must be off, forms POST only.
+  const context = await browser.newContext({ javaScriptEnabled: false });
+  const page = await context.newPage();
+  for (const [path, button] of [
+    ['/signup', 'Create account'],
+    ['/login', 'Log in'],
+    ['/forgot-password', 'Send reset link'],
+  ]) {
+    await page.goto(path);
+    await expect(page.locator('form').first()).toHaveAttribute('method', 'post');
+    await expect(page.getByRole('button', { name: button })).toBeDisabled();
+  }
+  await context.close();
+});

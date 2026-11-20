@@ -8,6 +8,8 @@ import { defineConfig, devices } from '@playwright/test';
 export default defineConfig({
   testDir: './e2e-accounts',
   testMatch: '**/*.e2e.ts',
+  // Files starting with _ are one-off checks (for example against the live site).
+  testIgnore: '**/_*',
   fullyParallel: false,
   workers: 1,
   reporter: 'list',

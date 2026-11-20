@@ -1,6 +1,7 @@
 import { Component, inject, signal, viewChild } from '@angular/core';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { AccountError, Auth } from '../../core/accounts/auth';
+import { pageReady } from '../../core/accounts/ready';
 import { emailError } from '../../core/accounts/validation';
 import { Turnstile } from '../../shared/turnstile/turnstile';
 
@@ -22,7 +23,7 @@ import { Turnstile } from '../../shared/turnstile/turnstile';
             </div>
           </div>
         } @else {
-          <form class="card mt-6 flex flex-col gap-4 p-5" novalidate (submit)="$event.preventDefault(); submit()">
+          <form class="card mt-6 flex flex-col gap-4 p-5" method="post" novalidate (submit)="$event.preventDefault(); submit()">
             @if (error()) { <p class="rounded-xl border border-danger bg-danger/10 px-4 py-3 text-sm" role="alert">{{ error() }}</p> }
             <label class="flex flex-col gap-1 text-sm font-semibold">Email
               <input class="field font-normal" type="email" name="email" autocomplete="email" inputmode="email" [value]="email()" (input)="email.set($any($event.target).value)" [attr.aria-invalid]="!!emailProblem()" />
@@ -37,7 +38,7 @@ import { Turnstile } from '../../shared/turnstile/turnstile';
             </label>
             <label class="flex items-center gap-2 text-sm"><input type="checkbox" [checked]="remember()" (change)="remember.set($any($event.target).checked)" /> Keep me logged in for 30 days</label>
             <app-turnstile (token)="captcha.set($event)" />
-            <button type="submit" class="btn-primary" [disabled]="busy()">{{ busy() ? 'Logging in…' : 'Log in' }}</button>
+            <button type="submit" class="btn-primary" [disabled]="busy() || !ready()">{{ busy() ? 'Logging in…' : 'Log in' }}</button>
             <p class="text-center text-sm text-muted">New here? <a routerLink="/signup" class="font-semibold text-brand hover:underline">Create an account</a></p>
           </form>
         }
@@ -46,6 +47,7 @@ import { Turnstile } from '../../shared/turnstile/turnstile';
   `,
 })
 export class LoginPage {
+  protected readonly ready = pageReady();
   protected readonly auth = inject(Auth);
   private readonly router = inject(Router);
   private readonly route = inject(ActivatedRoute);

@@ -1,6 +1,7 @@
 import { Component, computed, inject, signal, viewChild } from '@angular/core';
 import { Router, RouterLink } from '@angular/router';
 import { AccountError, Auth } from '../../core/accounts/auth';
+import { pageReady } from '../../core/accounts/ready';
 import { SignupInput, passwordStrength, signupErrors } from '../../core/accounts/validation';
 import { Turnstile } from '../../shared/turnstile/turnstile';
 
@@ -37,7 +38,7 @@ const STRENGTH = ['', 'Weak', 'Okay', 'Good', 'Strong'];
       <div class="w-full max-w-lg">
         <h1 class="text-[28px] leading-9 sm:text-[36px] sm:leading-11">Create your account</h1>
         <p class="mt-2 text-muted">Free. All tools also work without an account.</p>
-        <form class="card mt-6 flex flex-col gap-4 p-5" novalidate (submit)="$event.preventDefault(); submit()">
+        <form class="card mt-6 flex flex-col gap-4 p-5" method="post" novalidate (submit)="$event.preventDefault(); submit()">
           @if (error()) { <p class="rounded-xl border border-danger bg-danger/10 px-4 py-3 text-sm" role="alert">{{ error() }}</p> }
           <div class="grid gap-4 sm:grid-cols-2">
             <label class="flex flex-col gap-1 text-sm font-semibold">First name
@@ -84,7 +85,7 @@ const STRENGTH = ['', 'Weak', 'Okay', 'Good', 'Strong'];
           </label>
           @if (shown('acceptTerms')) { <span class="-mt-3 text-xs text-danger">{{ shown('acceptTerms') }}</span> }
           <app-turnstile (token)="captcha.set($event)" />
-          <button type="submit" class="btn-primary" [disabled]="busy()">{{ busy() ? 'Creating your account…' : 'Create account' }}</button>
+          <button type="submit" class="btn-primary" [disabled]="busy() || !ready()">{{ busy() ? 'Creating your account…' : 'Create account' }}</button>
           <p class="text-center text-sm text-muted">Already have an account? <a routerLink="/login" class="font-semibold text-brand hover:underline">Log in</a></p>
         </form>
       </div>
@@ -92,6 +93,7 @@ const STRENGTH = ['', 'Weak', 'Okay', 'Good', 'Strong'];
   `,
 })
 export class SignupPage {
+  protected readonly ready = pageReady();
   private readonly auth = inject(Auth);
   private readonly router = inject(Router);
   private readonly turnstile = viewChild(Turnstile);

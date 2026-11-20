@@ -1,6 +1,7 @@
 import { Component, computed, inject, signal, viewChild } from '@angular/core';
 import { ActivatedRoute, RouterLink } from '@angular/router';
 import { AccountError, Auth } from '../../core/accounts/auth';
+import { pageReady } from '../../core/accounts/ready';
 import { emailError, passwordError, passwordStrength } from '../../core/accounts/validation';
 import { Turnstile } from '../../shared/turnstile/turnstile';
 
@@ -23,13 +24,13 @@ import { Turnstile } from '../../shared/turnstile/turnstile';
             </div>
           </div>
         } @else {
-          <form class="card mt-6 flex flex-col gap-4 p-5" novalidate (submit)="$event.preventDefault(); submit()">
+          <form class="card mt-6 flex flex-col gap-4 p-5" method="post" novalidate (submit)="$event.preventDefault(); submit()">
             @if (error()) { <p class="rounded-xl border border-danger bg-danger/10 px-4 py-3 text-sm" role="alert">{{ error() }}</p> }
             <label class="flex flex-col gap-1 text-sm font-semibold">Email
               <input class="field font-normal" type="email" name="email" autocomplete="email" inputmode="email" [value]="email()" (input)="email.set($any($event.target).value)" />
             </label>
             <app-turnstile (token)="captcha.set($event)" />
-            <button type="submit" class="btn-primary" [disabled]="busy()">{{ busy() ? 'Sending…' : 'Send reset link' }}</button>
+            <button type="submit" class="btn-primary" [disabled]="busy() || !ready()">{{ busy() ? 'Sending…' : 'Send reset link' }}</button>
             <p class="text-center text-sm text-muted"><a routerLink="/login" class="font-semibold text-brand hover:underline">Back to log in</a></p>
           </form>
         }
@@ -38,6 +39,7 @@ import { Turnstile } from '../../shared/turnstile/turnstile';
   `,
 })
 export class ForgotPage {
+  protected readonly ready = pageReady();
   private readonly auth = inject(Auth);
   private readonly turnstile = viewChild(Turnstile);
   protected readonly email = signal('');
@@ -82,7 +84,7 @@ export class ForgotPage {
             <a routerLink="/forgot-password" class="btn-secondary mt-4">Send a new link</a>
           </div>
         } @else {
-          <form class="card mt-6 flex flex-col gap-4 p-5" novalidate (submit)="$event.preventDefault(); submit()">
+          <form class="card mt-6 flex flex-col gap-4 p-5" method="post" novalidate (submit)="$event.preventDefault(); submit()">
             @if (error()) {
               <p class="rounded-xl border border-danger bg-danger/10 px-4 py-3 text-sm" role="alert">{{ error() }}
                 @if (expired()) { <a routerLink="/forgot-password" class="ml-1 font-semibold text-brand hover:underline">Send a new link</a> }
@@ -96,7 +98,7 @@ export class ForgotPage {
               <input class="field font-normal" [type]="show() ? 'text' : 'password'" name="repeat" aria-label="Repeat the new password" autocomplete="new-password" [value]="repeat()" (input)="repeat.set($any($event.target).value)" />
             </label>
             <label class="flex items-center gap-2 text-sm"><input type="checkbox" [checked]="show()" (change)="show.set($any($event.target).checked)" /> Show passwords</label>
-            <button type="submit" class="btn-primary" [disabled]="busy()">{{ busy() ? 'Saving…' : 'Save new password' }}</button>
+            <button type="submit" class="btn-primary" [disabled]="busy() || !ready()">{{ busy() ? 'Saving…' : 'Save new password' }}</button>
           </form>
         }
       </div>
@@ -104,6 +106,7 @@ export class ForgotPage {
   `,
 })
 export class ResetPage {
+  protected readonly ready = pageReady();
   private readonly auth = inject(Auth);
   protected readonly token = signal(inject(ActivatedRoute).snapshot.queryParamMap.get('token') ?? '');
   protected readonly password = signal('');

@@ -1,6 +1,7 @@
 import { Component, inject, signal } from '@angular/core';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { AccountError, Auth } from '../../core/accounts/auth';
+import { pageReady } from '../../core/accounts/ready';
 import { passwordError } from '../../core/accounts/validation';
 
 /** The signed-in user's account: details, email confirmation, password and log out. */
@@ -40,7 +41,7 @@ import { passwordError } from '../../core/accounts/validation';
 
         <section class="card mt-6 p-5" aria-labelledby="password-heading">
           <h2 id="password-heading" class="text-xl leading-7">Change password</h2>
-          <form class="mt-4 flex max-w-md flex-col gap-3" novalidate (submit)="$event.preventDefault(); changePassword()">
+          <form class="mt-4 flex max-w-md flex-col gap-3" method="post" novalidate (submit)="$event.preventDefault(); changePassword()">
             @if (pwMessage()) { <p class="rounded-xl border px-4 py-3 text-sm" [class]="pwOk() ? 'border-success bg-success/10' : 'border-danger bg-danger/10'" role="status">{{ pwMessage() }}</p> }
             <label class="flex flex-col gap-1 text-sm font-semibold">Current password
               <input class="field font-normal" type="password" aria-label="Current password" autocomplete="current-password" [value]="current()" (input)="current.set($any($event.target).value)" />
@@ -49,7 +50,7 @@ import { passwordError } from '../../core/accounts/validation';
               <input class="field font-normal" type="password" aria-label="New password" autocomplete="new-password" [value]="next()" (input)="next.set($any($event.target).value)" />
               <span class="text-xs font-normal text-muted">At least 8 characters, with letters and numbers. Other devices will be logged out.</span>
             </label>
-            <button type="submit" class="btn-secondary self-start" [disabled]="pwBusy()">{{ pwBusy() ? 'Saving…' : 'Change password' }}</button>
+            <button type="submit" class="btn-secondary self-start" [disabled]="pwBusy() || !ready()">{{ pwBusy() ? 'Saving…' : 'Change password' }}</button>
           </form>
         </section>
 
@@ -67,6 +68,7 @@ import { passwordError } from '../../core/accounts/validation';
   `,
 })
 export class AccountPage {
+  protected readonly ready = pageReady();
   protected readonly auth = inject(Auth);
   private readonly router = inject(Router);
   protected readonly welcome = signal(inject(ActivatedRoute).snapshot.queryParamMap.has('welcome'));
