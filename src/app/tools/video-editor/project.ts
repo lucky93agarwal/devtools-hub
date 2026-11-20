@@ -108,6 +108,8 @@ export interface Clip {
   ramp?: SpeedRamp;
   /** A subtitle line (a title clip that is saved to and read from .srt files). */
   caption?: boolean;
+  /** Clips made together (repeated music) share a group and are selected as one. */
+  group?: string;
 }
 
 export type RampShape = 'none' | 'speed-up' | 'slow-down' | 'slow-middle' | 'fast-middle';
@@ -749,9 +751,15 @@ export function pasteClips(project: Project, clips: readonly Clip[], time: numbe
   const first = Math.min(...clips.map((c) => c.start));
   let next = project;
   const ids: string[] = [];
+  // Pasted copies of a group form a new group of their own.
+  const groups = new Map<string, string>();
   for (const clip of clips) {
     const start = freeStart(next, clip.track, time + (clip.start - first), clipLength(clip));
     const copy: Clip = { ...structuredClone(clip), id: makeId('clip'), start };
+    if (clip.group) {
+      if (!groups.has(clip.group)) groups.set(clip.group, makeId('group'));
+      copy.group = groups.get(clip.group);
+    }
     next = { ...next, clips: [...next.clips, copy] };
     ids.push(copy.id);
   }
@@ -803,24 +811,43 @@ export function renameTrack(project: Project, id: number, name: string): Project
 }
 
 /**
- * Deletes clips and closes the hole each leaves on its own track: later clips on that track
- * slide left, but never into the clip before the hole (an existing gap stays).
+ * Takes the time from `a` to `b` out of the whole project, on every unlocked track: clips
+ * inside it go, clips across its edges are cut there, and everything after it slides back.
+ * So music, captions and titles stay in step with the picture.
  */
-export function rippleDelete(project: Project, ids: readonly string[]): Project {
+export function removeRange(project: Project, a: number, b: number): Project {
+  if (b - a <= 1e-6) return project;
+  const locked = new Set(project.tracks.filter((t) => t.locked).map((t) => t.id));
+  const open = (c: Clip) => !locked.has(c.track);
   let next = project;
-  const doomed = project.clips.filter((c) => ids.includes(c.id)).sort((a, b) => b.start - a.start);
+  for (const at of [a, b]) {
+    for (const clip of next.clips.filter((c) => open(c) && c.start < at && clipEnd(c) > at)) next = splitClip(next, clip.id, at);
+  }
+  const span = b - a;
+  const eps = 1e-6;
+  const clips = next.clips
+    .filter((c) => !(open(c) && (c.start + clipEnd(c)) / 2 > a - eps && (c.start + clipEnd(c)) / 2 < b + eps))
+    .map((c) => (open(c) && c.start >= b - MIN_CLIP / 2 ? { ...c, start: Math.max(a, c.start - span) } : c));
+  const markers = next.markers?.filter((m) => m <= a || m >= b).map((m) => (m >= b ? m - span : m));
+  return { ...next, clips, ...(markers ? { markers } : {}) };
+}
+
+/**
+ * Deletes clips. A video or photo on the main track (the lowest track with pictures) takes
+ * its time out of the whole project, so the gap closes and everything above stays in step;
+ * other clips (music, titles, captions, overlays) are simply removed.
+ */
+export function rippleDelete(project: Project, ids: readonly string[], isPicture: (clip: Clip) => boolean = () => true): Project {
+  const pictureTracks = project.clips.filter((c) => isPicture(c) && !project.tracks.find((t) => t.id === c.track)?.locked).map((c) => c.track);
+  const main = pictureTracks.length ? Math.min(...pictureTracks) : null;
+  let next = project;
+  const doomed = project.clips.filter((c) => ids.includes(c.id)).sort((x, y) => y.start - x.start);
   for (const clip of doomed) {
     next = removeClip(next, clip.id);
-    const same = next.clips.filter((c) => c.track === clip.track);
-    const after = same.filter((c) => c.start >= clipEnd(clip) - 1e-6);
-    if (!after.length) continue;
-    const before = Math.max(0, ...same.filter((c) => c.start < clip.start).map(clipEnd));
-    const nextStart = Math.min(...after.map((c) => c.start));
-    // Close only the deleted clip's own span; gaps that were already there stay.
-    const by = Math.max(0, Math.min(clipLength(clip), nextStart - before));
-    if (by <= 1e-6) continue;
-    const moving = new Set(after.map((c) => c.id));
-    next = { ...next, clips: next.clips.map((c) => (moving.has(c.id) ? { ...c, start: c.start - by } : c)) };
+    if (clip.track !== main || !isPicture(clip)) continue;
+    // Only when nothing else on the main track still covers that time.
+    const covered = next.clips.some((c) => c.track === main && c.start < clipEnd(clip) - 1e-6 && clipEnd(c) > clip.start + 1e-6);
+    if (!covered) next = removeRange(next, clip.start, clipEnd(clip));
   }
   return next;
 }
@@ -839,13 +866,15 @@ export function fitAudio(project: Project, id: string, end: number, sourceLength
   } else {
     let at = clipEnd(clip);
     while (at < end - MIN_CLIP) {
-      const copy: Clip = { ...structuredClone(clip), id: makeId('clip'), start: at, transitionIn: undefined, transitionOut: undefined };
+      const copy: Clip = { ...structuredClone(clip), id: makeId('clip'), start: at, transitionIn: undefined, transitionOut: undefined, group: clip.group ?? clip.id };
       next = { ...next, clips: [...next.clips, copy] };
       ids.push(copy.id);
       if (clipEnd(copy) > end) next = trimClip(next, copy.id, 'end', end, sourceLength);
       at = clipEnd(next.clips.find((c) => c.id === copy.id)!);
     }
   }
+  // The repeated pieces are one group: selecting, moving or deleting one takes them all.
+  if (ids.length > 1) next = { ...next, clips: next.clips.map((c) => (c.id === id ? { ...c, group: c.group ?? id } : c)) };
   const last = next.clips.find((c) => c.id === ids[ids.length - 1])!;
   next = updateClip(next, last.id, { transitionOut: { type: 'fade', duration: Math.min(fade, clipLength(last)) } });
   return { project: next, ids };

@@ -139,7 +139,7 @@ const TITLE_PRESETS: { name: string; style: TitleStyle }[] = [
   { name: 'Big yellow', style: { text: 'WOW!', size: 18, colour: '#facc15', x: 0.5, y: 0.45, background: false, animation: 'pop', font: 'impact', outline: true } },
   { name: '3D extruded', style: { text: '3D TITLE', size: 16, colour: '#38bdf8', x: 0.5, y: 0.5, background: false, animation: 'extrude-3d', font: 'impact' } },
   { name: '3D flip', style: { text: 'Chapter One', size: 12, colour: '#ffffff', x: 0.5, y: 0.5, background: false, animation: 'flip-3d', font: 'serif' } },
-  { name: 'Typewriter', style: { text: 'Once upon a time…', size: 7, colour: '#e5e7eb', x: 0.5, y: 0.5, background: false, animation: 'typewriter', font: 'mono' } },
+  { name: 'Typewriter', style: { text: 'Once upon a time…', size: 7, colour: 'var(--ve-text)', x: 0.5, y: 0.5, background: false, animation: 'typewriter', font: 'mono' } },
   { name: 'Wave', style: { text: 'Have fun!', size: 12, colour: '#f472b6', x: 0.5, y: 0.5, background: false, animation: 'wave', font: 'hand', outline: true } },
   { name: 'Zoom out', style: { text: 'BIG NEWS', size: 14, colour: '#ffffff', x: 0.5, y: 0.5, background: false, animation: 'zoom', font: 'impact', outline: true } },
 ];
@@ -242,42 +242,66 @@ type Drag =
   imports: [ToolPage],
   host: { '(document:keydown)': 'key($event)' },
   styles: `
-    .editor { background: #1b1d23; color: #d7dae0; }
-    .panel { background: #23262e; border: 1px solid #343842; }
-    .tool { display: inline-flex; align-items: center; gap: 0.35rem; padding: 0.35rem 0.6rem; border-radius: 0.375rem; font-size: 0.8rem; color: #d7dae0; }
-    .tool:hover:not(:disabled) { background: #343842; }
+    /* The editor follows the site's light and dark theme through its colour tokens. */
+    .editor {
+      --ve-bg: var(--surface);
+      --ve-panel: var(--page);
+      --ve-line: var(--line);
+      --ve-text: var(--ink);
+      --ve-muted: var(--muted);
+      --ve-hover: color-mix(in srgb, var(--ink) 9%, transparent);
+      --ve-input: var(--page);
+      --ve-input-line: color-mix(in srgb, var(--ink) 22%, transparent);
+      --ve-accent: var(--brand);
+      --ve-on-accent: var(--on-brand);
+      --ve-lane: color-mix(in srgb, var(--ink) 4%, var(--page));
+      --ve-lane-2: color-mix(in srgb, var(--ink) 9%, var(--page));
+      --ve-action: color-mix(in srgb, var(--brand) 14%, var(--page));
+      --ve-warn: color-mix(in srgb, var(--warning) 20%, var(--page));
+      --ve-info: color-mix(in srgb, var(--brand) 10%, var(--page));
+      --ve-danger: color-mix(in srgb, var(--danger) 16%, var(--page));
+      background: var(--ve-bg);
+      color: var(--ve-text);
+      border: 1px solid var(--ve-line);
+    }
+    .panel { background: var(--ve-panel); border: 1px solid var(--ve-line); }
+    .tool { display: inline-flex; align-items: center; gap: 0.35rem; padding: 0.35rem 0.6rem; border-radius: 0.375rem; font-size: 0.8rem; color: var(--ve-text); }
+    .tool:hover:not(:disabled) { background: var(--ve-hover); }
     .tool:disabled { opacity: 0.4; }
-    .tab { padding: 0.4rem 0.8rem; font-size: 0.8rem; border-bottom: 2px solid transparent; color: #9aa0ab; }
-    .tab[aria-selected='true'] { color: #fff; border-color: #6d83f2; }
-    .input { background: #15171c; border: 1px solid #3a3f4a; border-radius: 0.3rem; padding: 0.2rem 0.4rem; color: #e5e7eb; font-size: 0.8rem; }
+    .tab { padding: 0.4rem 0.8rem; font-size: 0.8rem; border-bottom: 2px solid transparent; color: var(--ve-muted); }
+    .tab[aria-selected='true'] { color: var(--ve-text); border-color: var(--ve-accent); }
+    .input { background: var(--ve-input); border: 1px solid var(--ve-input-line); border-radius: 0.3rem; padding: 0.2rem 0.4rem; color: var(--ve-text); font-size: 0.8rem; }
     /* Fingers need bigger targets than a mouse pointer. */
     @media (pointer: coarse) {
       .tool { min-height: 2.5rem; min-width: 2.5rem; justify-content: center; }
       .tap { min-width: 2.25rem; min-height: 2rem; display: inline-grid; place-items: center; }
+      .tap-track { min-width: 1.75rem; min-height: 2rem; display: inline-grid; place-items: center; }
     }
   `,
   template: `
     <app-tool-page path="video-editor" [content]="content" [wide]="true" privacy="Your videos are edited on your device and never uploaded.">
       <div #editorRoot class="editor flex flex-col overflow-hidden rounded-xl select-none" (dragover)="$event.preventDefault()" (change)="releaseFocus($event)">
+        <!-- Controls wait until the editor has started, so a very early click is not lost. -->
+        <fieldset class="contents" [disabled]="!ready()">
         <!-- Toolbar -->
-        <div class="flex flex-wrap items-center gap-1 border-b border-[#343842] px-2 py-1.5" role="toolbar" aria-label="Editor">
-          <button type="button" class="tool" (click)="newProjectClick()">＋ New project</button>
-          <button type="button" class="tool" (click)="fileInput.click()">📂 Import files</button>
-          <button type="button" class="tool" (click)="saveProjectZip()">💾 Save project</button>
-          <button type="button" class="tool" (click)="projectInput.click()">📁 Open project</button>
+        <div class="flex flex-wrap items-center gap-1 border-b border-[var(--ve-line)] px-2 py-1.5" role="toolbar" aria-label="Editor">
+          <button type="button" class="tool" aria-label="New project" title="New project" (click)="newProjectClick()">＋<span class="max-sm:hidden"> New project</span></button>
+          <button type="button" class="tool" aria-label="Import files" title="Import files" (click)="fileInput.click()">📂<span class="max-sm:hidden"> Import files</span></button>
+          <button type="button" class="tool" aria-label="Save project" title="Save project" (click)="saveProjectZip()">💾<span class="max-sm:hidden"> Save project</span></button>
+          <button type="button" class="tool" aria-label="Open project" title="Open project" (click)="projectInput.click()">📁<span class="max-sm:hidden"> Open project</span></button>
           <input #projectInput type="file" class="sr-only" tabindex="-1" aria-hidden="true" accept=".zip,application/zip" (change)="openProjectZip(projectInput)" />
           <input #fileInput type="file" class="sr-only" tabindex="-1" aria-hidden="true" multiple accept="video/*,audio/*,image/*,.mkv,.mov,.heic,.heif,.tif,.tiff,.svg" (change)="importFiles(fileInput)" />
-          <span class="mx-1 h-5 w-px bg-[#343842]"></span>
-          <button type="button" class="tool" [disabled]="!history().length" aria-label="Undo" (click)="undo()">↶ Undo</button>
-          <button type="button" class="tool" [disabled]="!future().length" aria-label="Redo" (click)="redo()">↷ Redo</button>
-          <span class="mx-1 h-5 w-px bg-[#343842]"></span>
-          <label class="tool">Profile
-            <select class="input" aria-label="Profile" [disabled]="exporting()" (change)="setProfile(+$any($event.target).value)">
+          <span class="mx-1 h-5 w-px bg-[var(--ve-line)] max-sm:hidden"></span>
+          <button type="button" class="tool" [disabled]="!history().length" aria-label="Undo" title="Undo" (click)="undo()">↶<span class="max-sm:hidden"> Undo</span></button>
+          <button type="button" class="tool" [disabled]="!future().length" aria-label="Redo" title="Redo" (click)="redo()">↷<span class="max-sm:hidden"> Redo</span></button>
+          <span class="mx-1 h-5 w-px bg-[var(--ve-line)] max-sm:hidden"></span>
+          <label class="tool"><span class="max-sm:hidden">Profile</span>
+            <select class="input max-sm:max-w-[8.5rem]" aria-label="Profile" [disabled]="exporting()" (change)="setProfile(+$any($event.target).value)">
               @for (p of profiles; track p.label; let i = $index) { <option [value]="i" [selected]="p.width === project().width && p.height === project().height">{{ p.label }}</option> }
             </select>
           </label>
-          <label class="tool">Empty space
-            <select class="input" aria-label="Empty space" (change)="setBackground($any($event.target).value)">
+          <label class="tool"><span class="max-sm:hidden">Empty space</span>
+            <select class="input max-sm:max-w-[6.5rem]" aria-label="Empty space" (change)="setBackground($any($event.target).value)">
               <option value="black" [selected]="(project().background?.kind ?? 'black') === 'black'">Black</option>
               <option value="colour" [selected]="project().background?.kind === 'colour'">Colour</option>
               <option value="blur" [selected]="project().background?.kind === 'blur'">Blurred picture</option>
@@ -286,36 +310,36 @@ type Drag =
               <input type="color" class="h-6 w-8" aria-label="Background colour" [value]="project().background?.colour ?? '#000000'" (change)="setBackground('colour', $any($event.target).value)" />
             }
           </label>
-          <button type="button" class="tool" aria-label="Video editor shortcuts" title="Keyboard shortcuts" (click)="showShortcuts.set(true)">⌨ Keys</button>
+          <button type="button" class="tool" aria-label="Video editor shortcuts" title="Keyboard shortcuts" (click)="showShortcuts.set(true)"><span class="text-base leading-none">⌨</span><span class="max-sm:hidden"> Keys</span></button>
           <span class="flex-1"></span>
-          <span class="mr-2 text-xs text-[#9aa0ab]" role="status" aria-label="Save status">
+          <span class="mr-2 text-xs text-[var(--ve-muted)] max-sm:hidden" role="status" aria-label="Save status">
             @switch (saveState()) {
               @case ('saving') { Saving… }
               @case ('saved') { ✓ Saved in this browser }
               @case ('failed') { <span class="text-red-400">Not saved: browser storage is full</span> }
             }
           </span>
-          <select class="input" aria-label="Export format" [disabled]="exporting()" (change)="exportFormat.set($any($event.target).value)">
+          <select class="input max-sm:max-w-[8.5rem]" aria-label="Export format" [disabled]="exporting()" (change)="exportFormat.set($any($event.target).value)">
             @for (f of exportFormats; track f.id) { <option [value]="f.id" [selected]="f.id === exportFormat()">{{ f.label }}</option> }
           </select>
-          <select class="input" aria-label="Export quality" [disabled]="exporting()" (change)="exportQuality.set($any($event.target).value)">
+          <select class="input max-sm:max-w-[5.5rem]" aria-label="Export quality" [disabled]="exporting()" (change)="exportQuality.set($any($event.target).value)">
             <option value="low">Low</option>
             <option value="medium">Medium</option>
             <option value="high" selected>High</option>
             <option value="very-high">Very high</option>
           </select>
-          <button type="button" class="tool" [class.!bg-[#343842]]="showExportSettings()" [attr.aria-expanded]="showExportSettings()" aria-label="Export settings" (click)="showExportSettings.set(!showExportSettings())">⚙ Settings</button>
-          <span class="text-xs text-[#9aa0ab]" aria-label="Estimated file size" title="A guess: calm, still scenes come out near the smaller number, busy ones near the larger">≈ {{ estimate() }}</span>
-          <button type="button" class="tool !bg-[#6d83f2] !text-white" [disabled]="exporting() || !project().clips.length" (click)="exportVideo()">⬇ Export video</button>
+          <button type="button" class="tool" [class.!bg-[var(--ve-hover)]]="showExportSettings()" [attr.aria-expanded]="showExportSettings()" aria-label="Export settings" (click)="showExportSettings.set(!showExportSettings())"><span class="text-base leading-none">⚙</span><span class="max-sm:hidden"> Settings</span></button>
+          <span class="text-xs text-[var(--ve-muted)]" aria-label="Estimated file size" title="A guess: calm, still scenes come out near the smaller number, busy ones near the larger">≈ {{ estimate() }}</span>
+          <button type="button" class="tool !bg-[var(--ve-accent)] !text-[var(--ve-on-accent)]" [disabled]="exporting() || !project().clips.length" (click)="exportVideo()">⬇ Export video</button>
         </div>
         @if (showExportSettings()) {
-          <div class="flex flex-wrap items-center gap-2 border-b border-[#343842] bg-[#20232a] px-3 py-2 text-xs" role="group" aria-label="Export settings panel">
+          <div class="flex flex-wrap items-center gap-2 border-b border-[var(--ve-line)] bg-[var(--ve-bg)] px-3 py-2 text-xs" role="group" aria-label="Export settings panel">
             <label class="flex items-center gap-1">Resolution
               <select class="input" aria-label="Export resolution" (change)="setResolution($any($event.target).value)">
                 @for (r of exportResolutions; track r.id) { <option [value]="r.id" [selected]="r.id === exportResolution()">{{ r.label }}</option> }
               </select>
             </label>
-            <span class="text-[#9aa0ab]">{{ exportSize().width }}×{{ exportSize().height }}</span>
+            <span class="text-[var(--ve-muted)]">{{ exportSize().width }}×{{ exportSize().height }}</span>
             <label class="flex items-center gap-1">Frame rate
               <select class="input" aria-label="Export frame rate" (change)="exportFps.set(+$any($event.target).value)">
                 <option value="0" [selected]="!exportFps()">Project ({{ project().fps }} fps)</option>
@@ -333,46 +357,46 @@ type Drag =
               <button type="button" class="tool !py-0.5" (click)="rangeFromPlayhead('start')">From playhead</button>
               <button type="button" class="tool !py-0.5" (click)="rangeFromPlayhead('end')">To playhead</button>
             }
-            <span class="mx-1 h-5 w-px bg-[#343842]"></span>
+            <span class="mx-1 h-5 w-px bg-[var(--ve-line)]"></span>
             <button type="button" class="tool !py-0.5" [disabled]="!project().clips.length" (click)="saveFrame('png')">📷 Frame PNG</button>
             <button type="button" class="tool !py-0.5" [disabled]="!project().clips.length" (click)="saveFrame('jpg')">📷 Frame JPG</button>
             <button type="button" class="tool !py-0.5" [disabled]="!hasCaptions()" (click)="saveSrt()">💬 Subtitles .srt</button>
             <button type="button" class="tool !py-0.5" [disabled]="!project().clips.length" (click)="saveEdl()">🎞 EDL</button>
             <button type="button" class="tool !py-0.5" [disabled]="!project().clips.length" (click)="saveXml()">🎞 Final Cut XML</button>
-            <span class="text-[#9aa0ab]">EDL and XML carry the cuts only, not titles, captions or effects.</span>
+            <span class="text-[var(--ve-muted)]">EDL and XML carry the cuts only, not titles, captions or effects.</span>
           </div>
         }
         @if (showShortcuts()) {
           <div class="fixed inset-0 z-50 grid place-items-center bg-black/60 p-4" (click)="showShortcuts.set(false)">
             <div class="panel w-full max-w-md rounded-lg p-4 text-sm" role="dialog" aria-modal="true" aria-label="Video editor shortcuts" (click)="$event.stopPropagation()">
-              <p class="mb-2 flex items-center justify-between font-semibold text-white">⌨ Keyboard shortcuts
+              <p class="mb-2 flex items-center justify-between font-semibold text-[var(--ve-text)]">⌨ Keyboard shortcuts
                 <button type="button" class="tool" aria-label="Close shortcuts" (click)="showShortcuts.set(false)">✕</button>
               </p>
               <dl class="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1">
                 @for (s of shortcuts; track s[0]) {
-                  <dt><kbd class="rounded border border-[#3a3f4a] bg-[#15171c] px-1.5 font-mono text-xs">{{ s[0] }}</kbd></dt>
-                  <dd class="text-[#c3c7cf]">{{ s[1] }}</dd>
+                  <dt><kbd class="rounded border border-[var(--ve-input-line)] bg-[var(--ve-input)] px-1.5 font-mono text-xs">{{ s[0] }}</kbd></dt>
+                  <dd class="text-[var(--ve-text)]">{{ s[1] }}</dd>
                 }
               </dl>
             </div>
           </div>
         }
         @if (otherTab()) {
-          <div class="flex flex-wrap items-center gap-2 border-b border-[#343842] bg-[#4a3a1c] px-3 py-2 text-sm" role="alert">
+          <div class="flex flex-wrap items-center gap-2 border-b border-[var(--ve-line)] bg-[var(--ve-warn)] px-3 py-2 text-sm" role="alert">
             <span>The video editor is open in another tab. To keep that tab's work safe, changes here are not saved.</span>
-            <button type="button" class="tool !bg-[#6d83f2] !text-white" (click)="useThisTab()">Save in this tab instead</button>
+            <button type="button" class="tool !bg-[var(--ve-accent)] !text-[var(--ve-on-accent)]" (click)="useThisTab()">Save in this tab instead</button>
           </div>
         }
         @if (notice()) {
-          <div class="flex items-center gap-2 border-b border-[#343842] bg-[#2a2f3c] px-3 py-2 text-sm" role="alert">
+          <div class="flex items-center gap-2 border-b border-[var(--ve-line)] bg-[var(--ve-info)] px-3 py-2 text-sm" role="alert">
             <span class="flex-1">{{ notice() }}</span>
             <button type="button" class="tool" aria-label="Close message" (click)="notice.set('')">✕</button>
           </div>
         }
         @if (restoreOffer(); as offer) {
-          <div class="flex flex-wrap items-center gap-2 border-b border-[#343842] bg-[#2a2f3c] px-3 py-2 text-sm" role="alert">
+          <div class="flex flex-wrap items-center gap-2 border-b border-[var(--ve-line)] bg-[var(--ve-info)] px-3 py-2 text-sm" role="alert">
             <span>You have a project saved {{ ago(offer.saved.savedAt) }} ({{ offer.saved.project.clips.length }} clips, {{ offer.media.length }} files).</span>
-            <button type="button" class="tool !bg-[#6d83f2] !text-white" (click)="restore()">Restore it</button>
+            <button type="button" class="tool !bg-[var(--ve-accent)] !text-[var(--ve-on-accent)]" (click)="restore()">Restore it</button>
             <button type="button" class="tool" (click)="discardSaved()">Start fresh</button>
           </div>
         }
@@ -380,7 +404,7 @@ type Drag =
         <div class="grid gap-1 p-1 max-lg:contents lg:grid-cols-[minmax(0,2fr)_minmax(0,3fr)]">
           <!-- Left: project files / titles / properties -->
           <div class="panel flex min-h-72 flex-col rounded max-lg:order-3 max-lg:m-1 lg:h-[calc(40vh+4rem)] lg:min-h-80">
-            <div class="flex border-b border-[#343842]" role="tablist" aria-label="Panels">
+            <div class="flex border-b border-[var(--ve-line)]" role="tablist" aria-label="Panels">
               <button type="button" role="tab" class="tab" [attr.aria-selected]="tab() === 'files'" (click)="tab.set('files')">Project Files</button>
               <button type="button" role="tab" class="tab" [attr.aria-selected]="tab() === 'transitions'" (click)="tab.set('transitions')">Transitions</button>
               <button type="button" role="tab" class="tab" [attr.aria-selected]="tab() === 'effects'" (click)="tab.set('effects')">Effects</button>
@@ -392,7 +416,7 @@ type Drag =
               @switch (tab()) {
                 @case ('files') {
                   @if (!media().length) {
-                    <button type="button" class="flex h-full min-h-56 w-full flex-col items-center justify-center gap-2 rounded border-2 border-dashed border-[#3a3f4a] text-sm text-[#9aa0ab]" (click)="fileInput.click()">
+                    <button type="button" class="flex h-full min-h-56 w-full flex-col items-center justify-center gap-2 rounded border-2 border-dashed border-[var(--ve-input-line)] text-sm text-[var(--ve-muted)]" (click)="fileInput.click()">
                       <span class="text-3xl">🎬</span>
                       Drop videos, audio and images here, or click to import
                       <ol class="mt-2 list-inside list-decimal text-left text-xs leading-6">
@@ -404,7 +428,7 @@ type Drag =
                   } @else {
                     <ul class="grid grid-cols-2 gap-2 sm:grid-cols-3" aria-label="Project files">
                       @for (m of media(); track m.id) {
-                        <li draggable="true" class="cursor-grab rounded border border-[#343842] bg-[#1b1d23] p-1 text-xs hover:border-[#6d83f2]" [attr.aria-label]="m.name" (dragstart)="dragMedia($event, m)" (pointerdown)="lastPointer = $event.pointerType" (click)="tapFile(m, $event)" (dblclick)="lastPointer !== 'touch' && addAtPlayhead(m)" title="Press ＋ (or double-click, or drag) to add it to the timeline">
+                        <li draggable="true" class="cursor-grab rounded border border-[var(--ve-line)] bg-[var(--ve-bg)] p-1 text-xs hover:border-[var(--ve-accent)]" [attr.aria-label]="m.name" (dragstart)="dragMedia($event, m)" (pointerdown)="lastPointer = $event.pointerType" (click)="tapFile(m, $event)" (dblclick)="lastPointer !== 'touch' && addAtPlayhead(m)" title="Press ＋ (or double-click, or drag) to add it to the timeline">
                           <div class="grid aspect-video place-items-center overflow-hidden rounded bg-black">
                             @if (m.kind === 'video') { <video [src]="m.url + '#t=0.5'" muted preload="metadata" class="h-full w-full object-contain"></video> }
                             @else if (m.kind === 'image') { <img [src]="m.url" alt="" class="h-full w-full object-contain" /> }
@@ -412,32 +436,32 @@ type Drag =
                           </div>
                           <p class="mt-1 flex items-center justify-between gap-1"><span class="truncate">{{ m.name }}</span>
                             <span class="flex shrink-0">
-                              <button type="button" class="tap rounded bg-[#6d83f2] px-1.5 font-bold text-white hover:bg-[#5b70e0]" [attr.aria-label]="'Add ' + m.name + ' to the timeline'" title="Add to the timeline" (click)="$event.stopPropagation(); addAtPlayhead(m)" (dblclick)="$event.stopPropagation()">＋</button>
-                              <button type="button" class="tap rounded px-1 text-[#9aa0ab] hover:bg-[#343842] hover:text-white" [attr.aria-label]="'Remove ' + m.name + ' from the project'" (click)="$event.stopPropagation(); removeMedia(m.id)" (dblclick)="$event.stopPropagation()">✕</button>
+                              <button type="button" class="tap rounded bg-[var(--ve-accent)] px-1.5 font-bold text-[var(--ve-on-accent)] hover:bg-[var(--brand-strong)]" [attr.aria-label]="'Add ' + m.name + ' to the timeline'" title="Add to the timeline" (click)="$event.stopPropagation(); addAtPlayhead(m)" (dblclick)="$event.stopPropagation()">＋</button>
+                              <button type="button" class="tap rounded px-1 text-[var(--ve-muted)] hover:bg-[var(--ve-hover)] hover:text-[var(--ve-text)]" [attr.aria-label]="'Remove ' + m.name + ' from the project'" (click)="$event.stopPropagation(); removeMedia(m.id)" (dblclick)="$event.stopPropagation()">✕</button>
                             </span>
                           </p>
-                          <p class="text-[#9aa0ab]">{{ m.kind === 'image' ? 'Image' : timecodeShort(m.duration) }}</p>
+                          <p class="text-[var(--ve-muted)]">{{ m.kind === 'image' ? 'Image' : timecodeShort(m.duration) }}</p>
                         </li>
                       }
                     </ul>
                   }
                   @if (imageCount() > 0) {
-                    <div class="mt-2 flex flex-wrap items-center gap-2 rounded border border-[#343842] p-2 text-xs">
+                    <div class="mt-2 flex flex-wrap items-center gap-2 rounded border border-[var(--ve-line)] p-2 text-xs">
                       <span>🖼 Photos to slideshow:</span>
                       <label class="flex items-center gap-1"><input type="number" min="0.5" max="30" step="0.5" class="input w-16" aria-label="Seconds per photo" [value]="slideSeconds()" (change)="slideSeconds.set(Math.max(0.5, $any($event.target).valueAsNumber || 3))" /> s each</label>
                       <label class="flex items-center gap-1"><input type="checkbox" aria-label="Fade between photos" [checked]="slideFade()" (change)="slideFade.set($any($event.target).checked)" /> Fade</label>
-                      <button type="button" class="tool !bg-[#2c3a4a]" (click)="makeSlideshow()">Add {{ imageCount() }} photo{{ imageCount() === 1 ? '' : 's' }} to the timeline</button>
+                      <button type="button" class="tool !bg-[var(--ve-action)]" (click)="makeSlideshow()">Add {{ imageCount() }} photo{{ imageCount() === 1 ? '' : 's' }} to the timeline</button>
                     </div>
                   }
-                  @if (importing()) { <p class="mt-2 text-xs text-[#9aa0ab]" role="status">Importing…</p> }
+                  @if (importing()) { <p class="mt-2 text-xs text-[var(--ve-muted)]" role="status">Importing…</p> }
                   @if (error()) { <p class="mt-2 text-xs text-red-400" role="alert">{{ error() }}</p> }
                 }
                 @case ('transitions') {
-                  <p class="mb-2 text-xs text-[#9aa0ab]">{{ selected() ? 'Add to the selected clip: ' + clipName(selected()!) : 'Select a clip on the timeline first.' }}</p>
+                  <p class="mb-2 text-xs text-[var(--ve-muted)]">{{ selected() ? 'Add to the selected clip: ' + clipName(selected()!) : 'Select a clip on the timeline first.' }}</p>
                   <ul class="grid grid-cols-2 gap-2 sm:grid-cols-4" aria-label="Transitions">
                     @for (t of transitions; track t.type) {
-                      <li class="rounded border border-[#343842] bg-[#1b1d23] p-2 text-center text-xs">
-                        <div class="grid aspect-video place-items-center rounded bg-gradient-to-r from-[#111] to-[#6d83f2] text-2xl">{{ t.icon }}</div>
+                      <li class="rounded border border-[var(--ve-line)] bg-[var(--ve-bg)] p-2 text-center text-xs">
+                        <div class="grid aspect-video place-items-center rounded bg-gradient-to-r from-[#111] to-[var(--ve-accent)] text-2xl">{{ t.icon }}</div>
                         <p class="mt-1 font-semibold">{{ t.label }}</p>
                         <span class="mt-1 flex justify-center gap-1">
                           <button type="button" class="tool !px-1.5 !py-0.5" [disabled]="!selected()" [attr.aria-label]="t.label + ' at start'" (click)="setTransition('in', t.type)">Start</button>
@@ -446,62 +470,62 @@ type Drag =
                       </li>
                     }
                   </ul>
-                  <p class="mt-2 text-xs text-[#9aa0ab]">Tip: overlap two clips on different tracks and fade the upper one in for a cross-fade.</p>
+                  <p class="mt-2 text-xs text-[var(--ve-muted)]">Tip: overlap two clips on different tracks and fade the upper one in for a cross-fade.</p>
                 }
                 @case ('effects') {
-                  <p class="mb-2 text-xs text-[#9aa0ab]">{{ selected() ? 'Apply to the selected clip: ' + clipName(selected()!) : 'Select a clip on the timeline first.' }}</p>
+                  <p class="mb-2 text-xs text-[var(--ve-muted)]">{{ selected() ? 'Apply to the selected clip: ' + clipName(selected()!) : 'Select a clip on the timeline first.' }}</p>
                   <ul class="grid grid-cols-2 gap-2 sm:grid-cols-5" aria-label="Effects">
                     @for (e of effectPresets; track e.name) {
                       <li>
-                        <button type="button" class="w-full rounded border border-[#343842] bg-[#1b1d23] p-2 text-center text-xs hover:border-[#6d83f2] disabled:opacity-40" [disabled]="!selected()" (click)="applyEffect(e.effects)">
+                        <button type="button" class="w-full rounded border border-[var(--ve-line)] bg-[var(--ve-bg)] p-2 text-center text-xs hover:border-[var(--ve-accent)] disabled:opacity-40" [disabled]="!selected()" (click)="applyEffect(e.effects)">
                           <div class="text-2xl">{{ e.icon }}</div>
                           {{ e.name }}
                         </button>
                       </li>
                     }
                   </ul>
-                  <p class="mt-2 text-xs text-[#9aa0ab]">Fine-tune every effect in Properties.</p>
+                  <p class="mt-2 text-xs text-[var(--ve-muted)]">Fine-tune every effect in Properties.</p>
                 }
                 @case ('titles') {
                   <ul class="grid grid-cols-2 gap-2" aria-label="Title templates">
                     @for (t of titles; track t.name) {
                       <li>
-                        <button type="button" class="w-full rounded border border-[#343842] bg-[#1b1d23] p-2 text-left text-xs hover:border-[#6d83f2]" (click)="addTitle(t.style)">
+                        <button type="button" class="w-full rounded border border-[var(--ve-line)] bg-[var(--ve-bg)] p-2 text-left text-xs hover:border-[var(--ve-accent)]" (click)="addTitle(t.style)">
                           <div class="grid aspect-video place-items-center rounded bg-black font-bold" [style.color]="t.style.colour" [style.font-family]="fontCss(t.style.font)" [style.text-shadow]="t.style.animation === 'extrude-3d' ? '2px 2px 0 #0369a1, 4px 4px 0 #075985' : null">{{ t.style.text.split('\\n')[0] }}</div>
                           <p class="mt-1">{{ t.name }}</p>
                         </button>
                       </li>
                     }
                   </ul>
-                  <p class="mt-2 text-xs text-[#9aa0ab]">Click a template to add it at the playhead, then edit it in Properties.</p>
-                  <div class="mt-3 flex flex-col gap-2 rounded border border-[#343842] p-2 text-xs">
-                    <p class="font-semibold text-white">💬 Captions / subtitles</p>
+                  <p class="mt-2 text-xs text-[var(--ve-muted)]">Click a template to add it at the playhead, then edit it in Properties.</p>
+                  <div class="mt-3 flex flex-col gap-2 rounded border border-[var(--ve-line)] p-2 text-xs">
+                    <p class="font-semibold text-[var(--ve-text)]">💬 Captions / subtitles</p>
                     <span class="flex flex-wrap gap-1">
-                      <button type="button" class="tool !bg-[#2c3a4a]" (click)="addCaption()">＋ Caption at playhead</button>
-                      <button type="button" class="tool !bg-[#2c3a4a]" (click)="srtInput.click()">📥 Import .srt</button>
-                      <button type="button" class="tool !bg-[#2c3a4a]" [disabled]="!hasCaptions()" (click)="saveSrt()">📤 Export .srt</button>
+                      <button type="button" class="tool !bg-[var(--ve-action)]" (click)="addCaption()">＋ Caption at playhead</button>
+                      <button type="button" class="tool !bg-[var(--ve-action)]" (click)="srtInput.click()">📥 Import .srt</button>
+                      <button type="button" class="tool !bg-[var(--ve-action)]" [disabled]="!hasCaptions()" (click)="saveSrt()">📤 Export .srt</button>
                       <input #srtInput type="file" class="sr-only" tabindex="-1" aria-hidden="true" accept=".srt,.vtt,text/plain" (change)="importSrt(srtInput)" />
                     </span>
-                    <p class="text-[#9aa0ab]">Captions go on their own Captions track. Edit the text in Properties; they are drawn into the exported video.</p>
+                    <p class="text-[var(--ve-muted)]">Captions go on their own Captions track. Edit the text in Properties; they are drawn into the exported video.</p>
                   </div>
                 }
                 @case ('history') {
                   <ol class="flex flex-col gap-0.5 text-xs" aria-label="History">
-                    <li><button type="button" class="w-full rounded px-2 py-1 text-left hover:bg-[#343842]" [class.text-[#9aa0ab]]="history().length > 0" (click)="goToHistory(0)">Start</button></li>
+                    <li><button type="button" class="w-full rounded px-2 py-1 text-left hover:bg-[var(--ve-hover)]" [class.text-[var(--ve-muted)]]="history().length > 0" (click)="goToHistory(0)">Start</button></li>
                     @for (h of history(); track $index; let i = $index) {
-                      <li><button type="button" class="w-full rounded px-2 py-1 text-left hover:bg-[#343842]" (click)="goToHistory(i + 1)">{{ i + 1 }}. {{ h.label }}</button></li>
+                      <li><button type="button" class="w-full rounded px-2 py-1 text-left hover:bg-[var(--ve-hover)]" (click)="goToHistory(i + 1)">{{ i + 1 }}. {{ h.label }}</button></li>
                     }
                     @for (f of future(); track $index; let i = $index) {
-                      <li><button type="button" class="w-full rounded px-2 py-1 text-left text-[#6b7280] line-through hover:bg-[#343842]" (click)="redoTo(i)">{{ f.label }}</button></li>
+                      <li><button type="button" class="w-full rounded px-2 py-1 text-left text-[var(--ve-muted)] line-through hover:bg-[var(--ve-hover)]" (click)="redoTo(i)">{{ f.label }}</button></li>
                     }
                   </ol>
-                  <p class="mt-2 text-xs text-[#9aa0ab]">Click a step to go back to it. Crossed-out steps can be redone.</p>
+                  <p class="mt-2 text-xs text-[var(--ve-muted)]">Click a step to go back to it. Crossed-out steps can be redone.</p>
                 }
                 @case ('properties') {
                   @if (selected(); as clip) {
-                    @if (isLocked(clip.track)) { <p class="mb-2 rounded bg-[#4a3a1c] px-2 py-1 text-xs">🔒 This clip is on a locked track. Unlock the track to change it.</p> }
+                    @if (isLocked(clip.track)) { <p class="mb-2 rounded bg-[var(--ve-warn)] px-2 py-1 text-xs">🔒 This clip is on a locked track. Unlock the track to change it.</p> }
                     <fieldset class="flex flex-col gap-2 text-xs" [disabled]="isLocked(clip.track)">
-                      <p class="font-semibold text-white">{{ clipName(clip) }}</p>
+                      <p class="font-semibold text-[var(--ve-text)]">{{ clipName(clip) }}</p>
                       <label class="flex items-center justify-between gap-2">Start (s)
                         <input type="number" min="0" step="0.1" class="input w-24" aria-label="Clip start" [value]="round(clip.start)" (change)="setStart(clip, $any($event.target).valueAsNumber)" />
                       </label>
@@ -524,7 +548,7 @@ type Drag =
                           <label class="flex items-center justify-between gap-2">Ramp strength {{ Math.round(clip.ramp.amount * 100) }}%
                             <input type="range" min="0.1" max="0.9" step="0.05" class="w-32" aria-label="Ramp strength" [value]="clip.ramp.amount" (change)="setRamp(clip, clip.ramp.shape, $any($event.target).valueAsNumber)" />
                           </label>
-                          <p class="text-[#9aa0ab]">Splitting this clip removes the ramp: both parts then play at a steady speed.</p>
+                          <p class="text-[var(--ve-muted)]">Splitting this clip removes the ramp: both parts then play at a steady speed.</p>
                         }
                       }
                       @if (hasSound(clip) && !clip.muted) {
@@ -540,7 +564,7 @@ type Drag =
                           </label>
                         </div>
                         @if ((clip.audioOnly || isAudioMedia(clip)) && pictureEnd() > clip.start) {
-                          <button type="button" class="tool self-start !bg-[#2c3a4a]" (click)="fitToVideo(clip)" title="Cuts a long song, or repeats a short one, so it ends with the video, and fades it out">🎵 Fit to video length ({{ timecodeShort(pictureEnd()) }})</button>
+                          <button type="button" class="tool self-start !bg-[var(--ve-action)]" (click)="fitToVideo(clip)" title="Cuts a long song, or repeats a short one, so it ends with the video, and fades it out">🎵 Fit to video length ({{ timecodeShort(pictureEnd()) }})</button>
                         }
                       }
                       @if (clip.title; as t) {
@@ -574,7 +598,7 @@ type Drag =
                         </label>
                       }
                       @if (hasSound(clip) && !clip.muted) {
-                        <p class="mt-2 font-semibold text-white">Sound effects</p>
+                        <p class="mt-2 font-semibold text-[var(--ve-text)]">Sound effects</p>
                         <label class="flex items-center justify-between gap-2">Echo {{ Math.round(audioFx(clip).echo * 100) }}%
                           <input type="range" min="0" max="1" step="0.05" class="w-32" aria-label="Echo" [value]="audioFx(clip).echo" (change)="setAudioFx(clip, { echo: $any($event.target).valueAsNumber })" />
                         </label>
@@ -597,7 +621,7 @@ type Drag =
                         <label class="flex items-center gap-2"><input type="checkbox" aria-label="Phone voice" [checked]="!!audioFx(clip).phone" (change)="setAudioFx(clip, { phone: $any($event.target).checked })" /> ☎ Phone call voice</label>
                       }
                       @if (!clip.audioOnly && !isAudioMedia(clip)) {
-                        <p class="mt-2 flex items-center justify-between font-semibold text-white">Transform
+                        <p class="mt-2 flex items-center justify-between font-semibold text-[var(--ve-text)]">Transform
                           <button type="button" class="tool !px-1.5 !py-0.5" [disabled]="!clip.transform && !clip.keyframes" (click)="resetTransform(clip)">Reset</button>
                         </p>
                         @if (!clip.title) {
@@ -607,7 +631,7 @@ type Drag =
                             </select>
                           </label>
                         }
-                        <p class="text-[#9aa0ab]">◆ adds a keyframe at the playhead, so the value can change over time.</p>
+                        <p class="text-[var(--ve-muted)]">◆ adds a keyframe at the playhead, so the value can change over time.</p>
                         @if (clip.keyframes) {
                           <label class="flex items-center justify-between gap-2">Keyframe curve
                             <select class="input" aria-label="Keyframe curve" (change)="setKeyEase(clip, $any($event.target).value)">
@@ -621,7 +645,7 @@ type Drag =
                             <span class="flex items-center gap-1">
                               <input type="range" class="w-28" [min]="f.min" [max]="f.max" [step]="f.step" [attr.aria-label]="'Transform ' + f.label" [value]="transformValue(clip, f.key)" (input)="setTransformValue(clip, f.key, $any($event.target).valueAsNumber, false)" (change)="setTransformValue(clip, f.key, $any($event.target).valueAsNumber, true)" />
                               <button type="button" class="rounded px-1" [class.text-amber-300]="hasKeyframeHere(clip, f.key)" [attr.aria-label]="'Keyframe ' + f.label" (click)="toggleKeyframe(clip, f.key)">◆</button>
-                              <span class="w-4 text-[10px] text-[#9aa0ab]">{{ clip.keyframes?.[f.key]?.length || '' }}</span>
+                              <span class="w-4 text-[10px] text-[var(--ve-muted)]">{{ clip.keyframes?.[f.key]?.length || '' }}</span>
                             </span>
                           </div>
                         }
@@ -633,7 +657,7 @@ type Drag =
                           }
                         }
                       }
-                      <p class="mt-2 font-semibold text-white">Transitions</p>
+                      <p class="mt-2 font-semibold text-[var(--ve-text)]">Transitions</p>
                       @for (side of sides; track side.key) {
                         <div class="flex items-center justify-between gap-2">
                           <span>{{ side.label }}</span>
@@ -649,10 +673,10 @@ type Drag =
                         </div>
                       }
                       @if (!clip.audioOnly && !isAudioMedia(clip)) {
-                      <p class="mt-2 flex items-center justify-between font-semibold text-white">Effects
+                      <p class="mt-2 flex items-center justify-between font-semibold text-[var(--ve-text)]">Effects
                         <button type="button" class="tool !px-1.5 !py-0.5" [disabled]="!clip.effects" (click)="resetEffects()">Reset</button>
                       </p>
-                      @if (clip.title) { <p class="text-[#9aa0ab]">Titles take the colour, blur and opacity effects.</p> }
+                      @if (clip.title) { <p class="text-[var(--ve-muted)]">Titles take the colour, blur and opacity effects.</p> }
                       @if (!clip.title && effectValue(clip, 'chroma')) {
                         <label class="flex items-center justify-between gap-2">Green screen colour
                           <input type="color" class="h-6 w-10" aria-label="Green screen colour" [value]="clip.effects?.chromaColour ?? '#00ff00'" (change)="setChromaColour(clip, $any($event.target).value)" />
@@ -668,13 +692,13 @@ type Drag =
                       }
                       }
                       <span class="mt-2 flex flex-wrap gap-1">
-                        @if (canSeparate(clip)) { <button type="button" class="tool !bg-[#2c3a4a]" (click)="separate(clip)">🔈 Separate audio</button> }
-                        @if (isVideo(clip)) { <button type="button" class="tool !bg-[#2c3a4a]" (click)="freezeFrame(clip)">❄ Freeze frame</button> }
-                        <button type="button" class="tool !bg-[#4a2a2a]" (click)="deleteSelected()">🗑 Remove clip</button>
+                        @if (canSeparate(clip)) { <button type="button" class="tool !bg-[var(--ve-action)]" (click)="separate(clip)">🔈 Separate audio</button> }
+                        @if (isVideo(clip)) { <button type="button" class="tool !bg-[var(--ve-action)]" (click)="freezeFrame(clip)">❄ Freeze frame</button> }
+                        <button type="button" class="tool !bg-[var(--ve-danger)]" (click)="deleteSelected()">🗑 Remove clip</button>
                       </span>
                     </fieldset>
                   } @else {
-                    <p class="text-xs text-[#9aa0ab]">Select a clip on the timeline to see its properties.</p>
+                    <p class="text-xs text-[var(--ve-muted)]">Select a clip on the timeline to see its properties.</p>
                   }
                 }
               }
@@ -704,7 +728,7 @@ type Drag =
                 }
               </div>
             </div>
-            <div class="flex flex-wrap items-center justify-center gap-1 border-t border-[#343842] px-2 py-1.5">
+            <div class="flex flex-wrap items-center justify-center gap-1 border-t border-[var(--ve-line)] px-2 py-1.5">
               <button type="button" class="tool" aria-label="Jump to start" (click)="seek(0)">⏮</button>
               <button type="button" class="tool" aria-label="Back one second" (click)="seek(time() - 1)">⏪</button>
               <button type="button" class="tool" aria-label="Previous frame" title="Previous frame (←)" (click)="stepFrame(-1)">◁|</button>
@@ -713,13 +737,13 @@ type Drag =
               <button type="button" class="tool" aria-label="Forward one second" (click)="seek(time() + 1)">⏩</button>
               <button type="button" class="tool" aria-label="Jump to end" (click)="seek(duration())">⏭</button>
               <span class="ml-2 whitespace-nowrap font-mono text-xs"><span aria-label="Current time">{{ timecode(time(), project().fps) }}</span>
-                <span class="text-[#9aa0ab]">/ {{ timecode(duration(), project().fps) }}</span></span>
+                <span class="text-[var(--ve-muted)]">/ {{ timecode(duration(), project().fps) }}</span></span>
               <span class="ml-2 flex h-6 w-16 flex-col justify-center gap-0.5" role="meter" aria-label="Sound level" aria-valuemin="0" aria-valuemax="100" [attr.aria-valuenow]="Math.round(Math.max(levels()[0], levels()[1]) * 100)" title="Sound level (left and right)">
                 @for (l of levels(); track $index) {
-                  <span class="block h-1.5 overflow-hidden rounded bg-[#15171c]"><span class="block h-full" [style.width.%]="l * 100" [style.background]="l > 0.95 ? '#ef4444' : l > 0.7 ? '#facc15' : '#22c55e'"></span></span>
+                  <span class="block h-1.5 overflow-hidden rounded bg-[var(--ve-line)]"><span class="block h-full" [style.width.%]="l * 100" [style.background]="l > 0.95 ? '#ef4444' : l > 0.7 ? '#facc15' : '#22c55e'"></span></span>
                 }
               </span>
-              <button type="button" class="tool" [class.!bg-[#343842]]="safeZones()" [attr.aria-pressed]="safeZones()" aria-label="Safe zones" title="Safe zones for titles and for Reels/Shorts buttons" (click)="safeZones.set(!safeZones())">▣</button>
+              <button type="button" class="tool" [class.!bg-[var(--ve-hover)]]="safeZones()" [attr.aria-pressed]="safeZones()" aria-label="Safe zones" title="Safe zones for titles and for Reels/Shorts buttons" (click)="safeZones.set(!safeZones())">▣</button>
               <button type="button" class="tool" aria-label="Full screen preview" (click)="fullscreen()">⛶</button>
             </div>
           </div>
@@ -729,13 +753,13 @@ type Drag =
           <div class="panel mx-1 mb-1 flex flex-wrap items-center gap-3 rounded px-3 py-2 text-sm max-lg:order-2" role="status">
             @if (exporting()) {
               <span>{{ exportStage() }}</span>
-              <div class="h-2 w-48 overflow-hidden rounded bg-[#15171c]" role="progressbar" aria-label="Export progress" [attr.aria-valuenow]="exportPercent()" aria-valuemin="0" aria-valuemax="100">
-                <div class="h-full bg-[#6d83f2]" [style.width.%]="exportPercent()"></div>
+              <div class="h-2 w-48 overflow-hidden rounded bg-[var(--ve-line)]" role="progressbar" aria-label="Export progress" [attr.aria-valuenow]="exportPercent()" aria-valuemin="0" aria-valuemax="100">
+                <div class="h-full bg-[var(--ve-accent)]" [style.width.%]="exportPercent()"></div>
               </div>
               <button type="button" class="tool" (click)="cancelExport()">Cancel</button>
             } @else if (exported(); as e) {
               <span>Ready: {{ e.name }} ({{ formatBytes(e.blob.size) }})</span>
-              <button type="button" class="tool !bg-[#6d83f2] !text-white" (click)="downloadExport()">Download {{ e.name }}</button>
+              <button type="button" class="tool !bg-[var(--ve-accent)] !text-[var(--ve-on-accent)]" (click)="downloadExport()">Download {{ e.name }}</button>
               <button type="button" class="tool" (click)="exported.set(null)">Close</button>
             }
           </div>
@@ -743,52 +767,52 @@ type Drag =
 
         <!-- Timeline -->
         <div class="panel m-1 mt-0 rounded max-lg:order-2">
-          <div class="flex flex-wrap items-center gap-1 border-b border-[#343842] px-2 py-1" role="toolbar" aria-label="Timeline">
+          <div class="flex flex-wrap items-center gap-1 border-b border-[var(--ve-line)] px-2 py-1" role="toolbar" aria-label="Timeline">
             <span class="mr-2 text-xs font-semibold">Timeline</span>
             <button type="button" class="tool" aria-label="Add track" (click)="addTrack()">＋ Track</button>
-            <button type="button" class="tool" [class.!bg-[#343842]]="snapping()" [attr.aria-pressed]="snapping()" aria-label="Snapping" (click)="snapping.set(!snapping())">🧲 Snap</button>
+            <button type="button" class="tool" [class.!bg-[var(--ve-hover)]]="snapping()" [attr.aria-pressed]="snapping()" aria-label="Snapping" (click)="snapping.set(!snapping())">🧲 Snap</button>
             <button type="button" class="tool" aria-label="Split at playhead" (click)="splitAtPlayhead()">✂ Split</button>
             <button type="button" class="tool" [disabled]="!selectedId()" aria-label="Delete clip" (click)="deleteSelected()">🗑 Delete</button>
-            <button type="button" class="tool" [class.!bg-[#343842]]="ripple()" [attr.aria-pressed]="ripple()" aria-label="Close gaps" title="When on, deleting a clip slides the clips after it back, so no gap is left" (click)="ripple.set(!ripple())">⇤ Close gaps</button>
+            <button type="button" class="tool" [class.!bg-[var(--ve-hover)]]="ripple()" [attr.aria-pressed]="ripple()" aria-label="Close gaps" title="When on, deleting a video or photo on the main track takes its time out of the whole project: the gap closes and music, titles and captions stay in step" (click)="ripple.set(!ripple())">⇤ Close gaps</button>
             <button type="button" class="tool" [disabled]="!selectedIds().length" aria-label="Copy clips" (click)="copy()">⧉ Copy</button>
             <button type="button" class="tool" [disabled]="!clipboard().length" aria-label="Paste clips" (click)="paste()">📋 Paste</button>
             <button type="button" class="tool" aria-label="Add marker" (click)="toggleMarker()">⚑ Marker</button>
-            @if (selectedIds().length > 1) { <span class="text-xs text-[#9aa0ab]">{{ selectedIds().length }} clips selected</span> }
+            @if (selectedIds().length > 1) { <span class="text-xs text-[var(--ve-muted)]">{{ selectedIds().length }} clips selected</span> }
             <span class="flex-1"></span>
             <label class="tool">Zoom
               <input type="range" min="10" max="300" class="w-28" aria-label="Timeline zoom" [value]="pps()" (input)="pps.set($any($event.target).valueAsNumber)" />
             </label>
           </div>
           <div #scroller class="relative max-h-80 overflow-auto" aria-label="Timeline tracks">
-            <div class="relative" [style.width.px]="HEADER + timelineWidth()">
+            <div class="relative" [style.width.px]="header() + timelineWidth()">
               <!-- Ruler -->
-              <div class="sticky top-0 z-20 flex h-6 bg-[#1b1d23]">
-                <div class="sticky left-0 z-10 shrink-0 border-r border-[#343842] bg-[#1b1d23]" [style.width.px]="HEADER"></div>
+              <div class="sticky top-0 z-20 flex h-6 bg-[var(--ve-bg)]">
+                <div class="sticky left-0 z-10 shrink-0 border-r border-[var(--ve-line)] bg-[var(--ve-bg)]" [style.width.px]="header()"></div>
                 <div class="relative flex-1 cursor-pointer touch-none" (pointerdown)="scrubStart($event)">
                   @for (tick of ticks(); track tick) {
-                    <span class="absolute top-0 h-full border-l border-[#4a4f5a] pl-1 font-mono text-[10px] text-[#9aa0ab]" [style.left.px]="tick * pps()">{{ timecodeShort(tick) }}</span>
+                    <span class="absolute top-0 h-full border-l border-[var(--ve-input-line)] pl-1 font-mono text-[10px] text-[var(--ve-muted)]" [style.left.px]="tick * pps()">{{ timecodeShort(tick) }}</span>
                   }
                   @for (m of project().markers ?? []; track m) {
-                    <button type="button" class="absolute top-0 z-10 -ml-1.5 text-xs leading-none text-amber-300" [style.left.px]="m * pps()" [attr.aria-label]="'Marker at ' + timecodeShort(m)" title="Click to jump, double-click to remove" (pointerdown)="$event.stopPropagation()" (click)="seek(m)" (dblclick)="removeMarkerAt(m)">⚑</button>
+                    <button type="button" class="absolute top-0 z-10 -ml-1.5 text-xs leading-none text-amber-500" [style.left.px]="m * pps()" [attr.aria-label]="'Marker at ' + timecodeShort(m)" title="Click to jump, double-click to remove" (pointerdown)="$event.stopPropagation()" (click)="seek(m)" (dblclick)="removeMarkerAt(m)">⚑</button>
                   }
                 </div>
               </div>
               <!-- Tracks, highest on top as in desktop editors -->
               @for (track of tracksTopDown(); track track.id) {
-                <div class="flex border-b border-[#2c3038]" [style.height.px]="ROW">
-                  <div class="sticky left-0 z-10 flex shrink-0 flex-col justify-center gap-0.5 border-r border-[#343842] bg-[#23262e] px-2 text-xs [@media(pointer:coarse)]:px-1" [style.width.px]="HEADER">
+                <div class="flex border-b border-[var(--ve-line)]" [style.height.px]="ROW">
+                  <div class="sticky left-0 z-10 flex shrink-0 flex-col justify-center gap-0.5 border-r border-[var(--ve-line)] bg-[var(--ve-panel)] px-2 text-xs [@media(pointer:coarse)]:px-1" [style.width.px]="header()">
                     @if (renaming() === track.id) {
                       <input class="input w-full !py-0 text-xs" [attr.aria-label]="'Rename ' + track.name" [value]="track.name" maxlength="30" (keydown.enter)="$any($event.target).blur()" (keydown.escape)="renaming.set(null)" (blur)="finishRename(track.id, $any($event.target).value)" (pointerdown)="$event.stopPropagation()" />
                     } @else {
                       <span class="cursor-text truncate font-semibold" title="Double-click to rename" (dblclick)="startRename(track.id)">{{ track.name }}</span>
                     }
                     <span class="flex gap-1 [@media(pointer:coarse)]:gap-0">
-                      <button type="button" class="tap rounded px-1" [class.opacity-40]="track.hidden" [attr.aria-label]="(track.hidden ? 'Show ' : 'Hide ') + track.name" (click)="toggleTrack(track.id, 'hidden')">👁</button>
-                      <button type="button" class="tap rounded px-1" [class.opacity-40]="track.muted" [attr.aria-label]="(track.muted ? 'Unmute ' : 'Mute ') + track.name" (click)="toggleTrack(track.id, 'muted')">🔊</button>
+                      <button type="button" class="tap-track rounded px-1 [@media(pointer:coarse)]:px-0" [class.opacity-40]="track.hidden" [attr.aria-label]="(track.hidden ? 'Show ' : 'Hide ') + track.name" (click)="toggleTrack(track.id, 'hidden')">👁</button>
+                      <button type="button" class="tap-track rounded px-1 [@media(pointer:coarse)]:px-0" [class.opacity-40]="track.muted" [attr.aria-label]="(track.muted ? 'Unmute ' : 'Mute ') + track.name" (click)="toggleTrack(track.id, 'muted')">🔊</button>
                       <button type="button" class="tap rounded px-1" [class.opacity-40]="!track.locked" [attr.aria-label]="(track.locked ? 'Unlock ' : 'Lock ') + track.name" (click)="toggleTrack(track.id, 'locked')">🔒</button>
                     </span>
                   </div>
-                  <div class="relative flex-1" [class]="track.locked ? 'bg-[repeating-linear-gradient(45deg,#1f2228_0_8px,#262a31_8px_16px)]' : 'bg-[#1f2228]'" [attr.data-track]="track.id" (pointerdown)="emptyDown($event)" (drop)="dropOnTrack($event, track.id)" (dragover)="$event.preventDefault()">
+                  <div class="relative flex-1" [class]="track.locked ? 'bg-[repeating-linear-gradient(45deg,var(--ve-lane)_0_8px,var(--ve-lane-2)_8px_16px)]' : 'bg-[var(--ve-lane)]'" [attr.data-track]="track.id" (pointerdown)="emptyDown($event)" (drop)="dropOnTrack($event, track.id)" (dragover)="$event.preventDefault()">
                     @for (clip of clipsOn(track.id); track clip.id) {
                       <div
                         class="absolute top-1 bottom-1 touch-none overflow-hidden rounded border text-[11px] leading-tight"
@@ -822,15 +846,16 @@ type Drag =
                 </div>
               }
               @if (!project().clips.length) {
-                <p class="pointer-events-none absolute top-14 z-10 text-xs text-[#9aa0ab]" [style.left.px]="HEADER + 12">Your clips appear here. Press ＋ on a file in Project Files to add it.</p>
+                <p class="pointer-events-none absolute top-14 z-10 text-xs text-[var(--ve-muted)]" [style.left.px]="header() + 12">Your clips appear here. Press ＋ on a file in Project Files to add it.</p>
               }
               <!-- Playhead -->
-              <div class="pointer-events-none absolute top-0 bottom-0 z-30 w-px bg-red-500" [style.left.px]="HEADER + time() * pps()">
+              <div class="pointer-events-none absolute top-0 bottom-0 z-30 w-px bg-red-500" [style.left.px]="header() + time() * pps()">
                 <span class="absolute -top-0 -left-1.5 h-3 w-3 rotate-45 bg-red-500"></span>
               </div>
             </div>
           </div>
         </div>
+        </fieldset>
       </div>
     </app-tool-page>
   `,
@@ -840,7 +865,8 @@ export class VideoEditor {
   protected readonly titles = TITLE_PRESETS;
   protected readonly profiles = PROFILES;
   protected readonly ROW = ROW;
-  protected readonly HEADER = HEADER;
+  /** Width of the track-name column (narrower on phones). */
+  protected readonly header = signal(HEADER);
   protected readonly Math = Math;
   protected readonly timecode = timecode;
   protected readonly formatBytes = formatBytes;
@@ -944,6 +970,8 @@ export class VideoEditor {
   protected readonly exported = signal<{ blob: Blob; name: string } | null>(null);
   protected readonly saveState = signal<'idle' | 'saving' | 'saved' | 'failed'>('idle');
   protected readonly otherTab = signal(false);
+  /** False until the page has started in the browser: controls wait, so an early click is not lost. */
+  protected readonly ready = signal(false);
   /** Deleting a clip closes the gap it leaves (on by default, as phone editors do). */
   protected readonly ripple = signal(true);
   protected lastPointer = '';
@@ -1000,8 +1028,12 @@ export class VideoEditor {
         },
       );
       this.previewer.setProject(this.project(), this.media());
-      // Phones show more of the timeline at a time.
-      if (innerWidth < 640) this.pps.set(30);
+      // Phones show more of the timeline at a time, with a narrower track column.
+      if (innerWidth < 640) {
+        this.pps.set(30);
+        this.header.set(92);
+      }
+      this.ready.set(true);
       addEventListener('pointermove', this.onMove);
       addEventListener('pointerup', this.onUp);
       void this.checkSaved();
@@ -1022,7 +1054,7 @@ export class VideoEditor {
       const playing = this.playing();
       if (this.drag) return;
       const el = this.scroller().nativeElement;
-      const view = el.clientWidth - HEADER;
+      const view = el.clientWidth - this.header();
       if (view <= 0) return;
       if (x < el.scrollLeft || x > el.scrollLeft + view - 24) el.scrollLeft = Math.max(0, x - (playing ? 24 : view / 3));
     });
@@ -1335,7 +1367,8 @@ export class VideoEditor {
       this.place(media, track, this.time());
       return;
     }
-    const time = this.time();
+    // After watching to the end, music still starts with the video, not after it.
+    const time = this.pictureEnd() > 0 && this.time() >= this.pictureEnd() - 0.05 ? 0 : this.time();
     const free = (t: number) => !this.project().clips.some((c) => c.track === t && time < clipEnd(c) && time + media.duration > c.start);
     const track = open.find((t) => !hasPictures(t) && free(t)) ?? open.find((t) => !hasPictures(t)) ?? this.freeTrackAt(time, media.duration);
     this.place(media, track, time);
@@ -1505,6 +1538,13 @@ export class VideoEditor {
 
   protected splitAtPlayhead(): void {
     const chosen = this.selected();
+    if (chosen && !this.isLocked(chosen.track)) {
+      const t = this.time();
+      if (t <= chosen.start || t >= clipEnd(chosen)) {
+        // Cutting some other clip would be a surprise: say what to do instead.
+        return this.tell('The playhead is not over the selected clip. Move the playhead onto it, or click an empty spot on the timeline first to cut every track.');
+      }
+    }
     const id = chosen && !this.isLocked(chosen.track) ? chosen.id : null;
     const next = id ? splitClip(this.project(), id, this.time()) : splitAll(this.project(), this.time());
     this.commit(next === this.project() && id ? splitAll(this.project(), this.time()) : next, this.project(), 'Split');
@@ -1513,7 +1553,9 @@ export class VideoEditor {
   protected deleteSelected(): void {
     const ids = this.selectedIds().filter((id) => !this.isLocked(this.project().clips.find((c) => c.id === id)?.track ?? -1));
     if (!ids.length) return;
-    const next = this.ripple() ? rippleDelete(this.project(), ids) : ids.reduce((p, id) => removeClip(p, id), this.project());
+    const media = this.mediaById();
+    const isPicture = (c: Clip) => !c.title && !c.audioOnly && media.get(c.mediaId ?? '')?.kind !== 'audio';
+    const next = this.ripple() ? rippleDelete(this.project(), ids, isPicture) : ids.reduce((p, id) => removeClip(p, id), this.project());
     this.commit(next, this.project(), ids.length > 1 ? `Delete ${ids.length} clips` : 'Delete clip');
     this.selectedIds.set([]);
   }
@@ -1604,7 +1646,7 @@ export class VideoEditor {
   // ---------- timeline pointer work ----------
   private timeAt(clientX: number): number {
     const box = this.scroller().nativeElement.getBoundingClientRect();
-    return Math.max(0, (clientX - box.left - HEADER + this.scroller().nativeElement.scrollLeft) / this.pps());
+    return Math.max(0, (clientX - box.left - this.header() + this.scroller().nativeElement.scrollLeft) / this.pps());
   }
 
   private trackAt(clientY: number): number | null {
@@ -1625,6 +1667,8 @@ export class VideoEditor {
   protected emptyDown(event: PointerEvent): void {
     if (event.target !== event.currentTarget) return;
     this.selectedIds.set([]);
+    // A finger on an empty track scrolls the timeline; moving the playhead is done on the ruler.
+    if (event.pointerType === 'touch') return;
     this.scrubStart(event);
   }
 
@@ -1636,7 +1680,8 @@ export class VideoEditor {
       this.selectedIds.update((ids) => (ids.includes(clip.id) ? ids.filter((i) => i !== clip.id) : [...ids, clip.id]));
       return;
     }
-    if (!this.selectedIds().includes(clip.id)) this.selectedIds.set([clip.id]);
+    const group = clip.group ? this.project().clips.filter((c) => c.group === clip.group).map((c) => c.id) : [clip.id];
+    if (!this.selectedIds().includes(clip.id)) this.selectedIds.set([...group.filter((i) => i !== clip.id), clip.id]);
     else this.selectedIds.update((ids) => [...ids.filter((i) => i !== clip.id), clip.id]);
     if (this.isLocked(clip.track)) return;
     this.dragStartProject = this.project();

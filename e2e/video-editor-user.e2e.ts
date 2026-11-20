@@ -29,6 +29,7 @@ test('a video with music, a cut in the middle and a title, on a laptop screen', 
   // ＋ puts clips one after another, and music under them.
   await page.getByRole('button', { name: 'Add clip.mp4 to the timeline' }).click();
   await page.getByRole('button', { name: 'Add photo.png to the timeline' }).click();
+  await page.getByRole('button', { name: 'Jump to start' }).click();
   await page.getByRole('button', { name: 'Add tone.wav to the timeline' }).click();
   expect(await track(page, 'Clip clip.mp4')).toEqual([['1', 0]]);
   const photo = await track(page, 'Clip photo.png');
@@ -55,7 +56,8 @@ test('a video with music, a cut in the middle and a title, on a laptop screen', 
   await page.getByLabel('Fade in seconds').blur();
   await page.getByRole('button', { name: /Fit to video length/ }).click();
   const musicClips = page.locator('[aria-label="Clip tone.wav"]');
-  await expect(musicClips).toHaveCount(2);
+  // The 1 s sound repeats up to the end of the 4 s video, as one group.
+  await expect(musicClips).toHaveCount(4);
   const music = await musicClips.evaluateAll((els) => els.map((e) => e.getBoundingClientRect().right));
   const video = await page.getByRole('button', { name: 'Clip photo.png' }).evaluate((e) => e.getBoundingClientRect().right);
   expect(Math.abs(Math.max(...music) - video)).toBeLessThan(4);
@@ -109,11 +111,15 @@ test.describe('on a phone', () => {
     const panels = await top('[role="tablist"][aria-label="Panels"]');
     expect(preview).toBeLessThan(timeline);
     expect(timeline).toBeLessThan(panels);
-    for (const name of ['Play', 'Hide Track 1', 'Remove clip.mp4 from the project', 'Add clip.mp4 to the timeline']) {
+    for (const name of ['Play', 'Remove clip.mp4 from the project', 'Add clip.mp4 to the timeline']) {
       const box = (await page.getByRole('button', { name, exact: true }).first().boundingBox())!;
       expect(box.width, name).toBeGreaterThanOrEqual(32);
       expect(box.height, name).toBeGreaterThanOrEqual(30);
     }
+    // Track buttons are a little narrower so the track column leaves room for the timeline.
+    const eye = (await page.getByRole('button', { name: 'Hide Track 1', exact: true }).boundingBox())!;
+    expect(eye.width).toBeGreaterThanOrEqual(28);
+    expect(eye.height).toBeGreaterThanOrEqual(30);
     // The time is never cut off at the screen edge.
     const time = (await page.getByLabel('Current time').boundingBox())!;
     expect(time.x + time.width).toBeLessThanOrEqual(412);

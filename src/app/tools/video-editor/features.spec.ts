@@ -21,6 +21,8 @@ import {
   shiftKeyframes,
   rippleDelete,
   fitAudio,
+  pasteClips,
+  clipEnd,
   speedChange,
   splitAll,
   splitClip,
@@ -311,10 +313,11 @@ describe('fixes from using the editor as a user', () => {
     };
     const after = rippleDelete(project, ['b']);
     const at = (id: string) => after.clips.find((c) => c.id === id)!.start;
-    // b was 3 s long: c slides from 9 to 6 (the 2 s gap before c stays); the other track does not move.
+    // b was 3 s long (4–7 s): c slides from 9 to 6 (the 2 s gap before c stays), and the music after it moves too.
     expect(at('c')).toBe(6);
-    expect(at('m')).toBe(8);
-    expect(rippleDelete(project, ['c']).clips.length).toBe(3);
+    expect(at('m')).toBe(5);
+    // Deleting c also takes 9–11 s out of the music under it, leaving it in two pieces.
+    expect(rippleDelete(project, ['c']).clips.length).toBe(4);
   });
 
   it('fits music to the video: repeats a short sound, cuts a long one, fades the end', () => {
@@ -335,5 +338,54 @@ describe('fixes from using the editor as a user', () => {
 
   it('starts with three tracks', () => {
     expect(newProject().tracks.map((t) => t.name)).toEqual(['Track 1', 'Track 2', 'Track 3']);
+  });
+});
+
+describe('cuts keep every track in step', () => {
+  const picture = (c: Clip) => !c.title && c.mediaId !== 'music';
+  it('takes the cut time out of music, captions and titles', () => {
+    const project: Project = {
+      ...newProject(),
+      markers: [2, 5, 12],
+      clips: [
+        clip({ id: 'v1', start: 0, out: 4 }),
+        clip({ id: 'v2', start: 4, out: 3 }),
+        clip({ id: 'v3', start: 7, out: 8 }),
+        clip({ id: 'music', mediaId: 'music', track: 2, start: 0, out: 15 }),
+        { ...clip({ id: 'cap', track: 3, start: 9, out: 2, mediaId: undefined }), title: { text: 'x', size: 5, colour: '#fff', x: 0.5, y: 0.8, background: true }, caption: true },
+        { ...clip({ id: 'gone', track: 3, start: 4.5, out: 1, mediaId: undefined }), title: { text: 'y', size: 5, colour: '#fff', x: 0.5, y: 0.8, background: true }, caption: true },
+      ],
+    };
+    const after = rippleDelete(project, ['v2'], picture);
+    const byId = (id: string) => after.clips.filter((c) => c.id === id || c.id.startsWith('clip-'));
+    expect(after.clips.find((c) => c.id === 'v3')!.start).toBe(4);
+    // The caption that was at 9 s is now at 6 s, with the picture under it; the one inside the cut is gone.
+    expect(after.clips.find((c) => c.id === 'cap')!.start).toBe(6);
+    expect(after.clips.some((c) => c.id === 'gone')).toBe(false);
+    // The music lost the same 3 s: it now ends with the video at 12 s.
+    const music = after.clips.filter((c) => c.track === 2);
+    expect(Math.max(...music.map(clipEnd))).toBeCloseTo(12);
+    expect(music.reduce((sum, c) => sum + clipLength(c), 0)).toBeCloseTo(12);
+    expect(after.markers).toEqual([2, 9]);
+    expect(byId('v1').length).toBeGreaterThan(0);
+  });
+
+  it('only removes music, titles and overlays, without moving anything', () => {
+    const project: Project = {
+      ...newProject(),
+      clips: [clip({ id: 'v', start: 0, out: 10 }), clip({ id: 'over', track: 2, start: 2, out: 3 }), clip({ id: 'after', track: 2, start: 6, out: 2 })],
+    };
+    const after = rippleDelete(project, ['over'], picture);
+    expect(after.clips.find((c) => c.id === 'after')!.start).toBe(6);
+    expect(after.clips.find((c) => c.id === 'v')!.start).toBe(0);
+  });
+
+  it('groups repeated music pieces, and pasted copies get a group of their own', () => {
+    const short: Project = { ...newProject(), clips: [clip({ id: 's', track: 2, start: 0, out: 3 })] };
+    const fitted = fitAudio(short, 's', 7.5, 3).project;
+    expect(new Set(fitted.clips.map((c) => c.group))).toEqual(new Set(['s']));
+    const pasted = pasteClips(fitted, fitted.clips, 20).project.clips.slice(3);
+    expect(new Set(pasted.map((c) => c.group)).size).toBe(1);
+    expect(pasted[0].group).not.toBe('s');
   });
 });
