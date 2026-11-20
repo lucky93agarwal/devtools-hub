@@ -43,7 +43,9 @@ export async function sendMail(env: Env, mail: Mail): Promise<void> {
 // ---------- CAPTCHA (Cloudflare Turnstile) ----------
 
 export async function checkCaptcha(env: Env, request: Request, token: string | undefined): Promise<void> {
-  if (!env.TURNSTILE_SECRET) return;
+  // The widget covers devtools24.in only; the workers.dev backup address has no check.
+  const host = new URL(request.url).hostname;
+  if (!env.TURNSTILE_SECRET || !(host === 'devtools24.in' || host.endsWith('.devtools24.in'))) return;
   if (!token) throw new ApiError(400, 'Please complete the check that you are not a robot.');
   const body = new FormData();
   body.append('secret', env.TURNSTILE_SECRET);

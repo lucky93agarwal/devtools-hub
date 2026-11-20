@@ -1,5 +1,5 @@
-import { Component, DestroyRef, ElementRef, afterNextRender, inject, output, viewChild } from '@angular/core';
-import { ACCOUNTS } from '../../core/app-config';
+import { Component, DestroyRef, ElementRef, afterNextRender, inject, output, signal, viewChild } from '@angular/core';
+import { turnstileKeyFor } from '../../core/app-config';
 
 interface TurnstileApi {
   render(element: HTMLElement, options: Record<string, unknown>): string;
@@ -31,12 +31,12 @@ function loadTurnstile(): Promise<TurnstileApi> {
  */
 @Component({
   selector: 'app-turnstile',
-  // Without a site key the check is switched off and nothing is shown.
-  template: `@if (on) { <div #box class="min-h-[65px]"></div> }`,
+  // The key depends on the address, known only in the browser; without one nothing is shown.
+  template: `<div #box [class.min-h-[65px]]="on()"></div>`,
 })
 export class Turnstile {
   readonly token = output<string>();
-  protected readonly on = !!ACCOUNTS.turnstileSiteKey;
+  protected readonly on = signal(false);
   private readonly box = viewChild<ElementRef<HTMLElement>>('box');
   private widget: string | null = null;
   private api: TurnstileApi | null = null;
@@ -44,11 +44,13 @@ export class Turnstile {
   constructor() {
     afterNextRender(async () => {
       const box = this.box()?.nativeElement;
-      if (!box) return;
+      const sitekey = turnstileKeyFor(location.hostname);
+      if (!box || !sitekey) return;
+      this.on.set(true);
       try {
         this.api = await loadTurnstile();
         this.widget = this.api.render(box, {
-          sitekey: ACCOUNTS.turnstileSiteKey,
+          sitekey,
           theme: document.documentElement.classList.contains('dark') ? 'dark' : 'light',
           callback: (t: string) => this.token.emit(t),
           'expired-callback': () => this.token.emit(''),

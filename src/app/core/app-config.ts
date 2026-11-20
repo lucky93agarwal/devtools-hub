@@ -83,10 +83,17 @@ export const LIMITS = {
  */
 export const ACCOUNTS = {
   enabled: true,
-  /**
-   * Cloudflare Turnstile (CAPTCHA) site key. Empty: no CAPTCHA, and the server must not have
-   * TURNSTILE_SECRET set either. For a quick local check, Cloudflare's test key
-   * '1x00000000000000000000AA' always passes.
-   */
-  turnstileSiteKey: '',
+  /** Cloudflare Turnstile (CAPTCHA) site key for devtools24.in (public; the secret is only in Cloudflare). */
+  turnstileSiteKey: '0x4AAAAAAGKgdeb35FuY9NX_',
 } as const;
+
+/**
+ * The Turnstile site key for this address: the real one on devtools24.in, Cloudflare's
+ * always-passing test key on localhost, and none elsewhere (such as the workers.dev backup
+ * address, which the widget does not cover; the server skips the check there too).
+ */
+export function turnstileKeyFor(hostname: string): string {
+  if (hostname === 'devtools24.in' || hostname.endsWith('.devtools24.in')) return ACCOUNTS.turnstileSiteKey;
+  if (hostname === 'localhost' || hostname === '127.0.0.1') return '1x00000000000000000000AA';
+  return '';
+}
