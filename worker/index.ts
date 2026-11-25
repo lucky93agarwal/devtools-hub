@@ -24,6 +24,8 @@ const ROUTES: [method: string, pattern: RegExp, handler: Handler][] = [
   ['GET', /^\/api\/auth\/providers$/, oauth.providers],
   ['GET', /^\/api\/auth\/oauth\/(\w+)\/start$/, oauth.start],
   ['GET', /^\/api\/auth\/oauth\/(\w+)\/callback$/, oauth.callback],
+  // Apple sends the answer back as a form POST.
+  ['POST', /^\/api\/auth\/oauth\/(\w+)\/callback$/, oauth.callback],
   ['GET', /^\/api\/auth\/activity$/, tracking.activity],
   ['POST', /^\/api\/auth\/sessions\/([\w-]+)\/logout$/, tracking.endSession],
   ['POST', /^\/api\/visit$/, tracking.recordVisit],

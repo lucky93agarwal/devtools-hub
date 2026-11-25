@@ -141,7 +141,7 @@ export interface LoginNote {
   email: string;
   userId?: string | null;
   success: boolean;
-  method: 'password' | 'signup' | 'reset' | 'google' | 'facebook';
+  method: 'password' | 'signup' | 'reset' | 'google' | 'facebook' | 'apple' | 'github';
   reason?: string;
   visitorId?: string | null;
 }

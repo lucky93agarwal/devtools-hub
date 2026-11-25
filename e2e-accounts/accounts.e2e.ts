@@ -348,7 +348,7 @@ test('Google and Facebook login: new account, linking, errors, and the admin "Lo
   await logOut();
   // The password form explains instead of "wrong password".
   await logIn(page, 'gita.google@example.test', 'Anything-2026');
-  await expect(page.getByRole('alert')).toContainText('logs in with Google or Facebook');
+  await expect(page.getByRole('alert')).toContainText('logs in with Google, Facebook, Apple or GitHub');
   // Google again: the same account (no second one).
   await page.goto('/signup');
   await page.getByRole('link', { name: 'Sign up with Google' }).click();
@@ -361,6 +361,27 @@ test('Google and Facebook login: new account, linking, errors, and the admin "Lo
   await page.getByRole('link', { name: 'Continue with Facebook' }).click();
   await expect(page).toHaveURL(/\/account$/);
   await expect(page.getByText(USER.email).first()).toBeVisible();
+  await logOut();
+
+  // GitHub: the primary confirmed email is used (not the public profile).
+  await as({ id: 'gh-77', login: 'octo', email: 'octo.github@example.test', first: 'Octo', last: 'Cat' });
+  await page.goto('/login');
+  await page.getByRole('link', { name: 'Continue with GitHub' }).click();
+  await expect(page).toHaveURL(/\/account\?welcome=1$/);
+  await expect(page.getByText('octo.github@example.test').first()).toBeVisible();
+  await logOut();
+  // Apple: answers with a form POST, signs our client secret check, sends the name only once.
+  await as({ id: 'apple-001', email: 'abc123@privaterelay.appleid.com', first: 'Anil', last: 'Apple' });
+  await page.goto('/login');
+  await page.getByRole('link', { name: 'Continue with Apple' }).click();
+  await expect(page).toHaveURL(/\/account\?welcome=1$/);
+  await expect(page.getByText('Anil Apple')).toBeVisible();
+  await logOut();
+  await as({ id: 'apple-001', email: 'abc123@privaterelay.appleid.com' });
+  await page.goto('/login');
+  await page.getByRole('link', { name: 'Continue with Apple' }).click();
+  await expect(page).toHaveURL(/\/account$/);
+  await expect(page.getByText('Anil Apple')).toBeVisible();
   await logOut();
 
   // Errors come back to the login page with a message.
@@ -391,8 +412,13 @@ test('Google and Facebook login: new account, linking, errors, and the admin "Lo
   await expect(ravi).toContainText('Manual');
   await expect(ravi).toContainText('Facebook');
   await expect(ravi).toContainText('last: Facebook');
-  await page.getByLabel('Filter users').selectOption('google');
-  await expect(page.getByText('Showing 1–1 of 1')).toBeVisible();
+  await expect(table.getByRole('row', { name: 'User octo.github@example.test' })).toContainText('GitHub');
+  await expect(table.getByRole('row', { name: 'User abc123@privaterelay.appleid.com' })).toContainText('Apple');
+  for (const [filter, email] of [['google', 'gita.google@example.test'], ['github', 'octo.github@example.test'], ['apple', 'abc123@privaterelay.appleid.com'], ['facebook', USER.email]]) {
+    await page.getByLabel('Filter users').selectOption(filter);
+    await expect(page.getByText('Showing 1–1 of 1')).toBeVisible();
+    await expect(table.getByRole('row', { name: `User ${email}` })).toHaveCount(1);
+  }
   await page.getByLabel('Filter users').selectOption('all');
   await ravi.click();
   const details = page.getByRole('region', { name: 'User details' });

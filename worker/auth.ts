@@ -110,7 +110,7 @@ export async function login(env: Env, request: Request): Promise<Response> {
   if (user && !user.password_hash) {
     // Created with Google / Facebook and no password set yet.
     await failed('no-password', user.id);
-    throw new ApiError(401, 'This account logs in with Google or Facebook. Use the button below, or set a password with "Forgot password?".');
+    throw new ApiError(401, 'This account logs in with Google, Facebook, Apple or GitHub. Use that button above, or set a password with "Forgot password?".');
   }
   if (!user || !ok) {
     await failed(user ? 'wrong-password' : 'no-account', user?.id);

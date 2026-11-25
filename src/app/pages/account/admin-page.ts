@@ -2,6 +2,8 @@ import { Component, computed, effect, inject, signal, untracked } from '@angular
 import { RouterLink } from '@angular/router';
 import { AccountError, Auth } from '../../core/accounts/auth';
 import { AdminTraffic } from './admin-traffic';
+import { methodClass, methodLabel } from '../../core/accounts/login-methods';
+
 
 interface AdminUser {
   id: string;
@@ -337,6 +339,8 @@ export class AdminPage {
     { id: 'password', label: 'Manual (email + password)' },
     { id: 'google', label: 'Google' },
     { id: 'facebook', label: 'Facebook' },
+    { id: 'apple', label: 'Apple' },
+    { id: 'github', label: 'GitHub' },
     { id: 'deleted', label: 'Deleted users' },
   ];
   protected readonly tab = signal<Tab>('overview');
@@ -372,20 +376,15 @@ export class AdminPage {
   protected readonly error = signal('');
   protected readonly device = deviceName;
 
-  /** Every way this user can log in: Manual (a password), Google, Facebook. */
+  /** Every way this user can log in: Manual (a password), Google, Facebook, Apple, GitHub. */
   protected loginMethods(u: AdminUser): string[] {
     const list = u.hasPassword !== false ? ['password'] : [];
     for (const p of u.providers ?? []) if (!list.includes(p)) list.push(p);
     return list.length ? list : [u.signupMethod ?? 'password'];
   }
 
-  protected methodLabel(method: string): string {
-    return method === 'google' ? 'Google' : method === 'facebook' ? 'Facebook' : 'Manual';
-  }
-
-  protected methodClass(method: string): string {
-    return method === 'google' ? '!border-[#4285F4] !text-[#4285F4]' : method === 'facebook' ? '!border-[#1877F2] !text-[#1877F2]' : '';
-  }
+  protected readonly methodLabel = methodLabel;
+  protected readonly methodClass = methodClass;
   private searchTimer?: ReturnType<typeof setTimeout>;
 
   protected readonly maxDay = computed(() => Math.max(1, ...(this.stats()?.signupsByDay ?? [1])));

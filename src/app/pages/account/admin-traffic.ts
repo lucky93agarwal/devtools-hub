@@ -1,5 +1,7 @@
 import { Component, computed, effect, inject, input, signal, untracked } from '@angular/core';
 import { AccountError, Auth } from '../../core/accounts/auth';
+import { eventLabel } from '../../core/accounts/login-methods';
+
 
 /** One visit or one login attempt, as the admin API sends it. */
 export interface TrafficRow {
@@ -58,7 +60,7 @@ export const REASONS: Record<string, string> = {
   blocked: 'Account blocked',
   paused: 'Paused (too many tries)',
   captcha: 'CAPTCHA failed',
-  'no-password': 'No password (uses Google / Facebook)',
+  'no-password': 'No password (uses Google / Facebook / Apple / GitHub)',
 };
 
 /** The admin's Visitors and Logins tabs: a searchable, paged table with every field. */
@@ -251,7 +253,7 @@ export class AdminTraffic {
   }
 
   protected methodName(method: string | undefined): string {
-    return method === 'signup' ? 'Signed up' : method === 'reset' ? 'Password reset' : method === 'google' ? 'Google' : method === 'facebook' ? 'Facebook' : 'Logged in';
+    return eventLabel(method);
   }
 
   protected reason(reason: string | null | undefined): string {

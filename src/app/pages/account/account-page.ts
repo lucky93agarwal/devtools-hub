@@ -1,6 +1,7 @@
 import { Component, effect, inject, signal, untracked } from '@angular/core';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { AccountError, Auth, type LoginActivity, type LoginRecord } from '../../core/accounts/auth';
+import { eventLabel, methodLabel } from '../../core/accounts/login-methods';
 import { pageReady } from '../../core/accounts/ready';
 import { passwordError } from '../../core/accounts/validation';
 
@@ -177,11 +178,12 @@ export class AccountPage {
   }
 
   protected methodName(method: string): string {
-    return method === 'signup' ? 'Signed up' : method === 'reset' ? 'Password reset' : method === 'google' ? 'Google login' : method === 'facebook' ? 'Facebook login' : 'Logged in';
+    const text = eventLabel(method);
+    return ['signup', 'reset', 'password'].includes(method) ? text : `${text} login`;
   }
 
   protected methodLabel(method: string | undefined): string {
-    return method === 'google' ? 'Google' : method === 'facebook' ? 'Facebook' : 'Email and password';
+    return !method || method === 'password' ? 'Email and password' : methodLabel(method);
   }
 
   protected reasonName(reason: string): string {

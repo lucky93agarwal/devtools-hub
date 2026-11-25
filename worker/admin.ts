@@ -81,6 +81,8 @@ const FILTERS: Record<string, string> = {
   password: "password_hash != ''",
   google: "EXISTS (SELECT 1 FROM oauth_accounts o WHERE o.user_id = users.id AND o.provider = 'google')",
   facebook: "EXISTS (SELECT 1 FROM oauth_accounts o WHERE o.user_id = users.id AND o.provider = 'facebook')",
+  apple: "EXISTS (SELECT 1 FROM oauth_accounts o WHERE o.user_id = users.id AND o.provider = 'apple')",
+  github: "EXISTS (SELECT 1 FROM oauth_accounts o WHERE o.user_id = users.id AND o.provider = 'github')",
 };
 const SORTS: Record<string, string> = {
   newest: 'created_at DESC',

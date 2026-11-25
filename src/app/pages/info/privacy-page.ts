@@ -186,6 +186,24 @@ import { InfoPage } from './info-page';
         </p>
       }
 
+      <h2 id="social-login">Log in with Google, Facebook, Apple or GitHub</h2>
+      <p>
+        If you choose "Continue with Google", "Continue with Facebook", "Continue with Apple" or "Continue with GitHub",
+        that service asks for your permission and then tells us your name, your email address (with Apple this can be a
+        private relay address) and an account number that identifies you there. We use them only to create your account
+        or log you in, and we keep them with your account. We do not get your password there, your contacts or your
+        posts, and we never post anything for you.
+      </p>
+
+      <h2 id="delete-your-data">Deleting your account and data</h2>
+      <p>
+        To delete your account and the data kept with it (including details received from Google, Facebook, Apple or
+        GitHub, your login history and your visits), send a request through the
+        <a routerLink="/contact">contact page</a> from or about the email of your account. We delete it within 30 days
+        and confirm by email. You can also remove DevTools24 from the connected apps in your Google, Facebook, Apple or
+        GitHub settings at any time; this stops further logins through that service.
+      </p>
+
       <h2>Children</h2>
       <p>The site is meant for developers and is not aimed at children.</p>
 

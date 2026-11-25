@@ -34,6 +34,14 @@ export interface Env {
   /** "Continue with Facebook": app from developers.facebook.com. Without both, the button is hidden. */
   FACEBOOK_APP_ID?: string;
   FACEBOOK_APP_SECRET?: string;
+  /** "Continue with GitHub": OAuth app from github.com/settings/developers. */
+  GITHUB_CLIENT_ID?: string;
+  GITHUB_CLIENT_SECRET?: string;
+  /** "Continue with Apple": Services ID, Team ID, Key ID and the .p8 private key from developer.apple.com. */
+  APPLE_SERVICES_ID?: string;
+  APPLE_TEAM_ID?: string;
+  APPLE_KEY_ID?: string;
+  APPLE_PRIVATE_KEY?: string;
   /** Local tests only: a fake Google / Facebook server. Never set on the live site. */
   OAUTH_TEST_SERVER?: string;
   /** Comma-separated emails that become admins when they sign up or log in. */
