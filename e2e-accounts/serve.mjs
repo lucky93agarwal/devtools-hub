@@ -1,6 +1,6 @@
 // Starts `wrangler dev` for the accounts tests with a fresh local database and test secrets.
 import { spawn, execFileSync } from 'node:child_process';
-import { rmSync } from 'node:fs';
+import { readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { createServer } from 'node:http';
 import { createVerify, generateKeyPairSync } from 'node:crypto';
 
@@ -70,8 +70,12 @@ createServer(async (req, res) => {
 
 
 const state = '.wrangler/e2e-state';
+// The real config plus a local-only R2 bucket for the notes vault (no Cloudflare account needed).
+const config = JSON.parse(readFileSync('wrangler.jsonc', 'utf8').replace(/^\s*\/\/.*$/gm, ''));
+config.r2_buckets = [{ binding: 'FILES', bucket_name: 'devtools24-files-e2e' }];
+writeFileSync('wrangler.e2e.json', JSON.stringify(config, null, 2));
 rmSync(state, { recursive: true, force: true });
-execFileSync('npx', ['--yes', 'wrangler@4', 'd1', 'migrations', 'apply', 'devtools24-accounts', '--local', '--persist-to', state], { stdio: 'inherit' });
+execFileSync('npx', ['--yes', 'wrangler@4', 'd1', 'migrations', 'apply', 'devtools24-accounts', '--local', '--persist-to', state, '-c', 'wrangler.e2e.json'], { stdio: 'inherit' });
 const vars = [
   'ADMIN_EMAILS:admin@devtools24.test',
   'APP_URL:http://localhost:8790',
@@ -88,6 +92,6 @@ const vars = [
   'OAUTH_TEST_SERVER:http://localhost:8791',
   'AI_FAKE:1',
 ];
-const child = spawn('npx', ['--yes', 'wrangler@4', 'dev', '--port', '8790', '--persist-to', state, ...vars.flatMap((v) => ['--var', v])], { stdio: 'inherit' });
+const child = spawn('npx', ['--yes', 'wrangler@4', 'dev', '-c', 'wrangler.e2e.json', '--port', '8790', '--persist-to', state, ...vars.flatMap((v) => ['--var', v])], { stdio: 'inherit' });
 for (const signal of ['SIGINT', 'SIGTERM']) process.on(signal, () => child.kill(signal));
 child.on('exit', (code) => process.exit(code ?? 0));

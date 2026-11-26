@@ -107,7 +107,16 @@ interface HistoryItem {
 
         @if (tab() === 'templates') {
           <div class="grid gap-4 lg:grid-cols-[18rem_1fr]">
-            <nav class="card max-h-[36rem] overflow-y-auto p-2 text-sm" aria-label="Templates">
+            <label class="flex flex-col gap-1 text-sm lg:hidden"><span class="font-semibold">Template</span>
+              <select class="field" aria-label="Choose a template" (change)="pickId($any($event.target).value)">
+                @for (c of categories; track c) {
+                  <optgroup [label]="c">
+                    @for (t of byCategory(c); track t.id) { <option [value]="t.id" [selected]="template().id === t.id">{{ isFavorite(t.id) ? '★ ' : '' }}{{ t.title }}</option> }
+                  </optgroup>
+                }
+              </select>
+            </label>
+            <nav class="card hidden max-h-[36rem] overflow-y-auto p-2 text-sm lg:block" aria-label="Templates">
               @if (favoriteTemplates().length) {
                 <p class="px-2 pt-1 pb-1 text-xs font-semibold text-muted uppercase">Favourites</p>
                 @for (t of favoriteTemplates(); track t.id) {
@@ -316,6 +325,11 @@ export class MessageAssistant {
     this.edited.set(null);
     this.outputs.set([]);
     this.notice.set('');
+  }
+
+  protected pickId(id: string): void {
+    const t = TEMPLATES.find((x) => x.id === id);
+    if (t) this.pick(t);
   }
 
   protected setValue(key: string, value: string): void {

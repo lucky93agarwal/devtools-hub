@@ -5,6 +5,7 @@
 import * as admin from './admin';
 import * as assistant from './assistant';
 import * as auth from './auth';
+import * as notes from './notes';
 import type { Env } from './env';
 import * as oauth from './oauth';
 import * as tracking from './tracking';
@@ -39,6 +40,12 @@ const ROUTES: [method: string, pattern: RegExp, handler: Handler][] = [
   ['POST', /^\/api\/admin\/users\/([\w-]+)\/delete$/, admin.deleteUser],
   ['GET', /^\/api\/admin\/outbox$/, admin.outbox],
   ['GET', /^\/api\/admin\/log$/, admin.adminLog],
+  ['GET', /^\/api\/notes$/, notes.list],
+  ['POST', /^\/api\/notes$/, notes.create],
+  ['POST', /^\/api\/notes\/upload$/, notes.upload],
+  ['GET', /^\/api\/notes\/(\d+)\/file$/, notes.file],
+  ['POST', /^\/api\/notes\/(\d+)\/edit$/, notes.edit],
+  ['POST', /^\/api\/notes\/(\d+)\/delete$/, notes.remove],
   ['POST', /^\/api\/assistant\/run$/, assistant.run],
   ['GET', /^\/api\/assistant\/profile$/, assistant.getProfile],
   ['POST', /^\/api\/assistant\/profile$/, assistant.saveProfile],

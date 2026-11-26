@@ -53,3 +53,4 @@ Thumbs.db
 # Cloudflare local development (local database, secrets)
 .wrangler/
 .dev.vars
+wrangler.e2e.json

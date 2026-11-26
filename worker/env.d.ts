@@ -17,6 +17,18 @@ export interface Fetcher {
   fetch(request: Request): Promise<Response>;
 }
 
+/** The few R2 bucket methods the notes vault uses. */
+export interface R2ObjectBody {
+  body: ReadableStream;
+  size: number;
+  httpMetadata?: { contentType?: string };
+}
+export interface R2Bucket {
+  put(key: string, value: ReadableStream | ArrayBuffer | Blob, options?: { httpMetadata?: { contentType?: string } }): Promise<unknown>;
+  get(key: string): Promise<R2ObjectBody | null>;
+  delete(keys: string | string[]): Promise<void>;
+}
+
 /** Cloudflare Workers AI binding (text generation). */
 export interface Ai {
   run(model: string, input: { messages: { role: 'system' | 'user' | 'assistant'; content: string }[]; max_tokens?: number; temperature?: number }): Promise<{ response?: string }>;
@@ -26,6 +38,8 @@ export interface Env {
   ASSETS: Fetcher;
   /** Workers AI. */
   AI?: Ai;
+  /** R2 bucket for files in the notes vault. Without it, notes work but uploads are off. */
+  FILES?: R2Bucket;
   /** Local tests only: answer AI calls with a predictable fake instead of calling Workers AI. */
   AI_FAKE?: string;
   DB: D1Database;

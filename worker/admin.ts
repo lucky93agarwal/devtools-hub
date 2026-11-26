@@ -1,6 +1,7 @@
 /** The admin panel's API: numbers, the users list, one user, blocking, emails and the admin log. */
 import type { Env } from './env';
 import { ApiError, json, readJson } from './http';
+import { deleteUserFiles } from './notes';
 import { requireAdmin, type UserRow } from './services';
 
 const DAY = 86_400_000;
@@ -211,6 +212,7 @@ export async function deleteUser(env: Env, request: Request, id: string): Promis
   const user = await env.DB.prepare('SELECT * FROM users WHERE id = ?').bind(id).first<UserRow>();
   if (!user) throw new ApiError(404, 'This user does not exist (maybe already deleted).');
   const now = Date.now();
+  await deleteUserFiles(env, id);
   await env.DB.batch([
     env.DB.prepare(
       `INSERT OR REPLACE INTO deleted_users (id, first_name, last_name, email, mobile, role, email_verified_at, created_at, last_login_at, login_count, deleted_at, deleted_by, signup_method)
@@ -222,6 +224,7 @@ export async function deleteUser(env: Env, request: Request, id: string): Promis
     env.DB.prepare('DELETE FROM known_devices WHERE user_id = ?').bind(id),
     env.DB.prepare('DELETE FROM assistant_history WHERE user_id = ?').bind(id),
     env.DB.prepare('DELETE FROM assistant_profiles WHERE user_id = ?').bind(id),
+    env.DB.prepare('DELETE FROM notes WHERE user_id = ?').bind(id),
     env.DB.prepare('DELETE FROM attempts WHERE key = ?').bind(`login:${user.email}`),
     env.DB.prepare('DELETE FROM users WHERE id = ?').bind(id),
   ]);

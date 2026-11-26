@@ -480,3 +480,67 @@ test('message assistant: login prompt, profile, templates, AI writing, history a
   await history.getByRole('button', { name: 'Delete Casual leave request' }).first().click();
   await expect(history.getByRole('listitem')).toHaveCount(2);
 });
+
+test('my notes: chat timeline with links, code, images and PDFs; search, filter, edit, delete; private files', async ({ page, browser }) => {
+  await page.request.post('/api/auth/logout', { headers: { 'content-type': 'application/json' }, data: {} });
+  await page.goto('/my-notes');
+  await expect(page.getByRole('region', { name: 'Log in to continue' })).toBeVisible();
+  await logIn(page, ADMIN.email, ADMIN.password);
+  await page.goto('/my-notes');
+  const feed = page.getByRole('log', { name: 'Notes' });
+  await expect(feed).toContainText('No notes yet');
+
+  const box = page.getByLabel('New note');
+  await box.fill('Staging URL https://staging.example.com, password in vault');
+  await box.press('Enter');
+  await expect(feed.getByRole('link', { name: 'https://staging.example.com' })).toBeVisible();
+  await expect(feed).toContainText('Today');
+  await box.fill('Restart command:\n```bash\nsudo systemctl restart api\n```');
+  await page.getByRole('button', { name: 'Send' }).click();
+  await expect(feed.locator('pre')).toHaveText('sudo systemctl restart api');
+
+  // An image (pasted screenshot style) and a PDF.
+  const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==', 'base64');
+  await page.getByLabel('Attach a file').first().setInputFiles({ name: 'screen.png', mimeType: 'image/png', buffer: png });
+  await box.fill('Login page bug');
+  await page.getByRole('button', { name: 'Send' }).click();
+  await expect(feed.getByRole('img', { name: 'screen.png' })).toBeVisible();
+  await page.getByLabel('Attach a file').first().setInputFiles({ name: 'spec.pdf', mimeType: 'application/pdf', buffer: Buffer.from('%PDF-1.4\n%%EOF') });
+  await page.getByRole('button', { name: 'Send' }).click();
+  await expect(feed.getByRole('link', { name: /spec\.pdf/ })).toBeVisible();
+  await expect(page.locator('span[title^="Files:"]')).toContainText(/ of 1 GB used$/);
+
+  // The file is served to its owner only.
+  const fileUrl = await feed.getByRole('img', { name: 'screen.png' }).getAttribute('src');
+  expect((await page.request.get(fileUrl!)).status()).toBe(200);
+  const stranger = await browser.newContext();
+  expect((await stranger.request.get(new URL(fileUrl!, page.url()).href)).status()).toBe(401);
+  await stranger.close();
+
+  // Filters and search.
+  await page.getByRole('tab', { name: 'Code' }).click();
+  await expect(feed.getByRole('article')).toHaveCount(1);
+  await page.getByRole('tab', { name: 'Media' }).click();
+  await expect(feed.getByRole('article')).toHaveCount(1);
+  await page.getByRole('tab', { name: 'Docs' }).click();
+  await expect(feed).toContainText('spec.pdf');
+  await page.getByRole('tab', { name: 'All' }).click();
+  await page.getByLabel('Search notes').fill('staging');
+  await expect(feed.getByRole('article')).toHaveCount(1);
+  await page.getByLabel('Search notes').fill('');
+  await expect(feed.getByRole('article')).toHaveCount(4);
+
+  // Edit and delete.
+  const first = feed.getByRole('article').first();
+  await first.getByRole('button', { name: /^Edit note/ }).click();
+  await page.getByLabel('Edit note', { exact: true }).fill('Staging URL https://staging.example.com (updated)');
+  await page.getByRole('button', { name: 'Save', exact: true }).click();
+  await expect(first).toContainText('(updated)');
+  await expect(first).toContainText('edited');
+  page.once('dialog', (d) => d.accept());
+  await feed.getByRole('article').last().getByRole('button', { name: /^Delete note/ }).click();
+  await expect(feed.getByRole('article')).toHaveCount(3);
+  // Notes are still there after a reload.
+  await page.reload();
+  await expect(page.getByRole('log', { name: 'Notes' }).getByRole('article')).toHaveCount(3);
+});

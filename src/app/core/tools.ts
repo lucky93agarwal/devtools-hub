@@ -45,6 +45,20 @@ export const TOOL_CATEGORIES: readonly { id: ToolCategory; label: string }[] = [
 
 export const TOOLS: readonly ToolInfo[] = [
   {
+    path: 'my-notes',
+    name: 'My Notes: Private Chat for Notes, Code and Files',
+    shortName: 'My notes',
+    description: 'A private WhatsApp-style chat with yourself for notes, links, code and files.',
+    seoTitle: 'Private Notes Chat for Links, Code and Files',
+    metaDescription:
+      'Save notes, links, code snippets, screenshots and PDFs in a private, WhatsApp-style timeline with exact times. Search, filter and copy in one click.',
+    icon: 'M4 4h16v12H8l-4 4zM8 8h8M8 11h6',
+    phase: 17,
+    category: 'workspace',
+    onHome: true,
+    live: true,
+  },
+  {
     path: 'message-assistant',
     name: 'Message Assistant: Professional Emails, Replies and AI Prompts',
     shortName: 'Message assistant',
