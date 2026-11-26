@@ -27,7 +27,7 @@ export interface ToolInfo {
   live: boolean;
 }
 
-export type ToolCategory = 'json' | 'images' | 'video' | 'api' | 'encode' | 'generate' | 'convert' | 'text';
+export type ToolCategory = 'json' | 'images' | 'pdf' | 'video' | 'api' | 'encode' | 'generate' | 'convert' | 'text';
 
 /** Home page groups, in display order. */
 export const TOOL_CATEGORIES: readonly { id: ToolCategory; label: string }[] = [
@@ -38,6 +38,7 @@ export const TOOL_CATEGORIES: readonly { id: ToolCategory; label: string }[] = [
   { id: 'convert', label: 'Converters and calculators' },
   { id: 'generate', label: 'Generators' },
   { id: 'images', label: 'Images' },
+  { id: 'pdf', label: 'PDF' },
   { id: 'video', label: 'Video and audio' },
 ];
 
@@ -449,6 +450,104 @@ export const TOOLS: readonly ToolInfo[] = [
     live: true,
   },
   {
+    path: 'merge-pdf',
+    name: 'Merge PDF',
+    shortName: 'Merge PDF',
+    description: 'Combine several PDFs into one file in the order you choose.',
+    seoTitle: 'Merge PDF Files Online, Free and Private',
+    metaDescription:
+      'Combine multiple PDF files into one in any order. Reorder, remove and download the merged PDF. Runs in your browser; files are never uploaded.',
+    icon: 'M6 2h9l5 5v15H6zM14 2v6h6M9 13h6M12 10v6',
+    phase: 17,
+    category: 'pdf',
+    onHome: true,
+    live: true,
+  },
+  {
+    path: 'split-pdf',
+    name: 'Split PDF and Extract Pages',
+    shortName: 'Split PDF',
+    description: 'Extract pages like "1-3, 5" or split a PDF every N pages.',
+    seoTitle: 'Split PDF and Extract Pages Online',
+    metaDescription:
+      'Extract chosen pages from a PDF, split it every N pages or into single pages as a ZIP. Free, fast and private: nothing is uploaded.',
+    icon: 'M6 2h9l5 5v15H6zM14 2v6h6M9 15h6',
+    phase: 17,
+    category: 'pdf',
+    onHome: true,
+    live: true,
+  },
+  {
+    path: 'compress-pdf',
+    name: 'Compress PDF',
+    shortName: 'Compress PDF',
+    description: 'Make a PDF smaller, keeping text or redrawing pages as JPEG.',
+    seoTitle: 'Compress PDF: Reduce PDF File Size',
+    metaDescription:
+      'Shrink PDF files for email and upload limits. Light mode keeps text; strong mode redraws pages at the DPI and quality you choose. Private.',
+    icon: 'M6 2h9l5 5v15H6zM14 2v6h6M12 11v6M9.5 14.5 12 17l2.5-2.5',
+    phase: 17,
+    category: 'pdf',
+    onHome: true,
+    live: true,
+  },
+  {
+    path: 'dummy-pdf-generator',
+    name: 'Dummy PDF Generator',
+    shortName: 'Dummy PDF',
+    description: 'Make sample PDFs with N pages and an exact size like 1, 5 or 10 MB.',
+    seoTitle: 'Dummy PDF Generator: Exact Size Test PDFs',
+    metaDescription:
+      'Generate sample PDFs for upload testing: choose pages, A4 or Letter, text and tables, and an exact file size such as 1 MB, 5 MB or 10 MB.',
+    icon: 'M6 2h9l5 5v15H6zM14 2v6h6M9 13h6M9 17h3',
+    phase: 17,
+    category: 'pdf',
+    onHome: true,
+    live: true,
+  },
+  {
+    path: 'text-to-pdf',
+    name: 'Text, Markdown and JSON to PDF',
+    shortName: 'Text to PDF',
+    description: 'Turn notes, README files and JSON into clean, styled PDFs.',
+    seoTitle: 'Markdown, Text and JSON to PDF Converter',
+    metaDescription:
+      'Convert Markdown, plain text or JSON into a styled PDF with headings, lists, code blocks and tables. Download or save as PDF. Free and private.',
+    icon: 'M6 2h9l5 5v15H6zM14 2v6h6M9 12h6M9 15h6M9 18h4',
+    phase: 17,
+    category: 'pdf',
+    onHome: true,
+    live: true,
+  },
+  {
+    path: 'html-to-pdf',
+    name: 'HTML to PDF Converter',
+    shortName: 'HTML to PDF',
+    description: 'Preview an HTML/CSS snippet on a real page size and save it as PDF.',
+    seoTitle: 'HTML to PDF: Preview Invoice and Report Layouts',
+    metaDescription:
+      'Paste HTML and CSS, preview it on A4, Letter or A5 with margins, then save as PDF. Ideal for debugging invoice, receipt and report templates.',
+    icon: 'M6 2h9l5 5v15H6zM14 2v6h6M10 13l-2 2 2 2M14 13l2 2-2 2',
+    phase: 17,
+    category: 'pdf',
+    onHome: true,
+    live: true,
+  },
+  {
+    path: 'pdf-text-extractor',
+    name: 'PDF Text and Table Extractor',
+    shortName: 'Extract text',
+    description: 'Copy the text of a PDF, or its tables as CSV or JSON.',
+    seoTitle: 'Extract Text and Tables from PDF to CSV or JSON',
+    metaDescription:
+      'Extract text from PDF files, or tables as CSV and JSON for data checks. Tune column detection, copy or download. Works offline in your browser.',
+    icon: 'M6 2h9l5 5v15H6zM14 2v6h6M9 13h6M9 16h6M9 19h6',
+    phase: 17,
+    category: 'pdf',
+    onHome: true,
+    live: true,
+  },
+  {
     path: 'pdf-to-image',
     name: 'PDF to Image Converter',
     shortName: 'PDF to image',
@@ -458,7 +557,7 @@ export const TOOLS: readonly ToolInfo[] = [
       'Convert PDF pages to JPG or PNG images at 72, 150 or 300 DPI, including password-protected PDFs. Download pages or a ZIP. Nothing is uploaded.',
     icon: 'M6 2h9l5 5v15H6zM14 2v6h6M9 14l2-2 2 2 2-3 2 3',
     phase: 13,
-    category: 'images',
+    category: 'pdf',
     onHome: true,
     live: true,
   },
@@ -472,7 +571,7 @@ export const TOOLS: readonly ToolInfo[] = [
       'Combine JPG, PNG, HEIC and other images into one PDF. Reorder pages, choose A4, Letter or image size, margin and quality. Made in your browser.',
     icon: 'M6 2h9l5 5v15H6zM14 2v6h6M9 13h6M9 17h6',
     phase: 13,
-    category: 'images',
+    category: 'pdf',
     onHome: true,
     live: true,
   },
