@@ -544,3 +544,27 @@ test('my notes: chat timeline with links, code, images and PDFs; search, filter,
   await page.reload();
   await expect(page.getByRole('log', { name: 'Notes' }).getByRole('article')).toHaveCount(3);
 });
+
+test('AI JRXML generator: works without login, checks the result and hands it to the previewer', async ({ page }) => {
+  await page.request.post('/api/auth/logout', { headers: { 'content-type': 'application/json' }, data: {} });
+  await page.goto('/jrxml-generator');
+  await page.getByRole('button', { name: 'Generate JRXML' }).click();
+  await expect(page.getByRole('alert')).toContainText('Describe the report first');
+  await page.getByLabel('Report description').fill('A list of customer names');
+  await page.getByRole('button', { name: 'Generate JRXML' }).click();
+  const out = page.getByLabel('Generated JRXML');
+  await expect(out).toHaveValue(/<jasperReport/);
+  await expect(page.getByRole('status')).toContainText('0 errors');
+  await page.getByRole('button', { name: 'Preview with data' }).click();
+  await expect(page).toHaveURL(/\/jrxml-preview\?from=generator/);
+  await expect(page.getByLabel('JRXML template')).toHaveValue(/name="generated"/);
+  await expect(page.getByRole('region', { name: 'Report preview' })).toContainText('Generated report');
+  // A picture works too (the fake AI describes it).
+  await page.goto('/jrxml-generator');
+  await page.getByRole('tab', { name: 'From a picture' }).click();
+  const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==', 'base64');
+  await page.locator('app-upload-box input[type=file]').setInputFiles({ name: 'invoice.png', mimeType: 'image/png', buffer: png });
+  await expect(page.getByAltText('Report picture')).toBeVisible();
+  await page.getByRole('button', { name: 'Generate JRXML' }).click();
+  await expect(page.getByLabel('Generated JRXML')).toHaveValue(/<jasperReport/);
+});

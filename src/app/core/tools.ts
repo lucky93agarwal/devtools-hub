@@ -27,11 +27,10 @@ export interface ToolInfo {
   live: boolean;
 }
 
-export type ToolCategory = 'json' | 'images' | 'pdf' | 'video' | 'api' | 'encode' | 'generate' | 'convert' | 'text' | 'workspace';
+export type ToolCategory = 'json' | 'images' | 'pdf' | 'jasper' | 'video' | 'api' | 'encode' | 'generate' | 'convert' | 'text' | 'workspace';
 
 /** Home page groups, in display order. */
 export const TOOL_CATEGORIES: readonly { id: ToolCategory; label: string }[] = [
-  { id: 'workspace', label: 'Your workspace (free account)' },
   { id: 'json', label: 'JSON and data' },
   { id: 'api', label: 'API and auth' },
   { id: 'encode', label: 'Encode and hash' },
@@ -40,7 +39,9 @@ export const TOOL_CATEGORIES: readonly { id: ToolCategory; label: string }[] = [
   { id: 'generate', label: 'Generators' },
   { id: 'images', label: 'Images' },
   { id: 'pdf', label: 'PDF' },
+  { id: 'jasper', label: 'Jaspersoft (JRXML)' },
   { id: 'video', label: 'Video and audio' },
+  { id: 'workspace', label: 'Your workspace (free account)' },
 ];
 
 export const TOOLS: readonly ToolInfo[] = [
@@ -573,6 +574,90 @@ export const TOOLS: readonly ToolInfo[] = [
     icon: 'M6 2h9l5 5v15H6zM14 2v6h6M9 13h6M9 16h6M9 19h6',
     phase: 17,
     category: 'pdf',
+    onHome: true,
+    live: true,
+  },
+  {
+    path: 'jrxml-generator',
+    name: 'AI JRXML Generator for JasperReports',
+    shortName: 'AI generator',
+    description: 'Turn a description, HTML layout or picture into a .jrxml template.',
+    seoTitle: 'AI JRXML Generator: Text, HTML or Image',
+    metaDescription:
+      'Generate JasperReports .jrxml templates from a description, HTML/CSS or a picture of an invoice. Checked, fixed and ready to preview. Free.',
+    icon: 'M6 2h9l5 5v15H6zM14 2v6h6M9 13l1.5 3L12 13l1.5 3 1.5-3',
+    phase: 17,
+    category: 'jasper',
+    onHome: true,
+    live: true,
+  },
+  {
+    path: 'jrxml-preview',
+    name: 'JRXML Preview and Export',
+    shortName: 'Preview and export',
+    description: 'Preview a .jrxml with JSON, CSV or XML data; export PDF, Excel, CSV, HTML or Word.',
+    seoTitle: 'JRXML Preview: Export PDF, Excel and Word',
+    metaDescription:
+      'Preview JasperReports .jrxml templates with JSON, CSV or XML data in your browser: bands, page breaks, totals, patterns. Export PDF, XLSX, CSV, HTML, DOCX.',
+    icon: 'M6 2h9l5 5v15H6zM14 2v6h6M8 13h8v5H8z',
+    phase: 17,
+    category: 'jasper',
+    onHome: true,
+    live: true,
+  },
+  {
+    path: 'jrxml-debugger',
+    name: 'JRXML Error and Layout Debugger',
+    shortName: 'Debugger',
+    description: 'Find invalid XML, missing fields, band overflow, overlaps and blank-page causes.',
+    seoTitle: 'JRXML Debugger: Fix JasperReports Errors',
+    metaDescription:
+      'Check a .jrxml for invalid XML, missing field declarations, band overflow, overlapping elements and blank pages, with a fix for each. Runs in your browser.',
+    icon: 'M6 2h9l5 5v15H6zM14 2v6h6M10 13l4 4M14 13l-4 4',
+    phase: 17,
+    category: 'jasper',
+    onHome: true,
+    live: true,
+  },
+  {
+    path: 'jrxml-field-mapper',
+    name: 'JRXML Field and Parameter Mapper',
+    shortName: 'Field mapper',
+    description: 'Paste JSON or SQL and get field, parameter and variable tags.',
+    seoTitle: 'JSON or SQL to JRXML Fields and Parameters',
+    metaDescription:
+      'Paste an API JSON payload or SQL query and get JasperReports field, parameter, variable and queryString tags with the right Java classes.',
+    icon: 'M6 2h9l5 5v15H6zM14 2v6h6M9 13h6M9 16h4M9 19h6',
+    phase: 17,
+    category: 'jasper',
+    onHome: true,
+    live: true,
+  },
+  {
+    path: 'jasper-expression-helper',
+    name: 'Jaspersoft Expression and Formula Helper',
+    shortName: 'Expressions',
+    description: 'Recipes and a checker for dates, currency, null checks and Page X of Y.',
+    seoTitle: 'Jaspersoft Expression Helper: Java and Groovy',
+    metaDescription:
+      'Ready JasperReports expressions for date and rupee formats, null checks, conditions, Page X of Y and conditional styles, plus an expression checker.',
+    icon: 'M6 2h9l5 5v15H6zM14 2v6h6M9 14h2l1 3 2-6h1',
+    phase: 17,
+    category: 'jasper',
+    onHome: true,
+    live: true,
+  },
+  {
+    path: 'jrxml-snippet-builder',
+    name: 'JRXML Table, Subreport and Barcode Builder',
+    shortName: 'Snippets',
+    description: 'XML for tables with repeating headers, lists, QR codes, barcodes and subreports.',
+    seoTitle: 'JRXML Table, Subreport and QR Code Builder',
+    metaDescription:
+      'Generate JasperReports XML for tables with repeating headers, lists, QR codes, Code 128 barcodes and subreports with JSON or JavaBean data.',
+    icon: 'M6 2h9l5 5v15H6zM14 2v6h6M8 12h8v7H8zM8 15h8M12 12v7',
+    phase: 17,
+    category: 'jasper',
     onHome: true,
     live: true,
   },

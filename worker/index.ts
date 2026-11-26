@@ -5,6 +5,7 @@
 import * as admin from './admin';
 import * as assistant from './assistant';
 import * as auth from './auth';
+import * as jasper from './jasper';
 import * as notes from './notes';
 import type { Env } from './env';
 import * as oauth from './oauth';
@@ -40,6 +41,7 @@ const ROUTES: [method: string, pattern: RegExp, handler: Handler][] = [
   ['POST', /^\/api\/admin\/users\/([\w-]+)\/delete$/, admin.deleteUser],
   ['GET', /^\/api\/admin\/outbox$/, admin.outbox],
   ['GET', /^\/api\/admin\/log$/, admin.adminLog],
+  ['POST', /^\/api\/jasper\/generate$/, jasper.generateJrxml],
   ['GET', /^\/api\/notes$/, notes.list],
   ['POST', /^\/api\/notes$/, notes.create],
   ['POST', /^\/api\/notes\/upload$/, notes.upload],
