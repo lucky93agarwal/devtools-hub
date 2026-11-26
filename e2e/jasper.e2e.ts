@@ -22,7 +22,6 @@ test('JRXML preview fills the sample report and exports PDF, Excel, CSV, HTML an
   await expect(preview).toContainText('Page 1 of');
   await expect(preview.getByText('Asha Rao')).toHaveCSS('color', 'rgb(0, 0, 0)');
   await page.getByLabel('Zoom').fill('1');
-  await preview.screenshot({ path: '/private/tmp/claude-501/-Users-luckyagarwal-Desktop-Development/3e93280a-a340-465f-8d0c-4b4c1bb69845/scratchpad/jrxml-preview.png' });
 
   for (const [button, name] of [['PDF', 'orders_report.pdf'], ['Excel', 'orders_report.xlsx'], ['CSV', 'orders_report.csv'], ['HTML', 'orders_report.html'], ['Word', 'orders_report.docx']]) {
     const download = page.waitForEvent('download');
