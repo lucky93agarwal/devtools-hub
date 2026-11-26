@@ -3,6 +3,7 @@
  * database); every other request is a static page or file, served exactly as before.
  */
 import * as admin from './admin';
+import * as assistant from './assistant';
 import * as auth from './auth';
 import type { Env } from './env';
 import * as oauth from './oauth';
@@ -38,6 +39,13 @@ const ROUTES: [method: string, pattern: RegExp, handler: Handler][] = [
   ['POST', /^\/api\/admin\/users\/([\w-]+)\/delete$/, admin.deleteUser],
   ['GET', /^\/api\/admin\/outbox$/, admin.outbox],
   ['GET', /^\/api\/admin\/log$/, admin.adminLog],
+  ['POST', /^\/api\/assistant\/run$/, assistant.run],
+  ['GET', /^\/api\/assistant\/profile$/, assistant.getProfile],
+  ['POST', /^\/api\/assistant\/profile$/, assistant.saveProfile],
+  ['GET', /^\/api\/assistant\/history$/, assistant.history],
+  ['POST', /^\/api\/assistant\/history$/, assistant.saveHistory],
+  ['POST', /^\/api\/assistant\/history\/(\d+)\/favorite$/, assistant.toggleFavorite],
+  ['POST', /^\/api\/assistant\/history\/(\d+)\/delete$/, assistant.deleteHistory],
   ['GET', /^\/api\/admin\/visits$/, admin.visits],
   ['GET', /^\/api\/admin\/logins$/, admin.logins],
 ];

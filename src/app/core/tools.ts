@@ -27,10 +27,11 @@ export interface ToolInfo {
   live: boolean;
 }
 
-export type ToolCategory = 'json' | 'images' | 'pdf' | 'video' | 'api' | 'encode' | 'generate' | 'convert' | 'text';
+export type ToolCategory = 'json' | 'images' | 'pdf' | 'video' | 'api' | 'encode' | 'generate' | 'convert' | 'text' | 'workspace';
 
 /** Home page groups, in display order. */
 export const TOOL_CATEGORIES: readonly { id: ToolCategory; label: string }[] = [
+  { id: 'workspace', label: 'Your workspace (free account)' },
   { id: 'json', label: 'JSON and data' },
   { id: 'api', label: 'API and auth' },
   { id: 'encode', label: 'Encode and hash' },
@@ -43,6 +44,20 @@ export const TOOL_CATEGORIES: readonly { id: ToolCategory; label: string }[] = [
 ];
 
 export const TOOLS: readonly ToolInfo[] = [
+  {
+    path: 'message-assistant',
+    name: 'Message Assistant: Professional Emails, Replies and AI Prompts',
+    shortName: 'Message assistant',
+    description: 'Turn rough or Hinglish notes into professional emails, chat messages, replies and AI prompts.',
+    seoTitle: 'Hinglish to Professional Email Assistant',
+    metaDescription:
+      'Turn rough Hinglish notes into professional emails and Slack messages, get reply suggestions, and use templates for EOD, leave, MR and deployment requests.',
+    icon: 'M4 5h16v11H8l-4 4zM8 9h8M8 12h5',
+    phase: 17,
+    category: 'workspace',
+    onHome: true,
+    live: true,
+  },
   {
     path: 'json-formatter',
     name: 'JSON Formatter and Validator',

@@ -220,6 +220,8 @@ export async function deleteUser(env: Env, request: Request, id: string): Promis
     env.DB.prepare('DELETE FROM sessions WHERE user_id = ?').bind(id),
     env.DB.prepare('DELETE FROM tokens WHERE user_id = ?').bind(id),
     env.DB.prepare('DELETE FROM known_devices WHERE user_id = ?').bind(id),
+    env.DB.prepare('DELETE FROM assistant_history WHERE user_id = ?').bind(id),
+    env.DB.prepare('DELETE FROM assistant_profiles WHERE user_id = ?').bind(id),
     env.DB.prepare('DELETE FROM attempts WHERE key = ?').bind(`login:${user.email}`),
     env.DB.prepare('DELETE FROM users WHERE id = ?').bind(id),
   ]);

@@ -17,8 +17,17 @@ export interface Fetcher {
   fetch(request: Request): Promise<Response>;
 }
 
+/** Cloudflare Workers AI binding (text generation). */
+export interface Ai {
+  run(model: string, input: { messages: { role: 'system' | 'user' | 'assistant'; content: string }[]; max_tokens?: number; temperature?: number }): Promise<{ response?: string }>;
+}
+
 export interface Env {
   ASSETS: Fetcher;
+  /** Workers AI. */
+  AI?: Ai;
+  /** Local tests only: answer AI calls with a predictable fake instead of calling Workers AI. */
+  AI_FAKE?: string;
   DB: D1Database;
   /** Turnstile (CAPTCHA) secret. Locally the always-pass test secret. */
   TURNSTILE_SECRET?: string;

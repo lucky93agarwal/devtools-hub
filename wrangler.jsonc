@@ -34,6 +34,8 @@
     }
   ],
   // Sender of account emails (the address's domain must be verified in Resend).
+  // Workers AI (free daily allowance) for the message assistant and the AI generators.
+  "ai": { "binding": "AI" },
   "vars": { "MAIL_FROM": "DevTools24 <noreply@devtools24.in>" },
   "observability": { "enabled": true }
 }

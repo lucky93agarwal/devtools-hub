@@ -428,3 +428,55 @@ test('Google and Facebook login: new account, linking, errors, and the admin "Lo
   await expect(details.getByRole('table', { name: 'Logins' })).toContainText('Facebook');
   await expect(details.getByRole('table', { name: 'Logins' })).not.toContainText('gita.google');
 });
+
+test('message assistant: login prompt, profile, templates, AI writing, history and favourites', async ({ page }) => {
+  await page.request.post('/api/auth/logout', { headers: { 'content-type': 'application/json' }, data: {} });
+  await page.goto('/message-assistant');
+  const gate = page.getByRole('region', { name: 'Log in to continue' });
+  await expect(gate).toBeVisible();
+  await gate.getByRole('link', { name: 'Log in' }).click();
+  await expect(page).toHaveURL(/\/login\?next=%2Fmessage-assistant/);
+  await page.getByLabel('Email').fill(ADMIN.email);
+  await page.getByLabel('Password', { exact: true }).fill(ADMIN.password);
+  await captcha(page);
+  await page.getByRole('button', { name: 'Log in' }).click();
+  await expect(page).toHaveURL(/\/message-assistant$/);
+
+  // Profile is saved once and used by templates.
+  await page.getByRole('tab', { name: 'Profile' }).click();
+  await page.getByLabel("Manager's name").fill('Meera');
+  await page.getByLabel('Email signature').fill('Asha Admin\nBackend Developer');
+  await page.getByRole('button', { name: 'Save profile' }).click();
+  await expect(page.getByRole('status')).toHaveText('Saved.');
+
+  await page.getByRole('tab', { name: 'Templates' }).click();
+  await page.getByRole('navigation', { name: 'Templates' }).getByRole('button', { name: 'Casual leave request' }).click();
+  await page.getByLabel('Date(s)').fill('28 Nov 2026');
+  const draft = page.getByLabel('Template message');
+  await expect(draft).toHaveValue(/^Subject: Casual leave request - 28 Nov 2026\n\nHi Meera,/);
+  await expect(draft).toHaveValue(/Regards,\nAsha Admin\nBackend Developer$/);
+  await page.getByRole('button', { name: '☆ Add to favourites' }).click();
+  await expect(page.getByRole('navigation', { name: 'Templates' })).toContainText('★ Casual leave request');
+  await page.getByRole('button', { name: 'Save to history' }).click();
+  await expect(page.getByText('Saved to history.')).toBeVisible();
+  await page.getByRole('button', { name: 'Polish with AI' }).click();
+  await expect(page.getByRole('region', { name: 'Polished message' })).toContainText('[fake AI] Subject: Casual leave request');
+
+  // Notes to a professional message.
+  await page.getByRole('tab', { name: 'Write' }).click();
+  await page.getByLabel('Your notes').fill('sir kal deployment ho gaya kya, testing start karni hai');
+  await page.getByLabel('Channel').selectOption('chat');
+  await page.getByRole('button', { name: 'Make it professional' }).click();
+  await expect(page.getByRole('region', { name: 'Result' })).toContainText('[fake AI] sir kal deployment');
+
+  // History keeps everything; favourites and delete work.
+  await page.getByRole('tab', { name: 'History' }).click();
+  const history = page.getByRole('list', { name: 'History' });
+  await expect(history.getByRole('listitem')).toHaveCount(3);
+  await history.getByRole('button', { name: /Add to favourites: sir kal/ }).click();
+  await page.getByLabel('Favourites only').check();
+  await expect(history.getByRole('listitem')).toHaveCount(1);
+  await page.getByLabel('Favourites only').uncheck();
+  await history.getByRole('button', { name: 'Delete Casual leave request' }).first().click();
+  await expect(history.getByRole('listitem')).toHaveCount(2);
+});

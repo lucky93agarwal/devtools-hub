@@ -96,6 +96,7 @@ const toolComponents: Record<string, () => Promise<Type<unknown>>> = {
   'sprite-sheet-generator': () => import('./tools/sprite-sheet/sprite-sheet').then((m) => m.SpriteSheet),
   'pdf-to-image': () => import('./tools/pdf-image/pdf-to-image').then((m) => m.PdfToImage),
   'image-to-pdf': () => import('./tools/pdf-image/image-to-pdf').then((m) => m.ImageToPdf),
+  'message-assistant': () => import('./pages/workspace/message-assistant').then((m) => m.MessageAssistant),
   'merge-pdf': () => import('./tools/pdf/pdf-merge').then((m) => m.PdfMerge),
   'split-pdf': () => import('./tools/pdf/pdf-split').then((m) => m.PdfSplit),
   'compress-pdf': () => import('./tools/pdf/pdf-compress').then((m) => m.PdfCompress),

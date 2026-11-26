@@ -86,6 +86,7 @@ const vars = [
   'APPLE_KEY_ID:KEY123',
   `APPLE_PRIVATE_KEY:${applePem.replace(/\n/g, '\\n')}`,
   'OAUTH_TEST_SERVER:http://localhost:8791',
+  'AI_FAKE:1',
 ];
 const child = spawn('npx', ['--yes', 'wrangler@4', 'dev', '--port', '8790', '--persist-to', state, ...vars.flatMap((v) => ['--var', v])], { stdio: 'inherit' });
 for (const signal of ['SIGINT', 'SIGTERM']) process.on(signal, () => child.kill(signal));
