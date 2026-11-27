@@ -21,14 +21,21 @@ Rules:
 - Repeating rows go in the detail band (one record per row, about 20px tall); column titles go in columnHeader.
 - Totals: a <variable name="TOTAL_X" class="java.math.BigDecimal" calculation="Sum"><variableExpression><![CDATA[$F{x}]]></variableExpression></variable>, shown in the summary band.
 - Page footer: "Page " + $V{PAGE_NUMBER} + " of" and a second textField with evaluationTime="Report" showing " " + $V{PAGE_NUMBER}.
+- <style> elements take attributes only (name, forecolor, backcolor, mode, fontSize, isBold); never put <textElement>, <background> or <font> inside <style>.
+- Do not add a <queryString> unless the request contains an SQL query.
 - Use camelCase field names. Keep it clean and professional: header colours like #4F46E5, light rectangle backgrounds behind the column header.`;
 
 /** The template from the model's answer (drops any text around it). */
-export function extractJrxml(answer: string): string {
+export function extractJrxml(answer: string, keepQuery = false): string {
   const start = answer.search(/<\?xml|<jasperReport\b/);
   const end = answer.lastIndexOf('</jasperReport>');
   if (start < 0 || end < 0) throw new ApiError(502, 'The AI did not return a JRXML template. Please try again or add more detail.');
-  const xml = answer.slice(start, end + '</jasperReport>'.length);
+  let xml = answer.slice(start, end + '</jasperReport>'.length);
+  // Elements JasperReports does not allow inside <style> (the model sometimes adds them).
+  xml = xml.replace(/(<style\b[^>]*>)([\s\S]*?)(<\/style>)/g, (_m, open: string, body: string, close: string) =>
+    open + body.replace(/<textElement\b[\s\S]*?<\/textElement>|<textElement\b[^>]*\/>|<background\b[^>]*\/>|<font\b[^>]*\/>/g, '').replace(/\n\s*\n/g, '\n') + close,
+  );
+  if (!keepQuery) xml = xml.replace(/\s*<queryString>[\s\S]*?<\/queryString>/, '');
   return xml.startsWith('<?xml') ? xml : `<?xml version="1.0" encoding="UTF-8"?>\n${xml}`;
 }
 
@@ -84,5 +91,5 @@ export async function generateJrxml(env: Env, request: Request): Promise<Respons
 
   if (env.AI_FAKE === '1') return json({ jrxml: FAKE_JRXML, model: 'fake' });
   const answer = await generate(env, JRXML_RULES, request_, 3500);
-  return json({ jrxml: extractJrxml(answer), model: AI_MODEL });
+  return json({ jrxml: extractJrxml(answer, /\bselect\b[\s\S]+\bfrom\b/i.test(text)), model: AI_MODEL });
 }

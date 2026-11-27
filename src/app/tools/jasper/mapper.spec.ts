@@ -106,3 +106,14 @@ describe('export', () => {
     expect(div.textContent).toBe('<b>');
   });
 });
+
+describe('AI output clean-up', () => {
+  it('removes elements not allowed in <style> and an unrequested query', async () => {
+    const { extractJrxml } = await import('../../../../worker/jasper');
+    const out = extractJrxml('Here you go:\n<jasperReport name="x"><style name="h"><box><pen lineWidth="1"/></box><background color="#fff"/><textElement><font isBold="true"/></textElement></style><queryString>SELECT a FROM t</queryString><field name="a" class="java.lang.String"/></jasperReport> thanks');
+    expect(out.startsWith('<?xml')).toBe(true);
+    expect(out).toContain('<style name="h"><box><pen lineWidth="1"/></box></style>');
+    expect(out).not.toContain('queryString');
+    expect(out.endsWith('</jasperReport>')).toBe(true);
+  });
+});
