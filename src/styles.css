@@ -353,3 +353,36 @@ dialog.drawer[open] {
   & hr { border-color: var(--line); }
   & img { max-width: 100%; }
 }
+
+/* ---------- My Notes: formatted text, chat wallpaper and bubbles ---------- */
+.tc-red { color: #dc2626; }
+.tc-orange { color: #ea580c; }
+.tc-green { color: #16a34a; }
+.tc-blue { color: #2563eb; }
+.tc-purple { color: #9333ea; }
+.dark .tc-red { color: #f87171; }
+.dark .tc-orange { color: #fb923c; }
+.dark .tc-green { color: #4ade80; }
+.dark .tc-blue { color: #60a5fa; }
+.dark .tc-purple { color: #c084fc; }
+mark.hl-yellow { background: #fde047; color: #111; }
+mark.hl-green { background: #86efac; color: #111; }
+mark.hl-pink { background: #f9a8d4; color: #111; }
+mark.hl-blue { background: #93c5fd; color: #111; }
+mark.hl-orange { background: #fdba74; color: #111; }
+mark[class^='hl-'] { border-radius: 0.2em; padding: 0 0.15em; }
+.rich-note a { color: var(--color-brand); text-decoration: underline; word-break: break-all; }
+
+/* A faint doodle pattern behind the notes, like a chat app; bubbles stay solid so text is crisp. */
+.notes-wallpaper {
+  background-color: #efeae2;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120' viewBox='0 0 120 120'%3E%3Cg fill='none' stroke='%23000' stroke-opacity='.06' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M14 18h16v12H14zM18 14v4M26 14v4'/%3E%3Ccircle cx='80' cy='22' r='7'/%3E%3Cpath d='M76 22h8M80 18v8'/%3E%3Cpath d='M20 70l8-8 8 8-8 8z'/%3E%3Cpath d='M70 70c6-8 14-8 20 0'/%3E%3Cpath d='M98 98l8 8M106 98l-8 8'/%3E%3Cpath d='M44 100h14M51 93v14'/%3E%3Cpath d='M100 52l3 6 6 1-4 4 1 6-6-3-6 3 1-6-4-4 6-1z'/%3E%3Cpath d='M44 40l6-4 6 4v8H44z'/%3E%3C/g%3E%3C/svg%3E");
+}
+.dark .notes-wallpaper {
+  background-color: #0b141a;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120' viewBox='0 0 120 120'%3E%3Cg fill='none' stroke='%23fff' stroke-opacity='.05' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M14 18h16v12H14zM18 14v4M26 14v4'/%3E%3Ccircle cx='80' cy='22' r='7'/%3E%3Cpath d='M76 22h8M80 18v8'/%3E%3Cpath d='M20 70l8-8 8 8-8 8z'/%3E%3Cpath d='M70 70c6-8 14-8 20 0'/%3E%3Cpath d='M98 98l8 8M106 98l-8 8'/%3E%3Cpath d='M44 100h14M51 93v14'/%3E%3Cpath d='M100 52l3 6 6 1-4 4 1 6-6-3-6 3 1-6-4-4 6-1z'/%3E%3Cpath d='M44 40l6-4 6 4v8H44z'/%3E%3C/g%3E%3C/svg%3E");
+}
+.note-bubble { background: #dcf8c6; color: #111b21; }
+.dark .note-bubble { background: #005c4b; color: #e9edef; }
+.note-bubble .text-muted { color: rgb(17 27 33 / 0.6); }
+.dark .note-bubble .text-muted { color: rgb(233 237 239 / 0.65); }

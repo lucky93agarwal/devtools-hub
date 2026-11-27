@@ -12,12 +12,16 @@ const COPIED_MS = 2000;
     <button
       type="button"
       class="btn-small"
+      [class.!px-2]="iconOnly()"
       [disabled]="!text()"
-      [attr.aria-label]="ariaLabel() || null"
+      [attr.aria-label]="ariaLabel() || (iconOnly() ? label() : null)"
+      [attr.title]="iconOnly() ? (state() === 'copied' ? 'Copied' : label()) : null"
       (click)="copy()"
     >
       <app-icon [path]="state() === 'copied' ? icons.check : icons.copy" [size]="16" />
-      {{ state() === 'copied' ? 'Copied' : state() === 'failed' ? 'Copy failed' : label() }}
+      @if (!iconOnly()) {
+        {{ state() === 'copied' ? 'Copied' : state() === 'failed' ? 'Copy failed' : label() }}
+      }
     </button>
   `,
 })
@@ -27,6 +31,8 @@ export class CopyButton {
   readonly label = input('Copy');
   /** Name for screen readers when several Copy buttons share a page, e.g. "Copy SHA-256". */
   readonly ariaLabel = input('');
+  /** Only the icon, with the label as its tooltip and accessible name. */
+  readonly iconOnly = input(false);
 
   protected readonly icons = ICONS;
   protected readonly state = signal<'idle' | 'copied' | 'failed'>('idle');

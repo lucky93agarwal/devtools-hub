@@ -5,6 +5,7 @@
 import type { Env } from './env';
 import { ApiError, json, readJson } from './http';
 import { limit, requireUser } from './services';
+import { sanitizeNoteHtml } from '../src/app/pages/workspace/rich-text';
 
 export const MAX_FILE_BYTES = 25 * 1024 * 1024;
 export const QUOTA_BYTES = 1024 * 1024 * 1024;
@@ -22,15 +23,23 @@ interface NoteRow {
   file_size: number | null;
   created_at: number;
   edited_at: number | null;
+  format: string;
 }
 
 const publicNote = (n: NoteRow) => ({
   id: n.id,
   text: n.text,
+  format: n.format === 'html' ? 'html' : 'text',
   file: n.file_key ? { name: n.file_name, type: n.file_type, size: n.file_size, url: `/api/notes/${n.id}/file` } : null,
   createdAt: n.created_at,
   editedAt: n.edited_at,
 });
+
+/** The stored text: formatted notes keep only the allowed tags. */
+function cleanNote(raw: unknown, format: unknown): { text: string; format: 'text' | 'html' } {
+  const text = typeof raw === 'string' ? raw.slice(0, MAX_TEXT) : '';
+  return format === 'html' ? { text: sanitizeNoteHtml(text).slice(0, MAX_TEXT * 2), format: 'html' } : { text, format: 'text' };
+}
 
 /** SQL filter for each tab of the vault. */
 const FILTERS: Record<string, string> = {
@@ -49,7 +58,7 @@ export async function list(env: Env, request: Request): Promise<Response> {
   const like = `%${q.replace(/[%_]/g, '')}%`;
   const filter = FILTERS[url.searchParams.get('filter') ?? 'all'] ?? FILTERS['all'];
   const rows = await env.DB.prepare(
-    `SELECT id, text, file_key, file_name, file_type, file_size, created_at, edited_at FROM notes
+    `SELECT id, text, file_key, file_name, file_type, file_size, created_at, edited_at, format FROM notes
      WHERE user_id = ? AND id < ? AND (${filter}) AND (? = '' OR text LIKE ? OR file_name LIKE ?)
      ORDER BY id DESC LIMIT ?`,
   )
@@ -65,13 +74,13 @@ export async function list(env: Env, request: Request): Promise<Response> {
 }
 
 export async function create(env: Env, request: Request): Promise<Response> {
-  const body = await readJson<{ text?: string }>(request);
+  const body = await readJson<{ text?: string; format?: string }>(request);
   const { user } = await requireUser(env, request);
-  const text = typeof body.text === 'string' ? body.text.slice(0, MAX_TEXT) : '';
-  if (!text.trim()) throw new ApiError(400, 'Type a note first.');
+  const { text, format } = cleanNote(body.text, body.format);
+  if (!text.replace(/<br>/g, '').trim()) throw new ApiError(400, 'Type a note first.');
   await limit(env, `notes:${user.id}`, 1000, 86_400_000, 'Too many notes today.');
-  const row = await env.DB.prepare('INSERT INTO notes (user_id, text, created_at) VALUES (?, ?, ?) RETURNING id, text, file_key, file_name, file_type, file_size, created_at, edited_at')
-    .bind(user.id, text, Date.now())
+  const row = await env.DB.prepare('INSERT INTO notes (user_id, text, format, created_at) VALUES (?, ?, ?, ?) RETURNING id, text, file_key, file_name, file_type, file_size, created_at, edited_at, format')
+    .bind(user.id, text, format, Date.now())
     .first<NoteRow>();
   return json({ note: publicNote(row!) }, 201);
 }
@@ -95,12 +104,12 @@ export async function upload(env: Env, request: Request): Promise<Response> {
   const key = `notes/${user.id}/${crypto.randomUUID()}`;
   const type = (file.type || 'application/octet-stream').slice(0, 100);
   await env.FILES.put(key, file.stream(), { httpMetadata: { contentType: type } });
-  const caption = String(form?.get('text') ?? '').slice(0, MAX_TEXT);
+  const caption = cleanNote(String(form?.get('text') ?? ''), form?.get('format'));
   const row = await env.DB.prepare(
-    `INSERT INTO notes (user_id, text, file_key, file_name, file_type, file_size, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)
-     RETURNING id, text, file_key, file_name, file_type, file_size, created_at, edited_at`,
+    `INSERT INTO notes (user_id, text, format, file_key, file_name, file_type, file_size, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+     RETURNING id, text, file_key, file_name, file_type, file_size, created_at, edited_at, format`,
   )
-    .bind(user.id, caption, key, file.name.slice(0, 200) || 'file', type, file.size, Date.now())
+    .bind(user.id, caption.text, caption.format, key, file.name.slice(0, 200) || 'file', type, file.size, Date.now())
     .first<NoteRow>();
   return json({ note: publicNote(row!) }, 201);
 }
@@ -131,16 +140,16 @@ export async function file(env: Env, request: Request, id: string): Promise<Resp
 }
 
 export async function edit(env: Env, request: Request, id: string): Promise<Response> {
-  const body = await readJson<{ text?: string }>(request);
+  const body = await readJson<{ text?: string; format?: string }>(request);
   const { user } = await requireUser(env, request);
-  const text = typeof body.text === 'string' ? body.text.slice(0, MAX_TEXT) : '';
+  const { text, format } = cleanNote(body.text, body.format);
   const row = await env.DB.prepare(
-    'UPDATE notes SET text = ?, edited_at = ? WHERE id = ? AND user_id = ? RETURNING id, text, file_key, file_name, file_type, file_size, created_at, edited_at',
+    'UPDATE notes SET text = ?, format = ?, edited_at = ? WHERE id = ? AND user_id = ? RETURNING id, text, file_key, file_name, file_type, file_size, created_at, edited_at, format',
   )
-    .bind(text, Date.now(), Number(id), user.id)
+    .bind(text, format, Date.now(), Number(id), user.id)
     .first<NoteRow>();
   if (!row) throw new ApiError(404, 'This note does not exist.');
-  if (!row.text.trim() && !row.file_key) throw new ApiError(400, 'A note cannot be empty.');
+  if (!row.text.replace(/<br>/g, '').trim() && !row.file_key) throw new ApiError(400, 'A note cannot be empty.');
   return json({ note: publicNote(row) });
 }
 

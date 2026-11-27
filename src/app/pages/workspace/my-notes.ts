@@ -3,6 +3,9 @@ import { RouterLink } from '@angular/router';
 import { AccountError, Auth } from '../../core/accounts/auth';
 import { formatBytes } from '../../shared/file-utils';
 import { CopyButton } from '../../shared/copy-button/copy-button';
+import { ICONS, Icon } from '../../shared/icon/icon';
+import { RichEditor } from './rich-editor';
+import { linkifyHtml, noteHtmlToText, sanitizeNoteHtml } from './rich-text';
 import { ToolPage } from '../../shared/tool-page/tool-page';
 import { ToolContent } from '../../shared/tool-info/tool-info';
 import { dayLabel, noteParts, type NotePart } from './note-parts';
@@ -25,6 +28,7 @@ const CONTENT: ToolContent = {
 interface Note {
   id: number;
   text: string;
+  format: 'text' | 'html';
   file: { name: string; type: string; size: number; url: string } | null;
   createdAt: number;
   editedAt: number | null;
@@ -34,7 +38,7 @@ type Filter = 'all' | 'links' | 'code' | 'media' | 'docs';
 
 @Component({
   selector: 'app-my-notes',
-  imports: [ToolPage, CopyButton, RouterLink],
+  imports: [ToolPage, CopyButton, RouterLink, Icon, RichEditor],
   template: `
     <app-tool-page path="my-notes" [content]="content" [wide]="true" privacy="Your notes and files are private to your account.">
       @if (!auth.checked()) {
@@ -60,7 +64,7 @@ type Filter = 'all' | 'links' | 'code' | 'media' | 'docs';
             <span class="text-xs text-muted" [title]="'Files: ' + usedText()">{{ usedText() }}</span>
           </div>
 
-          <div #feed class="flex-1 overflow-y-auto bg-surface/50 px-3 py-4" role="log" aria-label="Notes" aria-live="polite">
+          <div #feed class="notes-wallpaper flex-1 overflow-y-auto px-3 py-4" role="log" aria-label="Notes" aria-live="polite">
             @if (more()) {
               <div class="mb-3 text-center"><button type="button" class="btn-small" [disabled]="busy()" (click)="loadOlder()">Load older notes</button></div>
             }
@@ -68,7 +72,7 @@ type Filter = 'all' | 'links' | 'code' | 'media' | 'docs';
               @if (i === 0 || day(n.createdAt) !== day(notes()[i - 1].createdAt)) {
                 <p class="my-3 text-center"><span class="rounded-full bg-surface px-3 py-1 text-xs font-semibold text-muted shadow-sm">{{ day(n.createdAt) }}</span></p>
               }
-              <article class="group mb-2 ml-auto w-fit max-w-[min(42rem,92%)] rounded-2xl rounded-tr-sm bg-brand/10 px-3 py-2 text-sm shadow-sm" [attr.aria-label]="'Note from ' + time(n.createdAt)">
+              <article class="note-bubble group mb-2 ml-auto w-fit max-w-[min(42rem,92%)] rounded-2xl rounded-tr-sm px-3 py-2 text-sm shadow-sm" [attr.aria-label]="'Note from ' + time(n.createdAt)">
                 @if (n.file; as f) {
                   @if (f.type.startsWith('image/')) {
                     <a [href]="f.url" target="_blank" rel="noopener"><img [src]="f.url" [alt]="f.name" loading="lazy" class="mb-1 max-h-72 rounded-lg object-contain" /></a>
@@ -80,16 +84,21 @@ type Filter = 'all' | 'links' | 'code' | 'media' | 'docs';
                   }
                 }
                 @if (editingId() === n.id) {
-                  <textarea class="field min-h-20 w-full min-w-64 text-sm" aria-label="Edit note" [value]="editText()" (input)="editText.set($any($event.target).value)"></textarea>
-                  <div class="mt-1 flex gap-2"><button type="button" class="btn-small" (click)="saveEdit(n)">Save</button><button type="button" class="btn-small" (click)="editingId.set(0)">Cancel</button></div>
+                  <app-rich-editor #editBox class="w-[min(36rem,80vw)]" label="Edit note" [initial]="{ text: n.text, format: n.format }" [enterSends]="false" (submitted)="saveEdit(n)" />
+                  <div class="mt-1 flex justify-end gap-1">
+                    <button type="button" class="btn-small !px-2" title="Save (Ctrl+Enter)" aria-label="Save" (click)="saveEdit(n)"><app-icon [path]="icons.check" [size]="16" /></button>
+                    <button type="button" class="btn-small !px-2" title="Cancel" aria-label="Cancel" (click)="editingId.set(0)"><app-icon [path]="icons.close" [size]="16" /></button>
+                  </div>
+                } @else if (n.format === 'html') {
+                  <div class="rich-note break-words whitespace-pre-wrap" [innerHTML]="html(n.text)"></div>
                 } @else if (n.text) {
                   @for (p of parts(n.text); track $index) {
                     @switch (p.kind) {
                       @case ('text') { <span class="whitespace-pre-wrap break-words">{{ $any(p).text }}</span> }
                       @case ('link') { <a [href]="$any(p).href" target="_blank" rel="noopener noreferrer" class="break-all text-brand underline">{{ $any(p).href }}</a> }
                       @case ('code') {
-                        <div class="my-1 overflow-hidden rounded-lg bg-ink/90 text-page">
-                          <div class="flex items-center justify-between px-2 py-1 text-xs opacity-80"><span>{{ $any(p).lang || 'code' }}</span><app-copy-button [text]="$any(p).code" label="Copy code" /></div>
+                        <div class="my-1 overflow-hidden rounded-lg bg-[#1e293b] text-slate-100">
+                          <div class="flex items-center justify-between px-2 py-1 text-xs text-slate-300"><span>{{ $any(p).lang || 'code' }}</span><app-copy-button [text]="$any(p).code" label="Copy code" [iconOnly]="true" /></div>
                           <pre class="overflow-x-auto px-3 pb-2 font-mono text-xs">{{ $any(p).code }}</pre>
                         </div>
                       }
@@ -98,10 +107,10 @@ type Filter = 'all' | 'links' | 'code' | 'media' | 'docs';
                 }
                 <div class="mt-1 flex items-center justify-end gap-2 text-[11px] text-muted">
                   <span class="flex gap-1 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 sm:group-focus-within:opacity-100">
-                    @if (n.text) { <app-copy-button [text]="n.text" label="Copy" /> }
-                    @if (n.file) { <a class="btn-small !py-0.5" [href]="n.file.url + '?download=1'">Download</a> }
-                    <button type="button" class="btn-small !py-0.5" [attr.aria-label]="'Edit note from ' + time(n.createdAt)" (click)="startEdit(n)">Edit</button>
-                    <button type="button" class="btn-small !py-0.5 !text-danger" [attr.aria-label]="'Delete note from ' + time(n.createdAt)" (click)="remove(n)">Delete</button>
+                    @if (n.text) { <app-copy-button [text]="plain(n)" label="Copy" [iconOnly]="true" /> }
+                    @if (n.file) { <a class="btn-small !px-2 !py-0.5" [href]="n.file.url + '?download=1'" title="Download" aria-label="Download"><app-icon [path]="icons.download" [size]="16" /></a> }
+                    <button type="button" class="btn-small !px-2 !py-0.5" title="Edit" [attr.aria-label]="'Edit note from ' + time(n.createdAt)" (click)="startEdit(n)"><app-icon [path]="icons.edit" [size]="16" /></button>
+                    <button type="button" class="btn-small !px-2 !py-0.5 !text-danger" title="Delete" [attr.aria-label]="'Delete note from ' + time(n.createdAt)" (click)="remove(n)"><app-icon [path]="icons.trash" [size]="16" /></button>
                   </span>
                   <time [attr.datetime]="iso(n.createdAt)" [title]="full(n.createdAt)">{{ time(n.createdAt) }}@if (n.editedAt) { · edited }</time>
                 </div>
@@ -118,11 +127,11 @@ type Filter = 'all' | 'links' | 'code' | 'media' | 'docs';
               <button type="button" class="btn-small" (click)="pending.set(null)">Remove</button>
             </div>
           }
-          <form class="flex items-end gap-2 border-t border-line p-3" (submit)="$event.preventDefault(); send()">
+          <form class="flex items-end gap-2 border-t border-line bg-page p-3" (submit)="$event.preventDefault(); send()">
             <input #fileInput type="file" class="hidden" aria-label="Attach a file" (change)="choose($any($event.target).files)" />
-            <button type="button" class="btn-small !h-10 !w-10 shrink-0 !p-0 text-lg" [disabled]="!uploads()" [title]="uploads() ? 'Attach a file (up to 25 MB)' : 'File uploads are not switched on yet'" aria-label="Attach a file" (click)="fileInput.click()">📎</button>
-            <textarea class="field max-h-40 min-h-10 flex-1 resize-none !py-2 text-sm" rows="1" aria-label="New note" placeholder="Write a note, paste a link or a code snippet" [value]="draft()" (input)="draft.set($any($event.target).value)" (keydown.enter)="onEnter($any($event))" (paste)="onPaste($any($event))"></textarea>
-            <button type="submit" class="btn-primary !h-10 shrink-0" [disabled]="busy() || (!draft().trim() && !pending())">{{ busy() ? '…' : 'Send' }}</button>
+            <button type="button" class="btn-small !h-10 !w-10 shrink-0 !p-0" [disabled]="!uploads()" [title]="uploads() ? 'Attach a file (up to 25 MB)' : 'File uploads are not switched on yet'" aria-label="Attach a file" (click)="fileInput.click()"><app-icon [path]="icons.paperclip" [size]="18" /></button>
+            <app-rich-editor #composer class="flex-1" label="New note" placeholder="Write a note… (1. or * starts a list, Shift+Enter for a new line)" (submitted)="send()" (empty)="composerEmpty.set($event)" (files)="choose($event)" />
+            <button type="submit" class="btn-primary !h-10 !w-10 shrink-0 !p-0" title="Send (Enter)" aria-label="Send" [disabled]="busy() || (composerEmpty() && !pending())"><app-icon [path]="icons.send" [size]="18" /></button>
           </form>
         </div>
       }
@@ -143,14 +152,16 @@ export class MyNotes {
   protected readonly more = signal(false);
   protected readonly uploads = signal(false);
   protected readonly usage = signal({ bytes: 0, quota: 0 });
-  protected readonly draft = signal('');
+  protected readonly composerEmpty = signal(true);
+  protected readonly icons = ICONS;
+  private readonly composer = viewChild<RichEditor>('composer');
+  private readonly editBox = viewChild<RichEditor>('editBox');
   protected readonly pending = signal<File | null>(null);
   protected readonly query = signal('');
   protected readonly filter = signal<Filter>('all');
   protected readonly busy = signal(false);
   protected readonly error = signal('');
   protected readonly editingId = signal(0);
-  protected readonly editText = signal('');
   protected readonly usedText = computed(() => {
     const quota = this.usage().quota || 1024 ** 3;
     return `${formatBytes(this.usage().bytes)} of ${quota >= 1024 ** 3 ? `${+(quota / 1024 ** 3).toFixed(1)} GB` : formatBytes(quota)} used`;
@@ -213,48 +224,45 @@ export class MyNotes {
     void this.load();
   }
 
-  protected onEnter(event: KeyboardEvent): void {
-    if (event.shiftKey || event.isComposing) return;
-    event.preventDefault();
-    void this.send();
+  /** A formatted note, safe to show: only the allowed tags, with clickable links. */
+  protected html(text: string): string {
+    return linkifyHtml(sanitizeNoteHtml(text));
   }
 
-  /** Pasting a screenshot attaches it. */
-  protected onPaste(event: ClipboardEvent): void {
-    const file = [...(event.clipboardData?.files ?? [])][0];
-    if (file && this.uploads()) {
-      event.preventDefault();
-      this.choose([file]);
-    }
+  /** What Copy puts on the clipboard: always plain text. */
+  protected plain(n: Note): string {
+    return n.format === 'html' ? noteHtmlToText(n.text) : n.text;
   }
 
   protected choose(files: FileList | File[] | null): void {
     const file = files?.[0];
     if (!file) return;
+    if (!this.uploads()) return this.error.set('File uploads are not switched on yet.');
     if (file.size > 25 * 1024 * 1024) return this.error.set(`${file.name} is ${formatBytes(file.size)}. Files can be up to 25 MB.`);
     this.error.set('');
     this.pending.set(file);
   }
 
   protected async send(): Promise<void> {
-    const text = this.draft();
+    const value = this.composer()?.value() ?? { text: '', format: 'text' as const };
     const file = this.pending();
-    if (!text.trim() && !file) return;
+    if (!noteHtmlToText(value.text).trim() && !file) return;
     await this.request(async () => {
       let note: Note;
       if (file) {
         const form = new FormData();
         form.append('file', file);
-        form.append('text', text);
+        form.append('text', value.text);
+        form.append('format', value.format);
         const response = await fetch('/api/notes/upload', { method: 'POST', body: form, credentials: 'same-origin' });
         const data = (await response.json().catch(() => ({}))) as { note?: Note; error?: string };
         if (!response.ok || !data.note) throw new AccountError(data.error ?? 'The file could not be uploaded.', response.status);
         note = data.note;
         this.usage.update((u) => ({ ...u, bytes: u.bytes + file.size }));
       } else {
-        note = (await this.auth.call<{ note: Note }>('POST', '/api/notes', { text })).note;
+        note = (await this.auth.call<{ note: Note }>('POST', '/api/notes', value)).note;
       }
-      this.draft.set('');
+      this.composer()?.clear();
       this.pending.set(null);
       if (this.filter() === 'all' && !this.query()) this.notes.update((list) => [...list, note]);
       else await this.load();
@@ -264,12 +272,12 @@ export class MyNotes {
 
   protected startEdit(n: Note): void {
     this.editingId.set(n.id);
-    this.editText.set(n.text);
+    setTimeout(() => this.editBox()?.focus());
   }
 
   protected async saveEdit(n: Note): Promise<void> {
     await this.request(async () => {
-      const { note } = await this.auth.call<{ note: Note }>('POST', `/api/notes/${n.id}/edit`, { text: this.editText() });
+      const { note } = await this.auth.call<{ note: Note }>('POST', `/api/notes/${n.id}/edit`, this.editBox()?.value() ?? { text: n.text, format: n.format });
       this.notes.update((list) => list.map((x) => (x.id === n.id ? note : x)));
       this.editingId.set(0);
     });

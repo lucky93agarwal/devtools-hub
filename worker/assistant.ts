@@ -18,6 +18,9 @@ export interface Profile {
   urls?: string;
   team?: string;
   favoriteTemplates?: string[];
+  recipients?: string[];
+  repos?: string[];
+  envs?: string[];
 }
 
 type Task = 'refine' | 'prompt' | 'reply' | 'polish';
@@ -83,6 +86,9 @@ async function loadProfile(env: Env, userId: string): Promise<Profile> {
 }
 
 const text = (v: unknown, max: number) => (typeof v === 'string' ? v.slice(0, max) : '');
+/** A de-duplicated list of short strings. */
+const list = (v: unknown, count: number, length: number): string[] =>
+  Array.isArray(v) ? [...new Set(v.filter((x): x is string => typeof x === 'string').map((x) => x.trim().slice(0, length)).filter(Boolean))].slice(0, count) : [];
 
 export async function run(env: Env, request: Request): Promise<Response> {
   const body = await readJson<{ task?: string; text?: string; channel?: string; tone?: string; title?: string; kind?: string }>(request);
@@ -128,7 +134,10 @@ export async function saveProfile(env: Env, request: Request): Promise<Response>
     project: text(body.project, 150),
     team: text(body.team, 100),
     urls: text(body.urls, 1000),
-    favoriteTemplates: Array.isArray(body.favoriteTemplates) ? body.favoriteTemplates.filter((t) => typeof t === 'string').slice(0, 100).map((t) => t.slice(0, 60)) : [],
+    favoriteTemplates: list(body.favoriteTemplates, 100, 60),
+    recipients: list(body.recipients, 200, 100),
+    repos: list(body.repos, 200, 100),
+    envs: list(body.envs, 50, 60),
   };
   await env.DB.prepare('INSERT INTO assistant_profiles (user_id, data, updated_at) VALUES (?, ?, ?) ON CONFLICT(user_id) DO UPDATE SET data = excluded.data, updated_at = excluded.updated_at')
     .bind(user.id, JSON.stringify(profile), Date.now())

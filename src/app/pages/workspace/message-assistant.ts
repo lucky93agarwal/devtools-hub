@@ -3,9 +3,11 @@ import { RouterLink } from '@angular/router';
 import { AccountError, Auth } from '../../core/accounts/auth';
 import { downloadText } from '../../shared/file-utils';
 import { CopyButton } from '../../shared/copy-button/copy-button';
+import { Combobox } from '../../shared/combobox/combobox';
+import { TabFill } from '../../shared/tab-fill/tab-fill';
 import { ToolPage } from '../../shared/tool-page/tool-page';
 import { ToolContent } from '../../shared/tool-info/tool-info';
-import { CATEGORIES, TEMPLATES, renderTemplate, type AssistantProfile, type Channel, type MessageTemplate } from './templates';
+import { CATEGORIES, TEMPLATES, emptyMrItem, readMr, renderTemplate, type AssistantProfile, type Channel, type MessageTemplate, type MrRequest } from './templates';
 
 const CONTENT: ToolContent = {
   aboutHeading: 'About the message assistant',
@@ -38,7 +40,7 @@ interface HistoryItem {
 
 @Component({
   selector: 'app-message-assistant',
-  imports: [ToolPage, CopyButton, RouterLink],
+  imports: [ToolPage, CopyButton, RouterLink, Combobox, TabFill],
   template: `
     <app-tool-page path="message-assistant" [content]="content" [wide]="true" privacy="Your messages and history are saved to your account only. AI requests go to Cloudflare Workers AI.">
       @if (!auth.checked()) {
@@ -142,19 +144,63 @@ interface HistoryItem {
                     <option value="chat" [selected]="templateChannel() === 'chat'">Chat message</option>
                   </select>
                 </label>
-                <label class="flex flex-col gap-1"><span class="font-semibold">To</span>
-                  <input class="field" aria-label="To" [placeholder]="profile().managerName || 'Name'" [value]="values()['to'] ?? ''" (input)="setValue('to', $any($event.target).value)" />
-                </label>
+                <div class="flex flex-col gap-1"><span class="font-semibold">To</span>
+                  <app-combobox label="To" [placeholder]="profile().managerName || 'Name'" [options]="profile().recipients ?? []" [value]="values()['to'] ?? ''" (valueChange)="setValue('to', $event)" (created)="addSaved('recipients', $event)" />
+                </div>
                 @for (f of template().fields; track f.key) {
                   <label class="flex flex-col gap-1" [class.sm:col-span-2]="f.multiline"><span class="font-semibold">{{ f.label }}</span>
                     @if (f.multiline) {
-                      <textarea class="field min-h-20" [attr.aria-label]="f.label" [placeholder]="f.placeholder ?? 'One item per line'" [value]="values()[f.key] ?? ''" (input)="setValue(f.key, $any($event.target).value)"></textarea>
+                      <textarea class="field min-h-20" [attr.aria-label]="f.label" [appTabFill]="!!f.placeholder" [placeholder]="f.placeholder ?? 'One item per line'" [value]="values()[f.key] ?? ''" (input)="setValue(f.key, $any($event.target).value)"></textarea>
+                    } @else if (f.type) {
+                      <input class="field" [type]="f.type === 'datetime' ? 'datetime-local' : 'date'" [attr.aria-label]="f.label" [value]="values()[f.key] ?? ''" (input)="setValue(f.key, $any($event.target).value)" />
                     } @else {
-                      <input class="field" [attr.aria-label]="f.label" [placeholder]="f.placeholder ?? ''" [value]="values()[f.key] ?? ''" (input)="setValue(f.key, $any($event.target).value)" />
+                      <input class="field" [attr.aria-label]="f.label" appTabFill [placeholder]="f.placeholder ?? ''" [value]="values()[f.key] ?? ''" (input)="setValue(f.key, $any($event.target).value)" />
                     }
                   </label>
                 }
               </div>
+              @if (template().editor === 'mr') {
+                <div class="mt-3 flex flex-col gap-3 text-sm" role="group" aria-label="Merge requests">
+                  @for (item of mr().items; track $index; let i = $index) {
+                    <fieldset class="card flex flex-col gap-2 p-3" [attr.aria-label]="'Ticket or bug ' + (i + 1)">
+                      <div class="flex flex-wrap items-end gap-2">
+                        <label class="flex w-40 flex-col gap-1"><span class="font-semibold">Ticket ID (optional)</span>
+                          <input class="field" appTabFill placeholder="JIRA-210" [attr.aria-label]="'Ticket ID ' + (i + 1)" [value]="item.ticket" (input)="editMr(m => (m.items[i].ticket = $any($event.target).value))" />
+                        </label>
+                        <label class="flex min-w-48 flex-1 flex-col gap-1"><span class="font-semibold">{{ item.ticket.trim() ? 'Ticket title (optional)' : 'Bug name / description' }}</span>
+                          <input class="field" appTabFill [placeholder]="item.ticket.trim() ? 'Refund status page' : 'Date filter crashes on empty range'" [attr.aria-label]="'Title ' + (i + 1)" [value]="item.title" (input)="editMr(m => (m.items[i].title = $any($event.target).value))" />
+                        </label>
+                        @if (mr().items.length > 1) {
+                          <button type="button" class="btn-small !px-2.5 !text-danger" title="Remove this ticket or bug" [attr.aria-label]="'Remove ticket or bug ' + (i + 1)" (click)="editMr(m => m.items.splice(i, 1))">✕</button>
+                        }
+                      </div>
+                      @for (side of sides; track side.key) {
+                        @for (link of item[side.key]; track $index; let j = $index) {
+                          <div class="flex flex-wrap items-center gap-2">
+                            <span class="w-16 text-xs font-semibold text-muted">{{ side.label }}</span>
+                            <app-combobox class="w-44" [label]="side.label + ' repository ' + (i + 1) + '.' + (j + 1)" placeholder="Repository" [options]="profile().repos ?? []" [value]="link.repo" (valueChange)="editMr(m => (m.items[i][side.key][j].repo = $event))" (created)="addSaved('repos', $event)" />
+                            <input class="field min-w-48 flex-1" type="url" [attr.aria-label]="side.label + ' MR URL ' + (i + 1) + '.' + (j + 1)" placeholder="https://git.example.com/…/merge_requests/42" [value]="link.url" (input)="editMr(m => (m.items[i][side.key][j].url = $any($event.target).value))" />
+                            <button type="button" class="btn-small !px-2.5" title="Remove this merge request" [attr.aria-label]="'Remove ' + side.label + ' MR ' + (i + 1) + '.' + (j + 1)" (click)="editMr(m => m.items[i][side.key].splice(j, 1))">✕</button>
+                          </div>
+                        }
+                      }
+                      <div class="flex flex-wrap gap-2">
+                        <button type="button" class="btn-small" (click)="editMr(m => m.items[i].backend.push({ repo: '', url: '' }))">+ Add Backend MR</button>
+                        <button type="button" class="btn-small" (click)="editMr(m => m.items[i].ui.push({ repo: '', url: '' }))">+ Add UI MR</button>
+                      </div>
+                    </fieldset>
+                  }
+                  <div class="flex flex-wrap items-end gap-3">
+                    <button type="button" class="btn-secondary" (click)="addMrItem()">+ Add ticket / bug</button>
+                    <div class="flex w-48 flex-col gap-1"><span class="font-semibold">Deploy to</span>
+                      <app-combobox label="Environment" placeholder="QA" [options]="envOptions()" [value]="mr().env" (valueChange)="editMr(m => (m.env = $event))" (created)="addSaved('envs', $event)" />
+                    </div>
+                    <label class="flex flex-col gap-1"><span class="font-semibold">Deployment date (optional)</span>
+                      <input class="field" type="date" aria-label="Deployment date" [value]="mr().date" (input)="editMr(m => (m.date = $any($event.target).value))" />
+                    </label>
+                  </div>
+                </div>
+              }
               <label class="mt-3 flex flex-col gap-1 text-sm"><span class="font-semibold">Message (you can edit it)</span>
                 <textarea class="field min-h-56 font-sans" aria-label="Template message" [value]="draft()" (input)="edited.set($any($event.target).value)"></textarea>
               </label>
@@ -263,6 +309,32 @@ export class MessageAssistant {
   protected readonly historyItems = signal<HistoryItem[]>([]);
   protected readonly query = signal('');
   protected readonly onlyFavorites = signal(false);
+
+  protected readonly sides = [
+    { key: 'backend' as const, label: 'Backend' },
+    { key: 'ui' as const, label: 'UI' },
+  ];
+  protected readonly mr = computed(() => readMr(this.values()));
+  protected readonly envOptions = computed(() => [...new Set([...(this.profile().envs ?? []), 'QA', 'UAT', 'Staging', 'Production'])]);
+
+  /** Changes the merge request form (a copy is edited, then stored as JSON in the values). */
+  protected editMr(change: (m: MrRequest) => unknown): void {
+    const copy = structuredClone(this.mr());
+    change(copy);
+    this.setValue('mr', JSON.stringify(copy));
+  }
+
+  protected addMrItem(): void {
+    this.editMr((m) => m.items.push(emptyMrItem()));
+  }
+
+  /** Saves a new recipient, repository or environment for the searchable boxes. */
+  protected addSaved(kind: 'recipients' | 'repos' | 'envs', value: string): void {
+    const current = this.profile()[kind] ?? [];
+    if (current.some((x) => x.toLowerCase() === value.toLowerCase())) return;
+    this.profile.update((p) => ({ ...p, [kind]: [...current, value].sort((a, b) => a.localeCompare(b)) }));
+    void this.auth.call('POST', '/api/assistant/profile', this.profile()).catch(() => undefined);
+  }
 
   protected readonly draft = computed(() => this.edited() ?? renderTemplate(this.template(), this.values(), this.profile(), this.templateChannel()));
   protected readonly favoriteTemplates = computed(() => TEMPLATES.filter((t) => this.profile().favoriteTemplates?.includes(t.id)));

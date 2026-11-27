@@ -11,6 +11,10 @@ export interface AssistantProfile {
   urls?: string;
   team?: string;
   favoriteTemplates?: string[];
+  /** Saved choices for the searchable boxes. */
+  recipients?: string[];
+  repos?: string[];
+  envs?: string[];
 }
 
 export type Channel = 'email' | 'chat';
@@ -20,6 +24,8 @@ export interface TemplateField {
   label: string;
   placeholder?: string;
   multiline?: boolean;
+  /** A date picker (value yyyy-mm-dd) or date and time (yyyy-mm-ddThh:mm). */
+  type?: 'date' | 'datetime';
 }
 
 export interface MessageTemplate {
@@ -28,6 +34,8 @@ export interface MessageTemplate {
   title: string;
   channel: Channel;
   fields: TemplateField[];
+  /** A special form instead of the plain fields (the merge request builder). */
+  editor?: 'mr';
   /** Subject (email only) and body lines. */
   build(v: Record<string, string>, p: AssistantProfile): { subject: string; body: string[] };
 }
@@ -42,6 +50,85 @@ export const CATEGORIES = [
 ] as const;
 
 const val = (v: Record<string, string>, key: string, fallback = '') => (v[key] ?? '').trim() || fallback;
+
+/** "2026-11-28" → "28 Nov 2026"; "2026-11-28T21:00" → "28 Nov 2026, 9:00 PM"; anything else as typed. */
+export function niceDate(value: string): string {
+  const m = /^(\d{4})-(\d{2})-(\d{2})(?:T(\d{2}):(\d{2}))?$/.exec(value.trim());
+  if (!m) return value.trim();
+  const d = new Date(+m[1], +m[2] - 1, +m[3], +(m[4] ?? 0), +(m[5] ?? 0));
+  const date = d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+  return m[4] ? `${date}, ${d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}` : date;
+}
+
+/** "28 Nov 2026" or "28 Nov 2026 to 30 Nov 2026" from two date fields. */
+const dateRange = (v: Record<string, string>, fallback: string) => {
+  const from = niceDate(val(v, 'from'));
+  const to = niceDate(val(v, 'to'));
+  return from ? (to && to !== from ? `${from} to ${to}` : from) : fallback;
+};
+
+// ---------- merge request builder ----------
+
+export interface MrLink {
+  repo: string;
+  url: string;
+}
+
+export interface MrItem {
+  /** Jira / ticket ID; optional. */
+  ticket: string;
+  /** Ticket title, or the bug name when there is no ticket. */
+  title: string;
+  backend: MrLink[];
+  ui: MrLink[];
+}
+
+export interface MrRequest {
+  items: MrItem[];
+  env: string;
+  /** yyyy-mm-dd, optional. */
+  date: string;
+}
+
+export const emptyMrItem = (): MrItem => ({ ticket: '', title: '', backend: [{ repo: '', url: '' }], ui: [] });
+export const emptyMrRequest = (): MrRequest => ({ items: [emptyMrItem()], env: '', date: '' });
+
+export function readMr(v: Record<string, string>): MrRequest {
+  try {
+    const parsed = JSON.parse(v['mr'] ?? '') as MrRequest;
+    return parsed && Array.isArray(parsed.items) ? parsed : emptyMrRequest();
+  } catch {
+    return emptyMrRequest();
+  }
+}
+
+const mrLine = (link: MrLink) => `${link.repo.trim() ? `[${link.repo.trim()}] - ` : ''}${link.url.trim()}`;
+
+/** The body lines for one or more tickets / bugs, each with its backend and UI merge requests. */
+export function mrLines(req: MrRequest): string[] {
+  const items = req.items.filter((i) => i.ticket.trim() || i.title.trim() || [...i.backend, ...i.ui].some((l) => l.url.trim()));
+  const lines: string[] = [items.length > 1 ? 'The following merge requests are ready:' : 'The merge requests below are ready:'];
+  items.forEach((item, n) => {
+    const ticket = item.ticket.trim();
+    const title = item.title.trim();
+    const heading = ticket ? `${ticket}${title ? `: ${title}` : ''}` : `Bug: ${title || 'Untitled'}`;
+    lines.push('', items.length > 1 ? `${n + 1}. ${heading}` : heading);
+    const pad = items.length > 1 ? '   ' : '';
+    const backend = item.backend.filter((l) => l.url.trim());
+    const ui = item.ui.filter((l) => l.url.trim());
+    if (backend.length) lines.push(`${pad}Backend:`, ...backend.map((l) => `${pad}- ${mrLine(l)}`));
+    if (ui.length) lines.push(`${pad}UI:`, ...ui.map((l) => `${pad}- ${mrLine(l)}`));
+  });
+  const env = req.env.trim() || 'QA';
+  const date = niceDate(req.date);
+  lines.push(
+    '',
+    `Could you please review and merge them, and deploy to ${env}${date ? ` on ${date}` : ''}? Please let me know once the deployment is done so that testing can begin.`,
+    '',
+    'Thank you!',
+  );
+  return lines;
+}
 /** Lines from a multi-line field as bullet points. */
 const bullets = (text: string) =>
   text
@@ -82,14 +169,14 @@ export const TEMPLATES: readonly MessageTemplate[] = [
     title: 'End-of-day (EOD) report',
     channel: 'email',
     fields: [
-      { key: 'date', label: 'Date', placeholder: 'today' },
+      { key: 'date', label: 'Date', type: 'date' },
       { key: 'done', label: 'Completed today', multiline: true },
       { key: 'progress', label: 'In progress', multiline: true },
       { key: 'tomorrow', label: 'Plan for tomorrow', multiline: true },
       { key: 'blockers', label: 'Blockers (optional)', multiline: true },
     ],
     build: (v, p) => ({
-      subject: `EOD update${p.project ? ` - ${p.project}` : ''} - ${val(v, 'date', new Date().toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }))}`,
+      subject: `EOD update${p.project ? ` - ${p.project}` : ''} - ${niceDate(val(v, 'date')) || niceDate(new Date().toISOString().slice(0, 10))}`,
       body: [
         "Here is my end-of-day update.",
         '',
@@ -125,24 +212,14 @@ export const TEMPLATES: readonly MessageTemplate[] = [
     category: 'Merge request and deployment',
     title: 'MR review, merge and deploy request',
     channel: 'chat',
-    fields: [
-      { key: 'feature', label: 'Feature / ticket', placeholder: 'Refund status page (JIRA-210)' },
-      { key: 'backend', label: 'Backend MR URL' },
-      { key: 'ui', label: 'UI MR URL' },
-      { key: 'env', label: 'Deploy to', placeholder: 'staging' },
-    ],
-    build: (v) => ({
-      subject: `Review and deploy: ${val(v, 'feature', 'merge requests')}`,
-      body: [
-        `The merge requests for ${val(v, 'feature', 'the feature')} are ready:`,
-        ...(val(v, 'backend') ? [`- Backend: ${val(v, 'backend')}`] : []),
-        ...(val(v, 'ui') ? [`- UI: ${val(v, 'ui')}`] : []),
-        '',
-        `Could you please review and merge them, and deploy to ${val(v, 'env', 'staging')}? Please let me know once the deployment is done so that testing can begin.`,
-        '',
-        'Thank you!',
-      ],
-    }),
+    editor: 'mr',
+    fields: [],
+    build: (v) => {
+      const req = readMr(v);
+      const first = req.items.find((i) => i.ticket.trim() || i.title.trim());
+      const subject = first ? `${first.ticket.trim() || first.title.trim()}${req.items.length > 1 ? ` and ${req.items.length - 1} more` : ''}` : 'merge requests';
+      return { subject: `Review and deploy: ${subject}`, body: mrLines(req) };
+    },
   },
   {
     id: 'deploy-confirm',
@@ -166,14 +243,14 @@ export const TEMPLATES: readonly MessageTemplate[] = [
     fields: [
       { key: 'release', label: 'Release / version', placeholder: 'v2.4.0' },
       { key: 'env', label: 'Environment', placeholder: 'production' },
-      { key: 'when', label: 'Date and time', placeholder: 'today, 9:00 PM IST' },
+      { key: 'when', label: 'Date and time', type: 'datetime' },
       { key: 'changes', label: 'Main changes', multiline: true },
       { key: 'impact', label: 'Downtime / impact', placeholder: 'No downtime expected' },
     ],
     build: (v) => ({
       subject: `Deployment notice: ${val(v, 'release', 'new release')} to ${val(v, 'env', 'production')}`,
       body: [
-        `${val(v, 'release', 'The new release')} will be deployed to ${val(v, 'env', 'production')} on ${val(v, 'when', '[date and time]')}.`,
+        `${val(v, 'release', 'The new release')} will be deployed to ${val(v, 'env', 'production')} on ${niceDate(val(v, 'when')) || '[date and time]'}.`,
         '',
         'Changes:',
         ...bullets(val(v, 'changes', '-')),
@@ -191,14 +268,15 @@ export const TEMPLATES: readonly MessageTemplate[] = [
     title: 'Casual leave request',
     channel: 'email',
     fields: [
-      { key: 'dates', label: 'Date(s)', placeholder: '28 Nov 2026' },
+      { key: 'from', label: 'From', type: 'date' },
+      { key: 'to', label: 'To (optional)', type: 'date' },
       { key: 'reason', label: 'Reason (optional)', placeholder: 'a family function' },
       { key: 'cover', label: 'Who covers / handover', placeholder: 'Ravi will handle urgent issues' },
     ],
     build: (v) => ({
-      subject: `Casual leave request - ${val(v, 'dates', '[date]')}`,
+      subject: `Casual leave request - ${dateRange(v, '[date]')}`,
       body: [
-        `I would like to request casual leave on ${val(v, 'dates', '[date]')}${val(v, 'reason') ? ` for ${val(v, 'reason')}` : ''}.`,
+        `I would like to request casual leave ${val(v, 'to') && val(v, 'to') !== val(v, 'from') ? 'from' : 'on'} ${dateRange(v, '[date]')}${val(v, 'reason') ? ` for ${val(v, 'reason')}` : ''}.`,
         `${val(v, 'cover') ? `${val(v, 'cover')}. ` : ''}I will make sure my current tasks are updated before I leave.`,
         '',
         'Kindly approve.',
@@ -211,12 +289,13 @@ export const TEMPLATES: readonly MessageTemplate[] = [
     title: 'Sick leave',
     channel: 'email',
     fields: [
-      { key: 'dates', label: 'Date(s)', placeholder: 'today' },
+      { key: 'from', label: 'From', type: 'date' },
+      { key: 'to', label: 'To (optional)', type: 'date' },
       { key: 'note', label: 'Anything to add (optional)', placeholder: 'I will be reachable on phone for urgent issues' },
     ],
     build: (v) => ({
-      subject: `Sick leave - ${val(v, 'dates', 'today')}`,
-      body: [`I am not feeling well and would like to take sick leave ${/^today|tomorrow$/i.test(val(v, 'dates', 'today')) ? '' : 'on '}${val(v, 'dates', 'today')}.`, `${val(v, 'note', 'I will check messages when I can for anything urgent')}.`, '', 'Thank you for understanding.'],
+      subject: `Sick leave - ${dateRange(v, 'today')}`,
+      body: [`I am not feeling well and would like to take sick leave ${val(v, 'from') ? (val(v, 'to') && val(v, 'to') !== val(v, 'from') ? 'from ' : 'on ') : ''}${dateRange(v, 'today')}.`, `${val(v, 'note', 'I will check messages when I can for anything urgent')}.`, '', 'Thank you for understanding.'],
     }),
   },
   {
@@ -225,13 +304,14 @@ export const TEMPLATES: readonly MessageTemplate[] = [
     title: 'Work from home request',
     channel: 'email',
     fields: [
-      { key: 'dates', label: 'Date(s)', placeholder: 'tomorrow' },
+      { key: 'from', label: 'From', type: 'date' },
+      { key: 'to', label: 'To (optional)', type: 'date' },
       { key: 'reason', label: 'Reason (optional)', placeholder: 'a plumbing repair at home' },
     ],
     build: (v) => ({
-      subject: `Work from home request - ${val(v, 'dates', '[date]')}`,
+      subject: `Work from home request - ${dateRange(v, '[date]')}`,
       body: [
-        `I would like to work from home ${/^today|tomorrow$/i.test(val(v, 'dates', '')) ? '' : 'on '}${val(v, 'dates', '[date]')}${val(v, 'reason') ? ` due to ${val(v, 'reason')}` : ''}.`,
+        `I would like to work from home ${val(v, 'to') && val(v, 'to') !== val(v, 'from') ? 'from' : 'on'} ${dateRange(v, '[date]')}${val(v, 'reason') ? ` due to ${val(v, 'reason')}` : ''}.`,
         'I will be available online during working hours and on calls as usual.',
         '',
         'Kindly approve.',

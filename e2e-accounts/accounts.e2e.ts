@@ -451,7 +451,7 @@ test('message assistant: login prompt, profile, templates, AI writing, history a
 
   await page.getByRole('tab', { name: 'Templates' }).click();
   await page.getByRole('navigation', { name: 'Templates' }).getByRole('button', { name: 'Casual leave request' }).click();
-  await page.getByLabel('Date(s)').fill('28 Nov 2026');
+  await page.getByLabel('From').fill('2026-11-28');
   const draft = page.getByLabel('Template message');
   await expect(draft).toHaveValue(/^Subject: Casual leave request - 28 Nov 2026\n\nHi Meera,/);
   await expect(draft).toHaveValue(/Regards,\nAsha Admin\nBackend Developer$/);
@@ -461,6 +461,43 @@ test('message assistant: login prompt, profile, templates, AI writing, history a
   await expect(page.getByText('Saved to history.')).toBeVisible();
   await page.getByRole('button', { name: 'Polish with AI' }).click();
   await expect(page.getByRole('region', { name: 'Polished message' })).toContainText('[fake AI] Subject: Casual leave request');
+
+  // Tab accepts the grey example text.
+  await page.getByRole('navigation', { name: 'Templates' }).getByRole('button', { name: 'Bug report' }).click();
+  await page.getByLabel('What is wrong').focus();
+  await page.keyboard.press('Tab');
+  await expect(page.getByLabel('What is wrong')).toHaveValue('Refund button does nothing');
+
+  // Merge request builder: tickets and bugs, several MRs each, repository before every link, saved choices.
+  await page.getByRole('navigation', { name: 'Templates' }).getByRole('button', { name: 'MR review, merge and deploy request' }).click();
+  await page.getByRole('combobox', { name: 'To', exact: true }).fill('Ravi');
+  await page.getByLabel('Ticket ID 1').fill('JIRA-210');
+  await page.getByLabel('Title 1').fill('Refund status');
+  await page.getByRole('combobox', { name: 'Backend repository 1.1' }).fill('payments-api');
+  await page.getByLabel('Backend MR URL 1.1').fill('https://git.example.com/p/1');
+  await page.getByRole('button', { name: '+ Add UI MR' }).click();
+  await page.getByRole('combobox', { name: 'UI repository 1.1' }).fill('web-app');
+  await page.getByLabel('UI MR URL 1.1').fill('https://git.example.com/w/2');
+  await page.getByRole('button', { name: '+ Add ticket / bug' }).click();
+  await page.getByLabel('Title 2').fill('Date filter crash');
+  await page.getByLabel('Backend MR URL 2.1').fill('https://git.example.com/p/3');
+  await page.getByRole('combobox', { name: 'Environment' }).fill('UAT');
+  await page.getByLabel('Deployment date').fill('2026-11-28');
+  const mr = page.getByLabel('Template message');
+  await expect(mr).toHaveValue(/^Hi Ravi,/);
+  await expect(mr).toHaveValue(/1\. JIRA-210: Refund status\n   Backend:\n   - \[payments-api\] - https:\/\/git\.example\.com\/p\/1\n   UI:\n   - \[web-app\] - https:\/\/git\.example\.com\/w\/2/);
+  await expect(mr).toHaveValue(/2\. Bug: Date filter crash/);
+  await expect(mr).toHaveValue(/deploy to UAT on 28 Nov 2026\?/);
+  // New names, repositories and environments are remembered.
+  await page.reload();
+  await page.getByRole('tab', { name: 'Templates' }).click();
+  await page.getByRole('navigation', { name: 'Templates' }).getByRole('button', { name: 'MR review, merge and deploy request' }).click();
+  await page.getByRole('combobox', { name: 'Backend repository 1.1' }).fill('pay');
+  await expect(page.getByRole('option', { name: 'payments-api' })).toBeVisible();
+  await page.getByRole('option', { name: 'payments-api' }).click();
+  await expect(page.getByRole('combobox', { name: 'Backend repository 1.1' })).toHaveValue('payments-api');
+  await page.getByRole('combobox', { name: 'To', exact: true }).click();
+  await expect(page.getByRole('option', { name: 'Ravi' })).toBeVisible();
 
   // Notes to a professional message.
   await page.getByRole('tab', { name: 'Write' }).click();
@@ -490,7 +527,7 @@ test('my notes: chat timeline with links, code, images and PDFs; search, filter,
   const feed = page.getByRole('log', { name: 'Notes' });
   await expect(feed).toContainText('No notes yet');
 
-  const box = page.getByLabel('New note');
+  const box = page.getByRole('textbox', { name: 'New note' });
   await box.fill('Staging URL https://staging.example.com, password in vault');
   await box.press('Enter');
   await expect(feed.getByRole('link', { name: 'https://staging.example.com' })).toBeVisible();
@@ -498,6 +535,27 @@ test('my notes: chat timeline with links, code, images and PDFs; search, filter,
   await box.fill('Restart command:\n```bash\nsudo systemctl restart api\n```');
   await page.getByRole('button', { name: 'Send' }).click();
   await expect(feed.locator('pre')).toHaveText('sudo systemctl restart api');
+
+  // Bold text from the toolbar shortcut, and lists that continue on Enter.
+  await box.fill('Deploy is urgent');
+  await box.press('ControlOrMeta+a');
+  await box.press('ControlOrMeta+b');
+  await box.press('End');
+  await page.getByRole('button', { name: 'Send' }).click();
+  await expect(feed.locator('.rich-note b')).toHaveText('Deploy is urgent');
+  await box.pressSequentially('1. Lucky');
+  await box.press('Enter');
+  await expect(box).toHaveText(/1\. Lucky\s*2\. $/);
+  await box.pressSequentially('Ravi');
+  await box.press('Enter');
+  await box.press('Enter');
+  await expect(box).not.toContainText('3.');
+  await box.press('Enter');
+  await expect(feed.getByRole('article').last()).toContainText('1. Lucky');
+  await expect(feed.getByRole('article').last()).toContainText('2. Ravi');
+  // Formatted notes are kept clean: no markup from outside gets through.
+  const evil = await page.request.post('/api/notes', { headers: { 'content-type': 'application/json' }, data: { text: '<img src=x onerror=alert(1)><b>ok</b>', format: 'html' } });
+  expect((await evil.json()).note.text).toBe('&lt;img src=x onerror=alert(1)&gt;<b>ok</b>');
 
   // An image (pasted screenshot style) and a PDF.
   const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==', 'base64');
@@ -528,7 +586,7 @@ test('my notes: chat timeline with links, code, images and PDFs; search, filter,
   await page.getByLabel('Search notes').fill('staging');
   await expect(feed.getByRole('article')).toHaveCount(1);
   await page.getByLabel('Search notes').fill('');
-  await expect(feed.getByRole('article')).toHaveCount(4);
+  await expect(feed.getByRole('article')).toHaveCount(7);
 
   // Edit and delete.
   const first = feed.getByRole('article').first();
@@ -539,10 +597,10 @@ test('my notes: chat timeline with links, code, images and PDFs; search, filter,
   await expect(first).toContainText('edited');
   page.once('dialog', (d) => d.accept());
   await feed.getByRole('article').last().getByRole('button', { name: /^Delete note/ }).click();
-  await expect(feed.getByRole('article')).toHaveCount(3);
+  await expect(feed.getByRole('article')).toHaveCount(6);
   // Notes are still there after a reload.
   await page.reload();
-  await expect(page.getByRole('log', { name: 'Notes' }).getByRole('article')).toHaveCount(3);
+  await expect(page.getByRole('log', { name: 'Notes' }).getByRole('article')).toHaveCount(6);
 });
 
 test('AI JRXML generator: works without login, checks the result and hands it to the previewer', async ({ page }) => {

@@ -73,6 +73,8 @@ const state = '.wrangler/e2e-state';
 // The real config plus a local-only R2 bucket for the notes vault (no Cloudflare account needed).
 const config = JSON.parse(readFileSync('wrangler.jsonc', 'utf8').replace(/^\s*\/\/.*$/gm, ''));
 config.r2_buckets = [{ binding: 'FILES', bucket_name: 'devtools24-files-e2e' }];
+// Tests use a fake AI (AI_FAKE), so no Workers AI binding (it would need a Cloudflare login).
+delete config.ai;
 writeFileSync('wrangler.e2e.json', JSON.stringify(config, null, 2));
 rmSync(state, { recursive: true, force: true });
 execFileSync('npx', ['--yes', 'wrangler@4', 'd1', 'migrations', 'apply', 'devtools24-accounts', '--local', '--persist-to', state, '-c', 'wrangler.e2e.json'], { stdio: 'inherit' });
