@@ -10,6 +10,7 @@ export const TEXT_COLORS = [
   { id: 'green', label: 'Green', hex: '#16a34a' },
   { id: 'blue', label: 'Blue', hex: '#2563eb' },
   { id: 'purple', label: 'Purple', hex: '#9333ea' },
+  { id: 'black', label: 'Black', hex: '#111111' },
 ] as const;
 
 export const HIGHLIGHTS = [
@@ -18,6 +19,7 @@ export const HIGHLIGHTS = [
   { id: 'pink', label: 'Pink', hex: '#f9a8d4' },
   { id: 'blue', label: 'Blue', hex: '#93c5fd' },
   { id: 'orange', label: 'Orange', hex: '#fdba74' },
+  { id: 'white', label: 'White', hex: '#ffffff' },
 ] as const;
 
 const COLOR_IDS = TEXT_COLORS.map((c) => c.id).join('|');

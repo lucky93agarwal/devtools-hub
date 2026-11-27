@@ -360,6 +360,7 @@ dialog.drawer[open] {
 .tc-green { color: #16a34a; }
 .tc-blue { color: #2563eb; }
 .tc-purple { color: #9333ea; }
+.tc-black { color: #111111; }
 .dark .tc-red { color: #f87171; }
 .dark .tc-orange { color: #fb923c; }
 .dark .tc-green { color: #4ade80; }
@@ -370,6 +371,7 @@ mark.hl-green { background: #86efac; color: #111; }
 mark.hl-pink { background: #f9a8d4; color: #111; }
 mark.hl-blue { background: #93c5fd; color: #111; }
 mark.hl-orange { background: #fdba74; color: #111; }
+mark.hl-white { background: #ffffff; color: #111; box-shadow: 0 0 0 1px rgb(0 0 0 / 0.12); }
 mark[class^='hl-'] { border-radius: 0.2em; padding: 0 0.15em; }
 .rich-note a { color: var(--color-brand); text-decoration: underline; word-break: break-all; }
 

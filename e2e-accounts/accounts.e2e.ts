@@ -543,6 +543,17 @@ test('my notes: chat timeline with links, code, images and PDFs; search, filter,
   await box.press('End');
   await page.getByRole('button', { name: 'Send' }).click();
   await expect(feed.locator('.rich-note b')).toHaveText('Deploy is urgent');
+  // Black text and a white highlight from the toolbar.
+  await box.fill('Black and white');
+  await box.press('ControlOrMeta+a');
+  await page.getByRole('button', { name: 'Text colour' }).click();
+  await page.getByRole('menuitem', { name: 'Black text' }).click();
+  await box.press('ControlOrMeta+a');
+  await page.getByRole('button', { name: 'Highlight', exact: true }).click();
+  await page.getByRole('menuitem', { name: 'White highlight' }).click();
+  await page.getByRole('button', { name: 'Send' }).click();
+  await expect(feed.locator('.rich-note mark.hl-white')).toContainText('Black and white');
+  await expect(feed.locator('.rich-note .tc-black')).toContainText('Black and white');
   await box.pressSequentially('1. Lucky');
   await box.press('Enter');
   await expect(box).toHaveText(/1\. Lucky\s*2\. $/);
@@ -586,7 +597,7 @@ test('my notes: chat timeline with links, code, images and PDFs; search, filter,
   await page.getByLabel('Search notes').fill('staging');
   await expect(feed.getByRole('article')).toHaveCount(1);
   await page.getByLabel('Search notes').fill('');
-  await expect(feed.getByRole('article')).toHaveCount(7);
+  await expect(feed.getByRole('article')).toHaveCount(8);
 
   // Edit and delete.
   const first = feed.getByRole('article').first();
@@ -597,10 +608,10 @@ test('my notes: chat timeline with links, code, images and PDFs; search, filter,
   await expect(first).toContainText('edited');
   page.once('dialog', (d) => d.accept());
   await feed.getByRole('article').last().getByRole('button', { name: /^Delete note/ }).click();
-  await expect(feed.getByRole('article')).toHaveCount(6);
+  await expect(feed.getByRole('article')).toHaveCount(7);
   // Notes are still there after a reload.
   await page.reload();
-  await expect(page.getByRole('log', { name: 'Notes' }).getByRole('article')).toHaveCount(6);
+  await expect(page.getByRole('log', { name: 'Notes' }).getByRole('article')).toHaveCount(7);
 });
 
 test('AI JRXML generator: works without login, checks the result and hands it to the previewer', async ({ page }) => {

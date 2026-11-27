@@ -12,6 +12,7 @@ describe('formatted notes', () => {
     expect(tricky).not.toContain('<span style');
     expect(new DOMParser().parseFromString(tricky, 'text/html').querySelectorAll('[onclick],[style]').length).toBe(0);
     expect(sanitizeNoteHtml('<mark class="hl-black">x</mark>')).toContain('&lt;mark');
+    expect(sanitizeNoteHtml('<span class="tc-black">a</span><mark class="hl-white">b</mark>')).toBe('<span class="tc-black">a</span><mark class="hl-white">b</mark>');
     expect(sanitizeNoteHtml('a &lt;b&gt; c &amp; d')).toBe('a &lt;b&gt; c &amp; d');
   });
 
