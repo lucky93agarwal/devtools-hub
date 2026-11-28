@@ -7,9 +7,10 @@ import { AdSlot } from '../../shared/ad-slot/ad-slot';
 import { API_ARTICLES } from './articles-api';
 import { IMAGE_ARTICLES } from './articles-images';
 import { JSON_ARTICLES } from './articles-json';
+import { WORK_ARTICLES } from './articles-work';
 import { Block } from './article';
 
-const ARTICLES = { ...JSON_ARTICLES, ...API_ARTICLES, ...IMAGE_ARTICLES };
+const ARTICLES = { ...JSON_ARTICLES, ...API_ARTICLES, ...IMAGE_ARTICLES, ...WORK_ARTICLES };
 const SCRIPT_ID = 'guide-structured-data';
 
 /** Splits text on backticks so `code` spans can be shown as code. */
@@ -177,7 +178,7 @@ export class GuidePage implements OnDestroy {
       <h1 class="text-[28px] leading-9 sm:text-[40px] sm:leading-12">Developer guides</h1>
       <p class="text-lg leading-8">
         Practical explanations of the formats, protocols and techniques behind the tools on {{ siteName }}: what they are,
-        how they work and the mistakes to avoid.
+        how they work and the mistakes to avoid, from JSON and JWTs to PDFs, JasperReports, cron and work messages.
       </p>
       <div class="mt-8 grid gap-4 sm:grid-cols-2">
         @for (guide of guides; track guide.slug) {

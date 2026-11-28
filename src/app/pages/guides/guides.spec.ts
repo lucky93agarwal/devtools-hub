@@ -3,9 +3,10 @@ import { TOOLS } from '../../core/tools';
 import { API_ARTICLES } from './articles-api';
 import { IMAGE_ARTICLES } from './articles-images';
 import { JSON_ARTICLES } from './articles-json';
+import { WORK_ARTICLES } from './articles-work';
 import { inlineParts } from './guide-page';
 
-const ARTICLES = { ...JSON_ARTICLES, ...API_ARTICLES, ...IMAGE_ARTICLES };
+const ARTICLES = { ...JSON_ARTICLES, ...API_ARTICLES, ...IMAGE_ARTICLES, ...WORK_ARTICLES };
 
 describe('guides', () => {
   it('has a written article for every guide, and every article is listed', () => {

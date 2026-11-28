@@ -111,6 +111,70 @@ export const GUIDES: readonly GuideInfo[] = [
     tools: ['json-to-code'],
     updated: '2026-10-30',
   },
+  {
+    slug: 'compress-pdf-under-1mb',
+    title: 'How to Compress a PDF to Under 1 MB',
+    description:
+      'Shrink a PDF for email and upload limits: when lossless compression is enough, when to redraw pages as JPEG, and which DPI and quality to pick.',
+    tools: ['compress-pdf', 'split-pdf', 'pdf-to-image'],
+    updated: '2026-11-28',
+  },
+  {
+    slug: 'test-file-upload-size-limits',
+    title: 'How to Test File Upload Size Limits with Exact-Size Files',
+    description:
+      'Test "file too large" errors precisely: MB vs MiB, files of exactly 1,048,576 bytes, server and proxy limits, and a checklist for upload features.',
+    tools: ['dummy-pdf-generator', 'merge-pdf', 'compress-pdf'],
+    updated: '2026-11-28',
+  },
+  {
+    slug: 'jasperreports-page-x-of-y-and-blank-pages',
+    title: 'JasperReports: Page X of Y, Totals and Blank Pages',
+    description:
+      'Fix the most common JasperReports layout problems: Page X of Y with evaluationTime, report totals, and why reports print blank or extra pages.',
+    tools: ['jrxml-debugger', 'jrxml-preview', 'jasper-expression-helper'],
+    updated: '2026-11-28',
+  },
+  {
+    slug: 'jasperreports-json-data-source',
+    title: 'Using JSON Data in JasperReports',
+    description:
+      'Feed an API response to a JasperReports template: field declarations, fieldDescription paths, JsonDataSource, subDataSource for item lists and date handling.',
+    tools: ['jrxml-field-mapper', 'jrxml-snippet-builder', 'jrxml-preview'],
+    updated: '2026-11-28',
+  },
+  {
+    slug: 'professional-email-from-hinglish-notes',
+    title: 'Writing Professional Work Messages from Hinglish Notes',
+    description:
+      'Turn quick Hinglish notes into clear, polite work emails and Slack messages: structure, tone, subject lines, and ready examples for common situations.',
+    tools: ['message-assistant'],
+    updated: '2026-11-28',
+  },
+  {
+    slug: 'merge-request-review-and-deploy-message',
+    title: 'How to Ask for MR Review, Merge and Deployment',
+    description:
+      'A clear template for asking reviewers to merge backend and UI merge requests and deploy to QA or UAT, with examples for several tickets and bug fixes.',
+    tools: ['message-assistant'],
+    updated: '2026-11-28',
+  },
+  {
+    slug: 'printable-invoice-html-css',
+    title: 'Designing Printable Invoices in HTML and CSS',
+    description:
+      'Make HTML invoices and reports print cleanly: @page size and margins, page breaks, repeating table headers, fonts and converting the result to PDF.',
+    tools: ['html-to-pdf', 'text-to-pdf', 'merge-pdf'],
+    updated: '2026-11-28',
+  },
+  {
+    slug: 'cron-expressions-explained',
+    title: 'Cron Expressions Explained with Examples',
+    description:
+      'Read and write cron schedules: the five fields, ranges, steps and lists, common examples, time zones, and the differences in Quartz and Spring cron.',
+    tools: ['cron-expression'],
+    updated: '2026-11-28',
+  },
 ];
 
 export const guideFor = (slug: string) => GUIDES.find((g) => g.slug === slug);

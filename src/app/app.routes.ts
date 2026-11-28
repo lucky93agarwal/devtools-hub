@@ -176,7 +176,7 @@ const guideRoutes: Routes = [
     loadComponent: () => import('./pages/guides/guide-page').then((m) => m.GuidesPage),
     data: {
       description:
-        'Practical guides to JSON, YAML, XML, JWTs, CORS, HTTP status codes, API authentication, image formats and app icons.',
+        'Practical guides to JSON, JWTs, CORS, APIs, images, PDFs, JasperReports, cron schedules and clear work messages.',
     },
   },
   ...GUIDES.map((guide) => ({
